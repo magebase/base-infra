@@ -59,6 +59,10 @@ jobs:
           aws sts get-caller-identity
           echo "AWS credentials configured successfully"
 
+      - name: cd
+        id: cd
+        run: cd infra/sso
+
       - name: Terraform Format
         id: fmt
         run: terraform fmt -check
@@ -69,7 +73,7 @@ jobs:
         run: terraform validate -no-color
 
       - name: Terraform Init
-        run: terraform init -input=false
+        run: terraform init -input=false -upgrade
 
       - name: Terraform Plan
         id: plan
