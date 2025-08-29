@@ -337,6 +337,19 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsSESRole
           aws-region: ${{ env.INFRA_REGION }}
 
+      - name: Bootstrap Terraform State Backend
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}/bootstrap
+          echo "🚀 Bootstrapping Terraform state backend..."
+
+          # Initialize bootstrap
+          terraform init -upgrade
+
+          # Apply bootstrap configuration
+          terraform apply -auto-approve -var-file=terraform.tfvars
+
+          echo "✅ Terraform state backend bootstrapped successfully"
+
       - name: Terraform Init
         id: init
         run: |

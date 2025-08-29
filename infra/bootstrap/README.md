@@ -8,7 +8,7 @@ This setup implements a "bootstrapping" approach for Terraform state management,
 
 ## Architecture
 
-- **S3 Bucket**: `magebase-tf-state-us-east-1` - Stores Terraform state files
+- **S3 Bucket**: `magebase-tf-state-ap-southeast-1` - Stores Terraform state files
 - **DynamoDB Table**: `magebase-terraform-locks` - Provides state locking to prevent concurrent modifications
 - **IAM Account Alias**: `magebase` - Friendly account identifier
 
