@@ -10,7 +10,7 @@ on:
       - "lib/**"
       - "Gemfile*"
       - "package.json"
-      - "yarn.lock"
+      - "package-lock.json"
       - "Dockerfile"
       - "docker-compose.yml"
       - "k8s/deployment.yaml"
@@ -24,7 +24,7 @@ on:
       - "lib/**"
       - "Gemfile*"
       - "package.json"
-      - "yarn.lock"
+      - "package-lock.json"
       - "Dockerfile"
       - "docker-compose.yml"
       - "k8s/deployment.yaml"
@@ -92,12 +92,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "18"
-          cache: "yarn"
+          cache: "npm"
 
       - name: Install dependencies
         run: |
           bundle install
-          yarn install
+          npm install
       - name: Set up database
         env:
           RAILS_ENV: test
@@ -120,7 +120,7 @@ jobs:
         run: bundle exec rails test:system
 
       - name: Run JavaScript tests
-        run: yarn test
+        run: npm test
 
   lint:
     name: Code Quality & Linting
@@ -142,23 +142,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "18"
-          cache: "yarn"
+          cache: "npm"
 
       - name: Install dependencies
         run: |
           bundle install
-          yarn install
+          npm install
 
       - name: Run RuboCop
         run: bundle exec rubocop --parallel
 
       - name: Run ESLint
-        run: yarn lint
+        run: npm run lint
 
       - name: Check code formatting
         run: |
           bundle exec rubocop --format offenses
-          yarn format:check
+          npm run format:check
 
   security:
     name: Security Audit & Scan
