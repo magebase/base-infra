@@ -50,12 +50,80 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token != "" ? var.cloudflare_api_token : "dummy_token_for_validation_12345678901234567890"
 }
 
-# AWS Provider (for SES only)
+# AWS Provider (for Route53 operations)
+provider "aws" {
+  alias  = "route53"
+  region = "us-east-1" # Route53 is a global service, but provider needs a region
+  assume_role {
+    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
+  }
+}
+
+# IAM Role for SES Management (created outside module to avoid cycle)
+resource "aws_iam_role" "ses_manager" {
+  count = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? 1 : 0
+
+  provider = aws.route53
+  name     = "SESManagerRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Environment = var.environment
+    Purpose     = "SES Management"
+  }
+}
+
+# IAM Policy for SES Management
+resource "aws_iam_role_policy" "ses_manager_policy" {
+  count = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? 1 : 0
+
+  provider = aws.route53
+  name     = "SESManagerPolicy"
+  role     = aws_iam_role.ses_manager[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ses:*"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:GetChange",
+          "route53:ListHostedZones",
+          "route53:GetHostedZone",
+          "route53:ListResourceRecordSets",
+          "route53:ChangeResourceRecordSets"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# AWS Provider (for SES only) - now uses the role created above
 provider "aws" {
   alias  = "ses"
   region = "ap-southeast-1" # Singapore region for SES
   assume_role {
-    role_arn = length(module.aws_ses) > 0 ? module.aws_ses[0].ses_manager_role_arn : "arn:aws:iam::123456789012:role/DummyRole"
+    role_arn = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? aws_iam_role.ses_manager[0].arn : "arn:aws:iam::123456789012:role/DummyRole"
   }
 }
 
@@ -95,11 +163,14 @@ module "aws_ses" {
 
   source = "./modules/aws-ses"
   providers = {
-    aws = aws.ses
+    aws        = aws.ses
+    aws.route53 = aws.route53
   }
 
-  domain_name = var.domain_name
-  environment = var.environment
+  domain_name          = var.domain_name
+  environment          = var.environment
+  account_id           = var.aws_ses_account_id
+  ses_manager_role_arn = aws_iam_role.ses_manager[0].arn
 }
 
 # MinIO Provider for Hetzner Object Storage (recommended approach)

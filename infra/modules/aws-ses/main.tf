@@ -4,6 +4,7 @@ terraform {
     aws = {
       source  = "hashicorp/aws"
       version = "~> 5.0"
+      configuration_aliases = [aws.route53]
     }
   }
 }
@@ -19,61 +20,15 @@ variable "environment" {
   type        = string
 }
 
-# IAM Role for SES Management
-resource "aws_iam_role" "ses_manager" {
-  name = "SESManagerRole"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/GitHubActionsSSORole"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = {
-    Environment = var.environment
-    Purpose     = "SES Management"
-  }
+variable "account_id" {
+  description = "AWS Account ID where the SES resources will be created"
+  type        = string
 }
 
-# IAM Policy for SES Management
-resource "aws_iam_role_policy" "ses_manager_policy" {
-  name = "SESManagerPolicy"
-  role = aws_iam_role.ses_manager.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "ses:*"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "route53:GetChange",
-          "route53:ListHostedZones",
-          "route53:GetHostedZone",
-          "route53:ListResourceRecordSets",
-          "route53:ChangeResourceRecordSets"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
+variable "ses_manager_role_arn" {
+  description = "ARN of the SES Manager IAM role"
+  type        = string
 }
-
-# Data source for current account
-data "aws_caller_identity" "current" {}
 
 # SES Domain Identity
 resource "aws_ses_domain_identity" "main" {
@@ -93,44 +48,49 @@ resource "aws_ses_domain_mail_from" "main" {
 
 # Route 53 TXT record for domain verification
 resource "aws_route53_record" "ses_verification" {
-  zone_id = data.aws_route53_zone.main.zone_id
-  name    = "_amazonses.${var.domain_name}"
-  type    = "TXT"
-  ttl     = "600"
-  records = [aws_ses_domain_identity.main.verification_token]
+  provider = aws.route53
+  zone_id  = data.aws_route53_zone.main.zone_id
+  name     = "_amazonses.${var.domain_name}"
+  type     = "TXT"
+  ttl      = "600"
+  records  = [aws_ses_domain_identity.main.verification_token]
 }
 
 # Route 53 TXT records for DKIM
 resource "aws_route53_record" "ses_dkim" {
-  count   = 3
-  zone_id = data.aws_route53_zone.main.zone_id
-  name    = "${element(aws_ses_domain_dkim.main.dkim_tokens, count.index)}._domainkey.${var.domain_name}"
-  type    = "TXT"
-  ttl     = "600"
-  records = ["${element(aws_ses_domain_dkim.main.dkim_tokens, count.index)}.dkim.amazonses.com"]
+  provider = aws.route53
+  count    = 3
+  zone_id  = data.aws_route53_zone.main.zone_id
+  name     = "${element(aws_ses_domain_dkim.main.dkim_tokens, count.index)}._domainkey.${var.domain_name}"
+  type     = "TXT"
+  ttl      = "600"
+  records  = ["${element(aws_ses_domain_dkim.main.dkim_tokens, count.index)}.dkim.amazonses.com"]
 }
 
 # Route 53 TXT record for SPF
 resource "aws_route53_record" "ses_spf" {
-  zone_id = data.aws_route53_zone.main.zone_id
-  name    = "mail.${var.domain_name}"
-  type    = "TXT"
-  ttl     = "600"
-  records = ["v=spf1 include:amazonses.com ~all"]
+  provider = aws.route53
+  zone_id  = data.aws_route53_zone.main.zone_id
+  name     = "mail.${var.domain_name}"
+  type     = "TXT"
+  ttl      = "600"
+  records  = ["v=spf1 include:amazonses.com ~all"]
 }
 
 # Route 53 MX record for mail from domain
 resource "aws_route53_record" "ses_mx" {
-  zone_id = data.aws_route53_zone.main.zone_id
-  name    = "mail.${var.domain_name}"
-  type    = "MX"
-  ttl     = "600"
-  records = ["10 feedback-smtp.ap-southeast-1.amazonses.com"]
+  provider = aws.route53
+  zone_id  = data.aws_route53_zone.main.zone_id
+  name     = "mail.${var.domain_name}"
+  type     = "MX"
+  ttl      = "600"
+  records  = ["10 feedback-smtp.ap-southeast-1.amazonses.com"]
 }
 
 # Data source for Route 53 zone (assuming it exists)
 data "aws_route53_zone" "main" {
-  name = var.domain_name
+  provider = aws.route53
+  name     = var.domain_name
 }
 
 # Outputs
@@ -147,5 +107,5 @@ output "mail_from_domain" {
 }
 
 output "ses_manager_role_arn" {
-  value = aws_iam_role.ses_manager.arn
+  value = var.ses_manager_role_arn
 }
