@@ -1,6 +1,16 @@
 # Terraform configuration for Magebase infrastructure using Hetzner + k3s
 terraform {
   required_version = ">= 1.8.0"
+
+  # Backend configuration using S3 bucket created by bootstrap
+  backend "s3" {
+    bucket         = "magebase-tf-state-us-east-1"
+    key            = "magebase/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "magebase-terraform-locks"
+    encrypt        = true
+  }
+
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
