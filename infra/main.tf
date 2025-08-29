@@ -70,7 +70,10 @@ resource "aws_iam_role" "ses_manager" {
       {
         Effect = "Allow"
         Principal = {
-          AWS = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
+          AWS = [
+            "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole",
+            "arn:aws:sts::${var.aws_ses_account_id}:assumed-role/GitHubActionsSSORole/*"
+          ]
         }
         Action = "sts:AssumeRole"
       }
