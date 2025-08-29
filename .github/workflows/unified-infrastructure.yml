@@ -158,7 +158,8 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           cd ${{ env.TF_WORKING_DIR }}
-          terraform plan -no-color -input=false -var-file="dev.tfvars" \
+          terraform plan -no-color -input=false \
+            -var-file="dev.tfvars" \
             -var="hcloud_token=dummy" \
             -var="cloudflare_api_token=dummy" \
             -var="aws_ses_account_id=dummy" \
@@ -236,7 +237,8 @@ jobs:
           echo "🚀 Applying AWS Organizations and SSO configuration..."
 
           # Apply with dummy values for non-AWS variables
-          terraform apply -auto-approve -input=false -var-file="dev.tfvars" \
+          terraform apply -auto-approve -input=false \
+            -var-file="dev.tfvars" \
             -var="hcloud_token=dummy" \
             -var="cloudflare_api_token=dummy" \
             -var="aws_ses_account_id=dummy" \
