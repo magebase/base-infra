@@ -20,6 +20,48 @@ provider "aws" {
 # AWS SSO/IAM Identity Center Configuration
 # This should be deployed to the management account
 
+# Create Development Account
+resource "aws_organizations_account" "development" {
+  name      = "Magebase Development"
+  email     = var.development_email
+  role_name = "OrganizationAccountAccessRole"
+
+  # Optional: Add to specific OU
+  parent_id = aws_organizations_organizational_unit.development.id
+
+  tags = {
+    Environment = "Development"
+    Project     = "Magebase"
+  }
+}
+
+# Create Production Account
+resource "aws_organizations_account" "production" {
+  name      = "Magebase Production"
+  email     = var.production_email
+  role_name = "OrganizationAccountAccessRole"
+
+  # Optional: Add to specific OU
+  parent_id = aws_organizations_organizational_unit.production.id
+
+  tags = {
+    Environment = "Production"
+    Project     = "Magebase"
+  }
+}
+
+# Create Organizational Units
+resource "aws_organizations_organizational_unit" "development" {
+  name      = "Development"
+  parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+resource "aws_organizations_organizational_unit" "production" {
+  name      = "Production"
+  parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+# Reference existing organization (don't create if it exists)
 data "aws_organizations_organization" "main" {}
 
 locals {

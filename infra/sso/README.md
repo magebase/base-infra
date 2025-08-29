@@ -7,11 +7,13 @@ This directory contains Terraform configuration for **integrated AWS Organizatio
 ### What This Setup Does
 
 1. **AWS Organizations** (`../organizations/`):
+
    - Creates Development and Production AWS accounts
    - Sets up Organizational Units (OUs)
    - Generates unique 12-digit account IDs
 
 2. **AWS SSO/IAM Identity Center** (this directory):
+
    - Enables SSO in the management account
    - Creates permission sets and user groups
    - Assigns permissions to the created accounts
