@@ -61,7 +61,7 @@ jobs:
 
       - name: cd
         id: cd
-        run: cd infra/sso
+        run: cd infra
 
       - name: Terraform Format
         id: fmt
