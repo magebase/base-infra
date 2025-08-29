@@ -222,11 +222,11 @@ module "kube-hetzner" {
       server_type = "cx32",
       location    = "sin",
       # Fully optional, just a demo.
-      labels      = [
+      labels = [
         "node.kubernetes.io/server-usage=storage"
       ],
-      taints      = [],
-      count       = 1
+      taints = [],
+      count  = 1
 
       # In the case of using Longhorn, you can use Hetzner volumes instead of using the node's own storage by specifying a value from 10 to 10240 (in GB)
       # It will create one volume per node in the nodepool, and configure Longhorn to use them.
@@ -276,7 +276,7 @@ module "kube-hetzner" {
       taints      = [],
       nodes = {
         "1" : {
-          location                  = "sin"
+          location = "sin"
           labels = [
             "testing-labels=a1",
           ]

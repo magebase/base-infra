@@ -244,8 +244,8 @@ locals {
   managed_policy_attachments = local.sso_enabled ? flatten([
     for ps_name, ps_config in local.permission_sets : [
       for policy_arn in ps_config.managed_policies : {
-        key = "${ps_name}-${basename(policy_arn)}"
-        ps_name = ps_name
+        key        = "${ps_name}-${basename(policy_arn)}"
+        ps_name    = ps_name
         policy_arn = policy_arn
       }
     ]
@@ -255,12 +255,12 @@ locals {
   account_assignments_list = local.sso_enabled ? flatten([
     for account_key, account_config in local.account_assignments : [
       for assignment in account_config.assignments : {
-        key = "${account_key}-${assignment.permission_set}-${assignment.principal_type}-${assignment.principal_name}"
-        account_id = account_config.account_id
-        ps_name = assignment.permission_set
+        key            = "${account_key}-${assignment.permission_set}-${assignment.principal_type}-${assignment.principal_name}"
+        account_id     = account_config.account_id
+        ps_name        = assignment.permission_set
         principal_type = assignment.principal_type
         principal_name = assignment.principal_name
-        is_user = assignment.principal_type == "USER"
+        is_user        = assignment.principal_type == "USER"
       }
       # Only include GROUP assignments for now (users need to be created in AWS SSO first)
       if assignment.principal_type == "GROUP"
@@ -276,8 +276,8 @@ data "aws_ssoadmin_instances" "main" {}
 
 # Check if SSO is enabled
 locals {
-  sso_enabled = length(data.aws_ssoadmin_instances.main.arns) > 0
-  sso_instance_arn = local.sso_enabled ? tolist(data.aws_ssoadmin_instances.main.arns)[0] : null
+  sso_enabled       = length(data.aws_ssoadmin_instances.main.arns) > 0
+  sso_instance_arn  = local.sso_enabled ? tolist(data.aws_ssoadmin_instances.main.arns)[0] : null
   identity_store_id = local.sso_enabled ? tolist(data.aws_ssoadmin_instances.main.identity_store_ids)[0] : null
 }
 
@@ -289,8 +289,8 @@ resource "aws_ssoadmin_permission_set" "main" {
     if local.sso_enabled
   }
 
-  name        = each.value.name
-  description = each.value.description
+  name         = each.value.name
+  description  = each.value.description
   instance_arn = local.sso_instance_arn
 
   tags = {
@@ -333,8 +333,8 @@ resource "aws_identitystore_group" "main" {
     if local.sso_enabled
   }
 
-  display_name = each.value.display_name
-  description  = each.value.description
+  display_name      = each.value.display_name
+  description       = each.value.description
   identity_store_id = local.identity_store_id
 }
 
@@ -348,15 +348,15 @@ resource "aws_ssoadmin_account_assignment" "main" {
   instance_arn       = local.sso_instance_arn
   permission_set_arn = aws_ssoadmin_permission_set.main[each.value.ps_name].arn
   principal_type     = each.value.principal_type
-  principal_id       = each.value.is_user ? (
+  principal_id = each.value.is_user ? (
     # For users, we'll need to create them separately or use existing ones
     # For now, this will need manual user creation in AWS SSO console
     "USER_ID_PLACEHOLDER_${each.value.principal_name}"
-  ) : (
+    ) : (
     aws_identitystore_group.main[each.value.principal_name].group_id
   )
-  target_id          = each.value.account_id
-  target_type        = "AWS_ACCOUNT"
+  target_id   = each.value.account_id
+  target_type = "AWS_ACCOUNT"
 
   # Add dependency on groups being created first
   depends_on = [aws_identitystore_group.main]
@@ -403,10 +403,10 @@ output "account_assignments" {
   value = local.sso_enabled ? {
     for k, v in aws_ssoadmin_account_assignment.main :
     k => {
-      account_id        = v.target_id
-      permission_set    = split("-", k)[1]
-      principal_type    = v.principal_type
-      principal_name    = split("-", k)[3]
+      account_id     = v.target_id
+      permission_set = split("-", k)[1]
+      principal_type = v.principal_type
+      principal_name = split("-", k)[3]
     }
   } : {}
 }

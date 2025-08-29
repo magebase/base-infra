@@ -37,8 +37,8 @@ resource "cloudflare_page_rule" "active_storage_cdn" {
   target  = "cdn.${var.domain_name}/*"
 
   actions {
-    cache_level = "cache_everything"
-    edge_cache_ttl = 86400  # 24 hours
+    cache_level       = "cache_everything"
+    edge_cache_ttl    = 86400 # 24 hours
     browser_cache_ttl = 7200  # 2 hours
     cache_key_fields {
       cookie {
@@ -55,8 +55,8 @@ resource "cloudflare_page_rule" "active_storage_cdn" {
       }
       user {
         device_type = false
-        geo = false
-        lang = false
+        geo         = false
+        lang        = false
       }
     }
   }
@@ -66,30 +66,30 @@ resource "cloudflare_page_rule" "active_storage_cdn" {
 
 # Rate limiting for Active Storage using Ruleset (replaces deprecated rate_limit)
 resource "cloudflare_ruleset" "active_storage_rate_limiting" {
-  zone_id = var.zone_id
-  name    = "Active Storage Rate Limiting"
+  zone_id     = var.zone_id
+  name        = "Active Storage Rate Limiting"
   description = "Rate limiting rules for Active Storage files"
-  kind    = "zone"
-  phase   = "http_ratelimit"
+  kind        = "zone"
+  phase       = "http_ratelimit"
 
   rules {
     action = "block"
     action_parameters {
       response {
-        status_code = 429
+        status_code  = 429
         content_type = "text/plain"
-        content = "Rate limit exceeded"
+        content      = "Rate limit exceeded"
       }
     }
 
-    expression = "(http.request.uri.path matches \"^/cdn/.*\")"
+    expression  = "(http.request.uri.path matches \"^/cdn/.*\")"
     description = "Rate limit CDN requests to 1000 per minute"
 
     ratelimit {
-      characteristics = ["cf.colo.id", "ip.src"]
-      period = 60
+      characteristics     = ["cf.colo.id", "ip.src"]
+      period              = 60
       requests_per_period = 1000
-      mitigation_timeout = 60
+      mitigation_timeout  = 60
     }
 
     enabled = true
@@ -98,6 +98,6 @@ resource "cloudflare_ruleset" "active_storage_rate_limiting" {
 
 # Outputs
 output "active_storage_cdn_url" {
-  value = "https://cdn.${var.domain_name}"
+  value       = "https://cdn.${var.domain_name}"
   description = "CDN URL for Active Storage files"
 }

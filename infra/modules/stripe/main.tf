@@ -29,7 +29,7 @@ resource "stripe_customer_portal" "main" {
     }
 
     subscription_cancel {
-      enabled         = true
+      enabled = true
       cancellation_reason {
         enabled = true
         options = ["too_expensive", "missing_features", "switched_service", "unused", "other"]
@@ -89,10 +89,10 @@ resource "stripe_product" "consultation" {
 
 # Stripe Prices
 resource "stripe_price" "web_development_hourly" {
-  currency     = "usd"
-  product      = stripe_product.web_development.id
-  unit_amount  = 15000  # $150.00 per hour
-  active       = true
+  currency       = "usd"
+  product        = stripe_product.web_development.id
+  unit_amount    = 15000 # $150.00 per hour
+  active         = true
   billing_scheme = "per_unit"
 
   metadata = {
@@ -101,10 +101,10 @@ resource "stripe_price" "web_development_hourly" {
 }
 
 resource "stripe_price" "web_development_fixed" {
-  currency     = "usd"
-  product      = stripe_product.web_development.id
-  unit_amount  = 500000  # $5,000.00 fixed price
-  active       = true
+  currency       = "usd"
+  product        = stripe_product.web_development.id
+  unit_amount    = 500000 # $5,000.00 fixed price
+  active         = true
   billing_scheme = "per_unit"
 
   metadata = {
@@ -113,11 +113,11 @@ resource "stripe_price" "web_development_fixed" {
 }
 
 resource "stripe_price" "maintenance_monthly" {
-  currency         = "usd"
-  product          = stripe_product.maintenance.id
-  unit_amount      = 50000  # $500.00 per month
-  active           = true
-  billing_scheme   = "per_unit"
+  currency       = "usd"
+  product        = stripe_product.maintenance.id
+  unit_amount    = 50000 # $500.00 per month
+  active         = true
+  billing_scheme = "per_unit"
   recurring {
     interval       = "month"
     interval_count = 1
@@ -129,10 +129,10 @@ resource "stripe_price" "maintenance_monthly" {
 }
 
 resource "stripe_price" "consultation_fixed" {
-  currency     = "usd"
-  product      = stripe_product.consultation.id
-  unit_amount  = 250000  # $2,500.00 fixed price
-  active       = true
+  currency       = "usd"
+  product        = stripe_product.consultation.id
+  unit_amount    = 250000 # $2,500.00 fixed price
+  active         = true
   billing_scheme = "per_unit"
 
   metadata = {
@@ -143,7 +143,7 @@ resource "stripe_price" "consultation_fixed" {
 # Stripe Tax Rates
 resource "stripe_tax_rate" "us_sales_tax" {
   display_name = "US Sales Tax"
-  percentage   = 8.25  # Example rate, should be configured per state
+  percentage   = 8.25 # Example rate, should be configured per state
   inclusive    = false
   active       = true
 
@@ -155,7 +155,7 @@ resource "stripe_tax_rate" "us_sales_tax" {
 
 resource "stripe_tax_rate" "international_vat" {
   display_name = "International VAT"
-  percentage   = 20.0  # Standard EU VAT rate
+  percentage   = 20.0 # Standard EU VAT rate
   inclusive    = false
   active       = true
 
@@ -167,7 +167,7 @@ resource "stripe_tax_rate" "international_vat" {
 
 # Stripe Webhook Endpoints
 resource "stripe_webhook_endpoint" "invoice_events" {
-  url            = "https://${var.domain_name}/api/webhooks/stripe"
+  url = "https://${var.domain_name}/api/webhooks/stripe"
   enabled_events = [
     "invoice.created",
     "invoice.finalized",
@@ -189,11 +189,11 @@ resource "stripe_webhook_endpoint" "invoice_events" {
 
 # Stripe Coupon for Retainer Discounts
 resource "stripe_coupon" "retainer_discount" {
-  name                 = "Retainer Client Discount"
-  percent_off          = 10
-  duration             = "forever"
-  max_redemptions      = 100
-  redeem_by            = 1735689600  # January 1, 2025
+  name            = "Retainer Client Discount"
+  percent_off     = 10
+  duration        = "forever"
+  max_redemptions = 100
+  redeem_by       = 1735689600 # January 1, 2025
 
   metadata = {
     type        = "retainer"

@@ -20,6 +20,6 @@ resource "minio_s3_bucket_versioning" "active_storage" {
 }
 
 output "hetzner_active_storage_bucket" {
-  value = minio_s3_bucket.active_storage.bucket
+  value       = minio_s3_bucket.active_storage.bucket
   description = "Hetzner Object Storage bucket for Rails Active Storage (MinIO provider)"
 }

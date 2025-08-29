@@ -77,9 +77,9 @@ resource "cloudflare_page_rule" "root_cache" {
   target  = "${var.domain_name}/*"
 
   actions {
-    cache_level = "aggressive"
-    edge_cache_ttl = 3600  # 1 hour
-    browser_cache_ttl = 1800  # 30 minutes
+    cache_level       = "aggressive"
+    edge_cache_ttl    = 3600 # 1 hour
+    browser_cache_ttl = 1800 # 30 minutes
     cache_key_fields {
       cookie {
         check_presence = ["session", "user", "_magebase_session"]
@@ -95,8 +95,8 @@ resource "cloudflare_page_rule" "root_cache" {
       }
       user {
         device_type = false
-        geo = false
-        lang = false
+        geo         = false
+        lang        = false
       }
     }
   }
@@ -110,7 +110,7 @@ resource "cloudflare_page_rule" "api_no_cache" {
   target  = "${var.domain_name}/api/*"
 
   actions {
-    cache_level = "bypass"
+    cache_level      = "bypass"
     disable_security = false
   }
 
@@ -123,16 +123,16 @@ resource "cloudflare_page_rule" "cdn_subdomain_cache" {
   target  = "cdn.${var.domain_name}/*"
 
   actions {
-    cache_level = "cache_everything"
-    edge_cache_ttl = 86400  # 24 hours
+    cache_level       = "cache_everything"
+    edge_cache_ttl    = 86400 # 24 hours
     browser_cache_ttl = 7200  # 2 hours
     # Additional CDN optimizations
     minify {
-      css = "on"
+      css  = "on"
       html = "on"
-      js = "on"
+      js   = "on"
     }
-    mirage = "on"  # Enable Mirage for better mobile performance
+    mirage = "on" # Enable Mirage for better mobile performance
   }
 
   priority = 3
@@ -140,30 +140,30 @@ resource "cloudflare_page_rule" "cdn_subdomain_cache" {
 
 # Rate limiting for the main application using Ruleset (replaces deprecated rate_limit)
 resource "cloudflare_ruleset" "rate_limiting" {
-  zone_id = data.cloudflare_zone.main.id
-  name    = "Rate Limiting Rules"
+  zone_id     = data.cloudflare_zone.main.id
+  name        = "Rate Limiting Rules"
   description = "Rate limiting rules for the main application"
-  kind    = "zone"
-  phase   = "http_ratelimit"
+  kind        = "zone"
+  phase       = "http_ratelimit"
 
   rules {
     action = "block"
     action_parameters {
       response {
-        status_code = 429
+        status_code  = 429
         content_type = "text/plain"
-        content = "Rate limit exceeded. Please try again later."
+        content      = "Rate limit exceeded. Please try again later."
       }
     }
 
-    expression = "(http.request.uri.path matches \"^/.*\")"
+    expression  = "(http.request.uri.path matches \"^/.*\")"
     description = "Rate limit all requests to 1000 per minute"
 
     ratelimit {
-      characteristics = ["cf.colo.id", "ip.src"]
-      period = 60
+      characteristics     = ["cf.colo.id", "ip.src"]
+      period              = 60
       requests_per_period = 1000
-      mitigation_timeout = 60
+      mitigation_timeout  = 60
     }
 
     enabled = true
@@ -172,57 +172,57 @@ resource "cloudflare_ruleset" "rate_limiting" {
 
 # WAF Rules using Ruleset (replaces deprecated firewall_rule)
 resource "cloudflare_ruleset" "waf_custom_rules" {
-  zone_id = data.cloudflare_zone.main.id
-  name    = "WAF Custom Rules"
+  zone_id     = data.cloudflare_zone.main.id
+  name        = "WAF Custom Rules"
   description = "Custom WAF rules for security"
-  kind    = "zone"
-  phase   = "http_request_firewall_custom"
+  kind        = "zone"
+  phase       = "http_request_firewall_custom"
 
   rules {
     action = "block"
     action_parameters {
       response {
-        status_code = 403
+        status_code  = 403
         content_type = "text/plain"
-        content = "Access denied"
+        content      = "Access denied"
       }
     }
 
-    expression = "(http.user_agent contains \"badbot\" or http.user_agent contains \"scanner\" or http.user_agent contains \"crawler\")"
+    expression  = "(http.user_agent contains \"badbot\" or http.user_agent contains \"scanner\" or http.user_agent contains \"crawler\")"
     description = "Block common bad bots"
-    enabled = true
+    enabled     = true
   }
 }
 
 # Cache Ruleset for CDN subdomain optimization
 resource "cloudflare_ruleset" "cdn_cache_optimization" {
-  zone_id = data.cloudflare_zone.main.id
-  name    = "CDN Cache Optimization"
+  zone_id     = data.cloudflare_zone.main.id
+  name        = "CDN Cache Optimization"
   description = "Enhanced caching rules for CDN subdomain"
-  kind    = "zone"
-  phase   = "http_request_cache_settings"
+  kind        = "zone"
+  phase       = "http_request_cache_settings"
 
   rules {
     action = "set_cache_settings"
     action_parameters {
       cache = true
       edge_ttl {
-        mode = "override_origin"
-        default = 86400  # 24 hours
+        mode    = "override_origin"
+        default = 86400 # 24 hours
       }
       browser_ttl {
-        mode = "override_origin"
-        default = 7200  # 2 hours
+        mode    = "override_origin"
+        default = 7200 # 2 hours
       }
       cache_key {
         ignore_query_strings_order = true
-        cache_deception_armor = true
+        cache_deception_armor      = true
       }
     }
 
-    expression = "(http.host contains \"cdn.${var.domain_name}\")"
+    expression  = "(http.host contains \"cdn.${var.domain_name}\")"
     description = "Optimize caching for CDN subdomain"
-    enabled = true
+    enabled     = true
   }
 }
 
@@ -231,14 +231,14 @@ resource "cloudflare_zone_settings_override" "main" {
   zone_id = data.cloudflare_zone.main.id
 
   settings {
-    ssl = "strict"
-    always_use_https = "on"
-    min_tls_version = "1.2"
+    ssl                      = "strict"
+    always_use_https         = "on"
+    min_tls_version          = "1.2"
     opportunistic_encryption = "on"
     automatic_https_rewrites = "on"
-    http2 = "on"
-    http3 = "on"
-    brotli = "on"
+    http2                    = "on"
+    http3                    = "on"
+    brotli                   = "on"
   }
 }
 

@@ -28,7 +28,7 @@ module "organizations" {
 
   development_email = var.development_email
   production_email  = var.production_email
-  region           = "us-east-1"  # Organizations must be in us-east-1
+  region            = "us-east-1" # Organizations must be in us-east-1
 }
 
 # AWS SSO Configuration (depends on organizations module)
@@ -37,7 +37,7 @@ module "sso" {
 
   development_account_id = module.organizations.development_account_id
   production_account_id  = module.organizations.production_account_id
-  region                = "ap-southeast-1"  # SSO region
+  region                 = "ap-southeast-1" # SSO region
 }
 
 # Hetzner Cloud Provider
@@ -53,7 +53,7 @@ provider "cloudflare" {
 # AWS Provider (for SES only)
 provider "aws" {
   alias  = "ses"
-  region = "ap-southeast-1"  # Singapore region for SES
+  region = "ap-southeast-1" # Singapore region for SES
   assume_role {
     role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/SESManagerRole"
   }
@@ -61,16 +61,16 @@ provider "aws" {
 
 # Local values
 locals {
-  cluster_name = "${var.environment}-magebase"
-  singapore_locations = ["sin"]  # Singapore location
-  location     = "sin"  # Singapore for all environments
+  cluster_name        = "${var.environment}-magebase"
+  singapore_locations = ["sin"] # Singapore location
+  location            = "sin"   # Singapore for all environments
 }
 
 # Cloudflare DNS Configuration
 module "cloudflare_dns" {
   source = "./modules/cloudflare"
 
-  domain_name = var.domain_name
+  domain_name  = var.domain_name
   cluster_ipv4 = module.kube-hetzner.ingress_public_ipv4
   cluster_ipv6 = module.kube-hetzner.ingress_public_ipv6
 }
@@ -79,10 +79,10 @@ module "cloudflare_dns" {
 module "cloudflare_cdn" {
   source = "./modules/cloudflare/cdn"
 
-  domain_name = var.domain_name
-  active_storage_bucket = module.hetzner_object_storage.hetzner_active_storage_bucket
+  domain_name             = var.domain_name
+  active_storage_bucket   = module.hetzner_object_storage.hetzner_active_storage_bucket
   object_storage_endpoint = module.hetzner_object_storage.hetzner_object_storage_endpoint
-  zone_id = module.cloudflare_dns.zone_id
+  zone_id                 = module.cloudflare_dns.zone_id
 }
 
 # AWS SES Configuration (kept from old infrastructure)
@@ -98,18 +98,18 @@ module "aws_ses" {
 
 # MinIO Provider for Hetzner Object Storage (recommended approach)
 provider "minio" {
-  alias         = "hetzner"
-  minio_server = "sin.${var.domain_name}"
-  minio_user    = var.hetzner_object_storage_access_key
+  alias          = "hetzner"
+  minio_server   = "sin.${var.domain_name}"
+  minio_user     = var.hetzner_object_storage_access_key
   minio_password = var.hetzner_object_storage_secret_key
-  minio_region  = "sin"
-  minio_ssl     = true
+  minio_region   = "sin"
+  minio_ssl      = true
 }
 
 # AWS Provider for Hetzner Object Storage (S3-compatible)
 provider "aws" {
-  alias  = "hetzner-object-storage"
-  region = "us-east-1"  # Hetzner Object Storage doesn't use regions, but AWS provider requires one
+  alias                       = "hetzner-object-storage"
+  region                      = "us-east-1" # Hetzner Object Storage doesn't use regions, but AWS provider requires one
   skip_credentials_validation = true
   skip_requesting_account_id  = true
   skip_metadata_api_check     = true
@@ -128,29 +128,29 @@ module "hetzner_object_storage" {
     aws   = aws.hetzner-object-storage
   }
 
-  cluster_name = local.cluster_name
-  domain_name  = var.domain_name
+  cluster_name                      = local.cluster_name
+  domain_name                       = var.domain_name
   hetzner_object_storage_access_key = var.hetzner_object_storage_access_key
   hetzner_object_storage_secret_key = var.hetzner_object_storage_secret_key
 }
 
 output "hetzner_object_storage_bucket" {
-  value = module.hetzner_object_storage.hetzner_object_storage_bucket
+  value       = module.hetzner_object_storage.hetzner_object_storage_bucket
   description = "Hetzner Object Storage bucket for PostgreSQL backups (MinIO provider)"
 }
 
 output "hetzner_object_storage_bucket_fallback" {
-  value = module.hetzner_object_storage.hetzner_object_storage_bucket_fallback
+  value       = module.hetzner_object_storage.hetzner_object_storage_bucket_fallback
   description = "Hetzner Object Storage bucket for PostgreSQL backups (AWS provider fallback)"
 }
 
 output "hetzner_object_storage_endpoint" {
-  value = module.hetzner_object_storage.hetzner_object_storage_endpoint
+  value       = module.hetzner_object_storage.hetzner_object_storage_endpoint
   description = "Hetzner Object Storage endpoint URL"
 }
 
 output "active_storage_cdn_url" {
-  value = module.cloudflare_cdn.active_storage_cdn_url
+  value       = module.cloudflare_cdn.active_storage_cdn_url
   description = "Cloudflare CDN URL for Active Storage files"
 }
 

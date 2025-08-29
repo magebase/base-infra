@@ -10,7 +10,7 @@ terraform {
 
 # Management Account Provider
 provider "aws" {
-  region = var.region  # Organizations must be in us-east-1
+  region = var.region # Organizations must be in us-east-1
 }
 
 # Create Development Account

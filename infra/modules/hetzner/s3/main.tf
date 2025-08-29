@@ -16,7 +16,7 @@ terraform {
 }
 
 locals {
-  cluster_name = var.cluster_name
+  cluster_name            = var.cluster_name
   object_storage_endpoint = "https://sin.${var.domain_name}"
 }
 
@@ -43,7 +43,7 @@ resource "minio_s3_bucket_versioning" "postgres_backups" {
 
 # Fallback: AWS provider configuration for Hetzner Object Storage
 resource "aws_s3_bucket" "postgres_backups" {
-  bucket   = "${local.cluster_name}-postgres-backups-fallback"
+  bucket = "${local.cluster_name}-postgres-backups-fallback"
 
   lifecycle {
     prevent_destroy = true
@@ -51,16 +51,16 @@ resource "aws_s3_bucket" "postgres_backups" {
 }
 
 output "hetzner_object_storage_bucket" {
-  value = minio_s3_bucket.postgres_backups.bucket
+  value       = minio_s3_bucket.postgres_backups.bucket
   description = "Hetzner Object Storage bucket for PostgreSQL backups (MinIO provider)"
 }
 
 output "hetzner_object_storage_bucket_fallback" {
-  value = aws_s3_bucket.postgres_backups.bucket
+  value       = aws_s3_bucket.postgres_backups.bucket
   description = "Hetzner Object Storage bucket for PostgreSQL backups (AWS provider fallback)"
 }
 
 output "hetzner_object_storage_endpoint" {
-  value = local.object_storage_endpoint
+  value       = local.object_storage_endpoint
   description = "Hetzner Object Storage endpoint URL"
 }
