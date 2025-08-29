@@ -1,0 +1,589 @@
+name: Unified Infrastructure & SSO Pipeline
+
+# This pipeline manages the complete infrastructure deployment with proper dependency ordering:
+# 1. AWS Organizations & SSO (creates accounts and SSO configuration)
+# 2. Infrastructure Deployment (Hetzner k3s, Cloudflare, etc.)
+# 3. Validation & Testing
+# 4. Security Scanning
+#
+# What it does:
+# 1. Creates AWS Organization accounts (Development & Production)
+# 2. Sets up AWS SSO with permission sets and user groups
+# 3. Deploys Hetzner k3s infrastructure
+# 4. Configures Cloudflare DNS and CDN
+# 5. Validates and tests the complete setup
+# 6. Performs security scanning
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "terraform/**"
+      - "k8s/**"
+      - ".github/workflows/unified-infrastructure.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "terraform/**"
+      - "k8s/**"
+      - ".github/workflows/unified-infrastructure.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy infrastructure to"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - qa
+          - uat
+          - prod
+      action:
+        description: "Action to perform"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      skip_sso:
+        description: "Skip AWS SSO setup (for faster deployments when SSO is already configured)"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  TF_VERSION: "1.8.0"
+  TF_WORKING_DIR: infra
+  AWS_REGION: us-east-1 # Organizations must be in us-east-1
+  SSO_REGION: ap-southeast-1
+  INFRA_REGION: ap-southeast-1
+
+jobs:
+  # ===== AWS ORGANIZATIONS & SSO SETUP (MUST RUN FIRST) =====
+  sso-setup:
+    name: "AWS Organizations & SSO Setup"
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    # Skip SSO setup if explicitly requested
+    if: github.event.inputs.skip_sso != true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Validate Variables
+        run: |
+          if [ -z "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
+            echo "❌ Error: MANAGEMENT_ACCOUNT_ID variable is not set"
+            echo "📋 Please set the MANAGEMENT_ACCOUNT_ID variable in your repository settings"
+            echo "📖 See infra/sso/AWS_SETUP_GUIDE.md for detailed setup instructions"
+            exit 1
+          fi
+          echo "✅ MANAGEMENT_ACCOUNT_ID variable is configured"
+          echo "🔍 Account ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSSORole
+          aws-region: ${{ env.AWS_REGION }}
+        timeout-minutes: 5
+
+      - name: Configure AWS Credentials for SSO Region
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSSORole
+          aws-region: ${{ env.SSO_REGION }}
+          role-session-name: SSOConfig
+        timeout-minutes: 5
+
+      - name: Validate AWS Credentials
+        run: |
+          echo "Validating AWS credentials..."
+          aws sts get-caller-identity
+          echo "AWS credentials configured successfully"
+
+      - name: Validate Account Creation Prerequisites
+        run: |
+          echo "🔍 Validating prerequisites for AWS account creation..."
+
+          # Check if organization already exists
+          if aws organizations describe-organization >/dev/null 2>&1; then
+            echo "✅ AWS Organization already exists"
+            aws organizations describe-organization | jq '.Organization.Id'
+          else
+            echo "ℹ️  AWS Organization will be created"
+          fi
+
+          # Check if SSO is already enabled
+          if aws sso-admin list-instances >/dev/null 2>&1; then
+            echo "✅ AWS SSO is already enabled"
+          else
+            echo "ℹ️  AWS SSO will be enabled during deployment"
+          fi
+
+      - name: Terraform Format
+        id: fmt
+        run: terraform fmt -check -recursive
+        continue-on-error: true
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Init
+        run: terraform init -input=false -upgrade
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Plan
+        id: plan
+        if: github.event_name == 'pull_request'
+        run: |
+          terraform plan -no-color -input=false -var-file="dev.tfvars" \
+            -var="hcloud_token=dummy" \
+            -var="cloudflare_api_token=dummy" \
+            -var="aws_ses_account_id=dummy" \
+            -var="database_url=dummy" \
+            -var="cache_database_url=dummy" \
+            -var="secret_key_base=dummy" \
+            -var="ruby_llm_api_key=dummy" \
+            -var="aws_ses_access_key_id=dummy" \
+            -var="aws_ses_secret_access_key=dummy" \
+            -var="hetzner_object_storage_access_key=dummy" \
+            -var="hetzner_object_storage_secret_key=dummy" \
+            -var="stripe_api_key=dummy" \
+            -var="stripe_webhook_secret=dummy"
+        continue-on-error: true
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Update Pull Request
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### AWS Organizations & SSO Setup 🏗️
+            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Validate Terraform Plan
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "🔍 Validating Terraform plan for account creation and SSO assignments..."
+
+          # Check if plan contains expected resources
+          if echo "${{ steps.plan.outputs.stdout }}" | grep -q "aws_organizations_account"; then
+            echo "✅ Plan contains AWS account creation"
+          else
+            echo "⚠️  No AWS account creation found in plan"
+          fi
+
+          if echo "${{ steps.plan.outputs.stdout }}" | grep -q "aws_ssoadmin_account_assignment"; then
+            echo "✅ Plan contains SSO account assignments"
+          else
+            echo "⚠️  No SSO account assignments found in plan"
+          fi
+
+          # Check for empty account IDs (the original error)
+          if echo "${{ steps.plan.outputs.stdout }}" | grep -q 'target_id.*""'; then
+            echo "❌ ERROR: Found empty account IDs in plan - this will cause SSO assignment failures"
+            exit 1
+          else
+            echo "✅ No empty account IDs found in plan"
+          fi
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "🚀 Applying AWS Organizations and SSO configuration..."
+
+          # Apply with dummy values for non-AWS variables
+          terraform apply -auto-approve -input=false -var-file="dev.tfvars" \
+            -var="hcloud_token=dummy" \
+            -var="cloudflare_api_token=dummy" \
+            -var="aws_ses_account_id=dummy" \
+            -var="database_url=dummy" \
+            -var="cache_database_url=dummy" \
+            -var="secret_key_base=dummy" \
+            -var="ruby_llm_api_key=dummy" \
+            -var="aws_ses_access_key_id=dummy" \
+            -var="aws_ses_secret_access_key=dummy" \
+            -var="hetzner_object_storage_access_key=dummy" \
+            -var="hetzner_object_storage_secret_key=dummy" \
+            -var="stripe_api_key=dummy" \
+            -var="stripe_webhook_secret=dummy"
+
+          echo "✅ AWS Organizations and SSO configuration applied successfully"
+
+          # Show the created account IDs
+          echo "📋 Created AWS Account IDs:"
+          terraform output -json | jq '.development_account_id.value, .production_account_id.value'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Verify SSO Configuration
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          echo "🔍 Verifying SSO configuration..."
+
+          # Check if SSO instances exist
+          if aws sso-admin list-instances --region ${{ env.SSO_REGION }} >/dev/null 2>&1; then
+            echo "✅ AWS SSO is properly configured"
+            aws sso-admin list-instances --region ${{ env.SSO_REGION }} | jq '.Instances[] | {InstanceArn, IdentityStoreId}'
+          else
+            echo "⚠️  AWS SSO configuration may be incomplete"
+          fi
+
+          # Check account assignments for development account
+          echo "📋 SSO Account Assignments (Development):"
+          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id)
+          if [ -n "$DEV_ACCOUNT_ID" ]; then
+            aws sso-admin list-account-assignments --region ${{ env.SSO_REGION }} \
+              --account-id "$DEV_ACCOUNT_ID" \
+              --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} | jq -r '.PermissionSets[0]') 2>/dev/null || echo "No assignments found for development account"
+          fi
+
+          # Check account assignments for production account
+          echo "📋 SSO Account Assignments (Production):"
+          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id)
+          if [ -n "$PROD_ACCOUNT_ID" ]; then
+            aws sso-admin list-account-assignments --region ${{ env.SSO_REGION }} \
+              --account-id "$PROD_ACCOUNT_ID" \
+              --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} | jq -r '.PermissionSets[0]') 2>/dev/null || echo "No assignments found for production account"
+          fi
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+  # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON SSO) =====
+  infrastructure-deploy:
+    name: "Infrastructure Deployment"
+    runs-on: ubuntu-latest
+    needs: [sso-setup]
+    # Skip if SSO was skipped and we're not doing a full deployment
+    if: (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsSESRole
+          aws-region: ${{ env.INFRA_REGION }}
+
+      - name: Terraform Init
+        id: init
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform init -upgrade
+
+      - name: Terraform Validate
+        id: validate
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform validate
+
+      - name: Terraform Format Check
+        id: fmt
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform fmt -check -recursive
+
+      - name: Terraform Plan
+        id: tf-plan
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform plan -no-color -out=tfplan
+        continue-on-error: true
+
+      - name: Update Pull Request
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' && steps.tf-plan.outcome == 'success'
+        env:
+          PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Infrastructure Deployment 🏗️
+            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.tf-plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Terraform Apply
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform apply -auto-approve tfplan
+
+      - name: Terraform Destroy
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform destroy -auto-approve
+
+  # ===== VALIDATION & TESTING =====
+  validate:
+    name: Validate Infrastructure
+    runs-on: ubuntu-latest
+    needs: [infrastructure-deploy]
+    outputs:
+      tf_plan_exitcode: ${{ steps.tf-plan.outputs.exitcode }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/GitHubActionsSESRole
+          aws-region: ${{ env.INFRA_REGION }}
+
+      - name: Terraform Init
+        id: init
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform init -upgrade
+
+      - name: Terraform Validate
+        id: validate
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform validate
+
+      - name: Terraform Format Check
+        id: fmt
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform fmt -check -recursive
+
+      - name: Terraform Plan
+        id: tf-plan
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform plan -no-color -out=tfplan
+        continue-on-error: true
+
+      - name: Update Pull Request
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' && steps.tf-plan.outcome == 'success'
+        env:
+          PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.tf-plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  test-terraform:
+    name: Test Terraform Configuration
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Test Development Configuration
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init -backend=false
+          terraform plan -var-file="dev.tfvars" -no-color -out=tfplan-dev
+          terraform show -json tfplan-dev > tfplan-dev.json
+
+      - name: Test Production Configuration
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform plan -var-file="prod.tfvars" -no-color -out=tfplan-prod
+          terraform show -json tfplan-prod > tfplan-prod.json
+
+      - name: Validate Plan Outputs
+        run: |
+          # Check that plans were generated successfully
+          if [ ! -f "${{ env.TF_WORKING_DIR }}/tfplan-dev.json" ] || [ ! -f "${{ env.TF_WORKING_DIR }}/tfplan-prod.json" ]; then
+            echo "❌ Plan files not generated"
+            exit 1
+          fi
+
+          # Check for errors in plans
+          if grep -q '"error"' ${{ env.TF_WORKING_DIR }}/tfplan-dev.json || grep -q '"error"' ${{ env.TF_WORKING_DIR }}/tfplan-prod.json; then
+            echo "❌ Errors found in terraform plans"
+            cat ${{ env.TF_WORKING_DIR }}/tfplan-dev.json
+            cat ${{ env.TF_WORKING_DIR }}/tfplan-prod.json
+            exit 1
+          fi
+
+          echo "✅ Terraform plans validated successfully"
+
+  security-scan:
+    name: Security and Compliance Scan
+    runs-on: ubuntu-latest
+    needs: validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "config"
+          scan-ref: "./terraform"
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  notify:
+    name: Deployment Results
+    runs-on: ubuntu-latest
+    needs: [sso-setup, infrastructure-deploy, validate, test-terraform, security-scan]
+    if: always()
+
+    steps:
+      - name: Create deployment summary
+        run: |
+          echo "## 🚀 Unified Infrastructure Deployment Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # SSO Setup Results
+          if [ "${{ needs.sso-setup.result }}" == "success" ]; then
+            echo "✅ **AWS Organizations & SSO:** Deployed successfully" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.sso-setup.result }}" == "skipped" ]; then
+            echo "⏭️ **AWS Organizations & SSO:** Skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **AWS Organizations & SSO:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Infrastructure Deployment Results
+          if [ "${{ needs.infrastructure-deploy.result }}" == "success" ]; then
+            echo "✅ **Infrastructure Deployment:** Deployed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Infrastructure Deployment:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Validation Results
+          if [ "${{ needs.validate.result }}" == "success" ]; then
+            echo "✅ **Terraform Validation:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Terraform Validation:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Testing Results
+          if [ "${{ needs.test-terraform.result }}" == "success" ]; then
+            echo "✅ **Terraform Testing:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Terraform Testing:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Security Scan Results
+          if [ "${{ needs.security-scan.result }}" == "success" ]; then
+            echo "✅ **Security Scan:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Security Scan:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Architecture:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cloud Provider:** Hetzner Cloud (k3s)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Region:** Singapore (ap-southeast-1)" >> $GITHUB_STEP_SUMMARY
+          echo "- **AWS Organizations:** Multi-account setup" >> $GITHUB_STEP_SUMMARY
+          echo "- **AWS SSO:** Centralized identity management" >> $GITHUB_STEP_SUMMARY
+          echo "- **DNS:** Cloudflare" >> $GITHUB_STEP_SUMMARY
+          echo "- **Container Registry:** GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitOps:** ArgoCD" >> $GITHUB_STEP_SUMMARY
+          echo "- **Monitoring:** Prometheus + Grafana" >> $GITHUB_STEP_SUMMARY
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Quick Links:" >> $GITHUB_STEP_SUMMARY
+          echo "- [Application](https://magebase.dev)" >> $GITHUB_STEP_SUMMARY
+          echo "- [ArgoCD](https://argocd.magebase.dev)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Grafana](https://grafana.magebase.dev)" >> $GITHUB_STEP_SUMMARY
+          echo "- [Kubeconfig](https://github.com/magebase/site/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
