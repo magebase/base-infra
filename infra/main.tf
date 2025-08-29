@@ -47,7 +47,7 @@ provider "hcloud" {
 
 # Cloudflare Provider
 provider "cloudflare" {
-  api_token = var.cloudflare_api_token != "" ? var.cloudflare_api_token : "dummy_token_for_validation"
+  api_token = var.cloudflare_api_token != "" ? var.cloudflare_api_token : "dummy_token_for_validation_12345678901234567890"
 }
 
 # AWS Provider (for SES only)
@@ -55,7 +55,7 @@ provider "aws" {
   alias  = "ses"
   region = "ap-southeast-1" # Singapore region for SES
   assume_role {
-    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/SESManagerRole"
+    role_arn = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? "arn:aws:iam::${var.aws_ses_account_id}:role/SESManagerRole" : "arn:aws:iam::123456789012:role/DummyRole"
   }
 }
 
@@ -89,8 +89,10 @@ module "cloudflare_cdn" {
   zone_id                 = module.cloudflare_dns[0].zone_id
 }
 
-# AWS SES Configuration (kept from old infrastructure)
+# AWS SES Configuration (conditional - requires proper IAM role setup)
 module "aws_ses" {
+  count = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? 1 : 0
+
   source = "./modules/aws-ses"
   providers = {
     aws = aws.ses

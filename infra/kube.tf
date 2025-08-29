@@ -958,6 +958,7 @@ module "kube-hetzner" {
   # Extra values that will be passed to the `extra-manifests/kustomization.yaml.tpl` if its present.
   extra_kustomize_parameters = {
     environment = var.environment
+    domain      = var.domain_name
   }
 
   # See working examples for extra manifests or a HelmChart in examples/kustomization_user_deploy/README.md
