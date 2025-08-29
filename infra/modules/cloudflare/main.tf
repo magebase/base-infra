@@ -25,6 +25,52 @@ variable "cluster_ipv6" {
   default     = null
 }
 
+# SES DNS Records (optional)
+variable "ses_verification_record" {
+  description = "SES domain verification record"
+  type = object({
+    name    = string
+    type    = string
+    content = string
+    ttl     = number
+  })
+  default = null
+}
+
+variable "ses_dkim_records" {
+  description = "SES DKIM records"
+  type = list(object({
+    name    = string
+    type    = string
+    content = string
+    ttl     = number
+  }))
+  default = []
+}
+
+variable "ses_spf_record" {
+  description = "SES SPF record"
+  type = object({
+    name    = string
+    type    = string
+    content = string
+    ttl     = number
+  })
+  default = null
+}
+
+variable "ses_mx_record" {
+  description = "SES MX record"
+  type = object({
+    name     = string
+    type     = string
+    content  = string
+    priority = number
+    ttl      = number
+  })
+  default = null
+}
+
 # Data source to get the zone
 data "cloudflare_zone" "main" {
   name = var.domain_name
@@ -69,6 +115,51 @@ resource "cloudflare_record" "cdn_cname" {
   type    = "CNAME"
   ttl     = 300
   proxied = true
+}
+
+# SES Domain Verification Record
+resource "cloudflare_record" "ses_verification" {
+  count   = var.ses_verification_record != null ? 1 : 0
+  zone_id = data.cloudflare_zone.main.id
+  name    = trimsuffix(var.ses_verification_record.name, ".${var.domain_name}")
+  content = var.ses_verification_record.content
+  type    = var.ses_verification_record.type
+  ttl     = var.ses_verification_record.ttl
+  proxied = false
+}
+
+# SES DKIM Records
+resource "cloudflare_record" "ses_dkim" {
+  count   = length(var.ses_dkim_records)
+  zone_id = data.cloudflare_zone.main.id
+  name    = trimsuffix(var.ses_dkim_records[count.index].name, ".${var.domain_name}")
+  content = var.ses_dkim_records[count.index].content
+  type    = var.ses_dkim_records[count.index].type
+  ttl     = var.ses_dkim_records[count.index].ttl
+  proxied = false
+}
+
+# SES SPF Record
+resource "cloudflare_record" "ses_spf" {
+  count   = var.ses_spf_record != null ? 1 : 0
+  zone_id = data.cloudflare_zone.main.id
+  name    = trimsuffix(var.ses_spf_record.name, ".${var.domain_name}")
+  content = var.ses_spf_record.content
+  type    = var.ses_spf_record.type
+  ttl     = var.ses_spf_record.ttl
+  proxied = false
+}
+
+# SES MX Record
+resource "cloudflare_record" "ses_mx" {
+  count    = var.ses_mx_record != null ? 1 : 0
+  zone_id  = data.cloudflare_zone.main.id
+  name     = trimsuffix(var.ses_mx_record.name, ".${var.domain_name}")
+  content  = var.ses_mx_record.content
+  type     = var.ses_mx_record.type
+  ttl      = var.ses_mx_record.ttl
+  priority = var.ses_mx_record.priority
+  proxied  = false
 }
 
 # Page Rules for CDN optimization

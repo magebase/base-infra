@@ -143,6 +143,12 @@ module "cloudflare_dns" {
   domain_name  = var.domain_name
   cluster_ipv4 = module.kube-hetzner.ingress_public_ipv4
   cluster_ipv6 = module.kube-hetzner.ingress_public_ipv6
+
+  # SES DNS Records (only if SES is enabled)
+  ses_verification_record = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_verification_record : null
+  ses_dkim_records        = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_dkim_records : []
+  ses_spf_record          = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_spf_record : null
+  ses_mx_record           = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_mx_record : null
 }
 
 # Cloudflare CDN Configuration for Active Storage
@@ -163,8 +169,7 @@ module "aws_ses" {
 
   source = "./modules/aws-ses"
   providers = {
-    aws        = aws.ses
-    aws.route53 = aws.route53
+    aws = aws.ses
   }
 
   domain_name          = var.domain_name
