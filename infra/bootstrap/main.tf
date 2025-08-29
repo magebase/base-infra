@@ -136,6 +136,7 @@ resource "aws_dynamodb_table" "terraform_locks" {
 
 # Create IAM account alias
 resource "aws_iam_account_alias" "alias" {
+  count = var.create_account_alias ? 1 : 0
   account_alias = var.account_alias
 }
 

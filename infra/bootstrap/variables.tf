@@ -1,13 +1,19 @@
 variable "region" {
   description = "AWS region for bootstrap resources"
   type        = string
-  default     = "us-east-1"
+  default     = "ap-southeast-1"
 }
 
 variable "account_alias" {
   description = "AWS account alias"
   type        = string
   default     = "magebase"
+}
+
+variable "create_account_alias" {
+  description = "Whether to create the account alias"
+  type        = bool
+  default     = true
 }
 
 variable "environment" {

@@ -14,7 +14,17 @@ This setup implements a "bootstrapping" approach for Terraform state management,
 
 ## Bootstrap Process
 
-### Step 1: Create Backend Resources
+### Automated (Recommended)
+
+The bootstrap process is now automated as part of the GitHub Actions workflow:
+
+1. **SSO Setup**: Creates AWS organization accounts
+2. **Bootstrap**: Automatically runs in the development account to create S3 and DynamoDB resources
+3. **Infrastructure Deployment**: Uses the bootstrapped backend for state management
+
+### Manual Bootstrap (if needed)
+
+If you need to run bootstrap manually:
 
 ```bash
 cd infra/bootstrap
@@ -23,11 +33,13 @@ terraform plan -var-file=terraform.tfvars
 terraform apply -var-file=terraform.tfvars
 ```
 
+**Note**: When running manually, ensure you're using credentials for the development account, not the management account.
+
 This creates:
 
 - S3 bucket with versioning, encryption, and public access blocking
 - DynamoDB table with pay-per-request billing and point-in-time recovery
-- IAM account alias
+- IAM account alias (optional)
 
 ### Step 2: Configure Main Terraform
 
