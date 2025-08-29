@@ -73,6 +73,14 @@ jobs:
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
+          --health-timeout 10s
+          --health-retries 10
+          --start-period 30s
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
@@ -94,10 +102,19 @@ jobs:
           node-version: "18"
           cache: "npm"
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
       - name: Install dependencies
         run: |
           bundle install
           npm install
+      - name: Wait for PostgreSQL
+        run: |
+          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 2; done'
+          echo "PostgreSQL is ready!"
       - name: Set up database
         env:
           RAILS_ENV: test
@@ -144,10 +161,20 @@ jobs:
           node-version: "18"
           cache: "npm"
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
       - name: Install dependencies
         run: |
           bundle install
           npm install
+
+      - name: Wait for PostgreSQL
+        run: |
+          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 2; done'
+          echo "PostgreSQL is ready!"
 
       - name: Run RuboCop
         run: bundle exec rubocop --parallel
