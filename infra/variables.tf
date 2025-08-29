@@ -97,3 +97,15 @@ variable "stripe_webhook_secret" {
   type        = string
   sensitive   = true
 }
+
+variable "development_email" {
+  description = "Email address for development AWS account"
+  type        = string
+  default     = "magebase.dev+development@gmail.com"
+}
+
+variable "production_email" {
+  description = "Email address for production AWS account"
+  type        = string
+  default     = "magebase.dev+production@gmail.com"
+}

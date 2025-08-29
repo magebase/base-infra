@@ -12,10 +12,12 @@ Since you already have an AWS account, you can convert it to be the management a
 
 1. **Sign in to AWS Console** with your root account
 2. **Go to AWS Organizations**:
+
    - Search for "Organizations" in the AWS Console
    - Click "Create organization"
 
 3. **Choose Organization Features**:
+
    - Select "All features" (recommended for full functionality)
    - Click "Create organization"
 
@@ -73,7 +75,7 @@ aws organizations list-accounts
 
 In your GitHub repository, add these secrets:
 
-```text
+````text
 ## Step 4: Set Up GitHub Variables and Secrets
 
 In your GitHub repository, configure the following:
@@ -82,7 +84,7 @@ In your GitHub repository, configure the following:
 
 ```text
 MANAGEMENT_ACCOUNT_ID = [Your management account ID - 12 digits]
-```
+````
 
 ### Secrets (Settings → Secrets and variables → Actions)
 
@@ -92,7 +94,8 @@ PRODUCTION_ACCOUNT_ID = [Production account ID - 12 digits]
 ```
 
 **Security Note**: We use variables for the management account ID since account IDs are publicly visible information and don't need to be hidden. Development and production account IDs are kept as secrets for additional security.
-```
+
+````
 
 ## Step 5: Enable AWS SSO
 
@@ -148,7 +151,7 @@ echo "📝 Next steps:"
 echo "1. Note the account IDs from the table above"
 echo "2. Add them as secrets in your GitHub repository"
 echo "3. Follow the SSO setup guide in infra/sso/AWS_SETUP_GUIDE.md"
-```
+````
 
 ## Verification
 

@@ -175,15 +175,15 @@ terraform apply -var-file="dev.tfvars"
 
 All sensitive configuration is handled through environment variables:
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `TF_VAR_hcloud_token` | Hetzner Cloud API token | Yes |
-| `TF_VAR_cloudflare_api_token` | Cloudflare API token | Yes |
-| `TF_VAR_aws_ses_account_id` | AWS account ID | Yes |
-| `TF_VAR_database_url` | PostgreSQL connection URL | Yes |
-| `TF_VAR_secret_key_base` | Rails secret key | Yes |
-| `TF_VAR_ruby_llm_api_key` | AI service API key | Yes |
-| `TF_VAR_domain_name` | Application domain | No |
+| Variable                      | Description               | Required |
+| ----------------------------- | ------------------------- | -------- |
+| `TF_VAR_hcloud_token`         | Hetzner Cloud API token   | Yes      |
+| `TF_VAR_cloudflare_api_token` | Cloudflare API token      | Yes      |
+| `TF_VAR_aws_ses_account_id`   | AWS account ID            | Yes      |
+| `TF_VAR_database_url`         | PostgreSQL connection URL | Yes      |
+| `TF_VAR_secret_key_base`      | Rails secret key          | Yes      |
+| `TF_VAR_ruby_llm_api_key`     | AI service API key        | Yes      |
+| `TF_VAR_domain_name`          | Application domain        | No       |
 
 ### tfvars Files
 
@@ -205,6 +205,7 @@ docker_image = "magebase/site:dev-latest"
 **Environments**: dev, prod
 
 Features:
+
 - ✅ Secure secret handling
 - ✅ Environment-specific deployments
 - ✅ Plan review before apply
@@ -308,6 +309,7 @@ kubectl get pods --all-namespaces
 ### Making Changes
 
 1. **Local Testing**
+
    ```bash
    # Format code
    terraform fmt
@@ -320,6 +322,7 @@ kubectl get pods --all-namespaces
    ```
 
 2. **Create Pull Request**
+
    ```bash
    git checkout -b feature/terraform-update
    git add .

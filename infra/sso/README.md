@@ -1,52 +1,70 @@
-# AWS SSO Management Setup
+# AWS Organizations & SSO Management
 
-This directory contains Terraform configuration for AWS SSO/IAM Identity Center management with automated user group creation.
+This directory contains Terraform configuration for **integrated AWS Organizations and SSO/IAM Identity Center management**. The setup ensures proper dependency ordering: Organizations accounts are created first, then SSO permissions are assigned.
 
-## Features
+## 🏗️ Architecture Overview
 
-- **Automated Group Creation**: Creates user groups in AWS Identity Store
-- **Permission Sets**: Pre-configured IAM permission sets for different roles
-- **Account Assignments**: Automatic assignment of permissions to groups across accounts
-- **Multi-Account Support**: Works with AWS Organizations member accounts
+### What This Setup Does
 
-## User Groups Created
+1. **AWS Organizations** (`../organizations/`):
+   - Creates Development and Production AWS accounts
+   - Sets up Organizational Units (OUs)
+   - Generates unique 12-digit account IDs
 
-The following user groups are automatically created:
+2. **AWS SSO/IAM Identity Center** (this directory):
+   - Enables SSO in the management account
+   - Creates permission sets and user groups
+   - Assigns permissions to the created accounts
+
+3. **GitHub Actions Pipeline**:
+   - Orchestrates the entire deployment
+   - Ensures Organizations runs before SSO
+   - Validates account creation and assignments
+
+### Key Benefits
+
+- ✅ **No More Empty Account IDs**: Organizations creates accounts first
+- ✅ **Automated Dependency Management**: Pipeline handles ordering
+- ✅ **Integrated Setup**: Single pipeline for complete AWS account management
+- ✅ **Validation**: Built-in checks prevent common deployment errors
+
+## 📋 User Groups Created
+
+The following user groups are automatically created in AWS Identity Store:
 
 - **InfrastructureTeam**: Infrastructure management and deployment access
 - **DevelopmentTeam**: Application development and deployment access
 - **ProductionTeam**: Production environment management and operations
 - **Auditors**: Read-only access for auditing and compliance
 
-## Prerequisites
+## 🚀 Quick Start
 
-Before deploying the SSO configuration, you need to set up AWS credentials and permissions:
+### Prerequisites
 
-### 1. AWS Organization Setup
+1. **AWS Organization Setup** (handled automatically by pipeline)
+2. **GitHub OIDC Configuration** (one-time setup)
+3. **Repository Variables & Secrets** (one-time setup)
 
-**First, set up your AWS Organization and accounts:**
+### Automated Deployment
 
-- 📖 **Complete Guide**: [`ORGANIZATION_SETUP.md`](ORGANIZATION_SETUP.md)
-- This will convert your existing AWS account into a management account
-- Create development and production member accounts
-- Get all the account IDs you'll need
+The GitHub Actions pipeline handles everything automatically:
 
-### 2. GitHub OIDC Setup
+```bash
+# Pipeline triggers on changes to:
+# - infra/organizations/** (account creation)
+# - infra/sso/** (SSO configuration)
+# - infra/main.tf (orchestration)
+```
 
-**Then configure GitHub Actions authentication:**
+### Manual Trigger
 
-- 📖 **Detailed Guide**: [`AWS_SETUP_GUIDE.md`](AWS_SETUP_GUIDE.md)
-- Set up GitHub OIDC provider in AWS
-- Create IAM role for GitHub Actions
-- Configure repository secrets
+```bash
+# Via GitHub CLI
+gh workflow run "AWS Organizations & SSO Management Pipeline"
 
-### 3. Required Variables and Secrets
-
-Add the following to your GitHub repository (Settings → Secrets and variables):
-
-**Variables** (visible in logs):
-
-- `MANAGEMENT_ACCOUNT_ID`: Your AWS management account ID (12-digit number)
+# Via GitHub Web UI
+# Actions → AWS Organizations & SSO Management Pipeline → Run workflow
+```
 
 **Secrets** (hidden from logs):
 

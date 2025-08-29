@@ -360,43 +360,7 @@ resource "aws_ssoadmin_account_assignment" "main" {
   depends_on = [aws_identitystore_group.main]
 }
 
-# Note: User accounts need to be created manually in AWS SSO console
-# The account assignments for users use placeholder IDs that need to be updated
-# with actual user IDs after user creation.
 
-# data "aws_identitystore_user" "main" {
-#   for_each = toset(flatten([
-#     for account_config in values(local.account_assignments) : [
-#       for assignment in account_config.assignments :
-#       assignment.principal_name
-#       if assignment.principal_type == "USER"
-#     ]
-#   ]))
-#
-#   identity_store_id = tolist(data.aws_ssoadmin_instances.main.identity_store_ids)[0]
-#
-#   filter {
-#     attribute_path  = "UserName"
-#     attribute_value = each.key
-#   }
-# }
-
-# data "aws_identitystore_group" "main" {
-#   for_each = toset(flatten([
-#     for account_config in values(local.account_assignments) : [
-#       for assignment in account_config.assignments :
-#       assignment.principal_name
-#       if assignment.principal_type == "GROUP"
-#     ]
-#   ]))
-#
-#   identity_store_id = tolist(data.aws_ssoadmin_instances.main.identity_store_ids)[0]
-#
-#   filter {
-#     attribute_path  = "DisplayName"
-#     attribute_value = each.key
-#   }
-# }
 
 # Outputs
 output "sso_enabled" {

@@ -10,13 +10,13 @@ terraform {
 
 # Management Account Provider
 provider "aws" {
-  region = "us-east-1"  # Organizations must be in us-east-1
+  region = var.region  # Organizations must be in us-east-1
 }
 
 # Create Development Account
 resource "aws_organizations_account" "development" {
   name      = "Magebase Development"
-  email     = "magebase.dev+development@gmail.com"  # Replace with your email
+  email     = var.development_email
   role_name = "OrganizationAccountAccessRole"
 
   # Optional: Add to specific OU
@@ -31,7 +31,7 @@ resource "aws_organizations_account" "development" {
 # Create Production Account
 resource "aws_organizations_account" "production" {
   name      = "Magebase Production"
-  email     = "magebase.dev+production@gmail.com"  # Replace with your email
+  email     = var.production_email
   role_name = "OrganizationAccountAccessRole"
 
   # Optional: Add to specific OU
@@ -59,9 +59,11 @@ data "aws_organizations_organization" "main" {}
 
 # Output the account IDs for use in SSO configuration
 output "development_account_id" {
-  value = aws_organizations_account.development.id
+  description = "AWS Account ID for the development account"
+  value       = aws_organizations_account.development.id
 }
 
 output "production_account_id" {
-  value = aws_organizations_account.production.id
+  description = "AWS Account ID for the production account"
+  value       = aws_organizations_account.production.id
 }
