@@ -34,6 +34,7 @@ module "organizations" {
 # AWS SSO Configuration (depends on organizations module)
 module "sso" {
   source = "./sso"
+  depends_on = [module.organizations]
 
   development_account_id = module.organizations.development_account_id
   production_account_id  = module.organizations.production_account_id
