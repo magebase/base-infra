@@ -516,7 +516,7 @@ module "kube-hetzner" {
   # hetzner_ccm_version = ""
 
   # By default, new installations use Helm to install Hetzner CCM. You can use the legacy deployment method (using `kubectl apply`) by setting `hetzner_ccm_use_helm = false`.
-  hetzner_ccm_use_helm = true
+  # hetzner_ccm_use_helm = true
 
   # See https://github.com/hetznercloud/csi-driver/releases for the available versions.
   # hetzner_csi_version = ""
