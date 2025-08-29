@@ -1,14 +1,37 @@
-name: CI/CD Pipeline
+name: Application Deployment
 
 on:
   push:
     branches: [main]
+    paths:
+      - "app/**"
+      - "config/**"
+      - "db/**"
+      - "lib/**"
+      - "Gemfile*"
+      - "package.json"
+      - "yarn.lock"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "k8s/deployment.yaml"
+      - ".github/workflows/application.yml"
   pull_request:
     branches: [main]
+    paths:
+      - "app/**"
+      - "config/**"
+      - "db/**"
+      - "lib/**"
+      - "Gemfile*"
+      - "package.json"
+      - "yarn.lock"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "k8s/deployment.yaml"
   workflow_dispatch:
     inputs:
       environment:
-        description: "Environment to deploy to"
+        description: "Environment to deploy application to"
         required: true
         default: "dev"
         type: choice
@@ -17,15 +40,19 @@ on:
           - qa
           - uat
           - prod
+      version:
+        description: "Application version/tag to deploy"
+        required: false
+        default: "latest"
+        type: string
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  DOCKER_BUILDKIT: 1
 
 jobs:
   test:
-    name: Run Tests
+    name: Run Application Tests
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -100,7 +127,7 @@ jobs:
         run: bundle exec rubocop
 
   build:
-    name: Build and Push Docker Image
+    name: Build Application Image
     runs-on: ubuntu-latest
     needs: test
     outputs:
@@ -131,7 +158,7 @@ jobs:
             type=ref,event=pr
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ github.event.inputs.environment }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event.inputs.version != 'latest' }}
 
       - name: Build and push Docker image
         id: build
@@ -154,7 +181,7 @@ jobs:
           push-to-registry: true
 
   deploy:
-    name: Trigger GitOps Deployment
+    name: Deploy Application via ArgoCD
     runs-on: ubuntu-latest
     needs: build
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
@@ -163,9 +190,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Update Kubernetes manifests
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd-linux-amd64
+          sudo mv argocd-linux-amd64 /usr/local/bin/argocd
+
+      - name: Update Kubernetes Deployment
         run: |
           # Update the image tag in the Kubernetes deployment manifest
+          IMAGE_TAG=${{ github.sha }}
+          if [ "${{ github.event.inputs.version }}" != "latest" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            IMAGE_TAG=${{ github.event.inputs.version }}
+          fi
+
           sed -i "s|image:.*|image: ${{ needs.build.outputs.image-url }}|g" k8s/deployment.yaml
 
           # Commit the changes to trigger ArgoCD sync
@@ -173,29 +211,36 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
           git add k8s/deployment.yaml
-          git commit -m "chore: update image to ${{ github.sha }}" || echo "No changes to commit"
+          git commit -m "chore: update application image to ${{ github.sha }}" || echo "No changes to commit"
 
           # Push changes to trigger ArgoCD
           git push origin HEAD:main
 
-      - name: Trigger ArgoCD Sync
+      - name: Sync ArgoCD Application
         run: |
-          # This would trigger ArgoCD to sync the application
-          # In a real setup, you'd use the ArgoCD CLI or API
-          echo "🔄 Triggering ArgoCD sync for application: magebase-${{ github.event.inputs.environment || 'dev' }}"
+          # Login to ArgoCD
+          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }}
 
-          # For now, we'll simulate the sync trigger
-          # In production, you'd call: argocd app sync magebase-${{ github.event.inputs.environment || 'dev' }}
+          # Sync application
+          ENVIRONMENT=${{ github.event.inputs.environment || 'dev' }}
+          argocd app sync magebase-app-${ENVIRONMENT}
+          argocd app wait magebase-app-${ENVIRONMENT} --timeout 600
 
-      - name: Wait for deployment
+      - name: Run Health Checks
         run: |
-          echo "⏳ Waiting for deployment to complete..."
-          # In production, you'd poll ArgoCD or Kubernetes API for deployment status
+          # Wait for application to be ready
           sleep 30
-          echo "✅ Deployment triggered successfully"
+
+          # Run health checks
+          curl -f https://magebase.dev/health || curl -f https://app-${{ github.event.inputs.environment || 'dev' }}.magebase.dev/health
+
+      - name: Run Smoke Tests
+        run: |
+          # Run basic smoke tests against the deployed application
+          curl -f https://magebase.dev/ || curl -f https://app-${{ github.event.inputs.environment || 'dev' }}.magebase.dev/
 
   security-scan:
-    name: Security and Vulnerability Scan
+    name: Application Security Scan
     runs-on: ubuntu-latest
     needs: build
 
@@ -209,48 +254,16 @@ jobs:
           scan-type: "image"
           scan-ref: ${{ needs.build.outputs.image-url }}
           format: "sarif"
-          output: "trivy-results.sarif"
+          output: "trivy-app-results.sarif"
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: "trivy-results.sarif"
+          sarif_file: "trivy-app-results.sarif"
 
-  notify:
-    name: Deployment Notification
-    runs-on: ubuntu-latest
-    needs: [build, deploy, security-scan]
-    if: always()
-
-    steps:
-      - name: Create deployment summary
-        run: |
-          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ "${{ needs.deploy.result }}" == "success" ]]; then
-            echo "✅ **GitOps Deployment:** Triggered successfully" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **GitOps Deployment:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [ "${{ needs.security-scan.result }}" == "success" ]]; then
-            echo "✅ **Security Scan:** Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Security Scan:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Deployment Details:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image:** ${{ needs.build.outputs.image-url }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Region:** Singapore (ap-southeast)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Architecture:** Hetzner Cloud + k3s + ArgoCD" >> $GITHUB_STEP_SUMMARY
-          echo "- **Registry:** GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
-
-  release:
-    name: Create Release
+  performance-test:
+    name: Performance Testing
     runs-on: ubuntu-latest
     needs: deploy
     if: github.ref == 'refs/heads/main'
@@ -259,34 +272,87 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Generate release notes
-        id: release-notes
-        run: |
-          echo "release_notes<<EOF" >> $GITHUB_OUTPUT
-          echo "## What's Changed" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          git log --oneline --pretty=format:"- %s" $(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)..HEAD >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "## Deployment" >> $GITHUB_OUTPUT
-          echo "- ✅ Deployed via GitOps (ArgoCD)" >> $GITHUB_OUTPUT
-          echo "- ✅ Image pushed to GitHub Container Registry" >> $GITHUB_OUTPUT
-          echo "- ✅ Security scan completed" >> $GITHUB_OUTPUT
-          echo "- ✅ All tests passing" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "## Architecture" >> $GITHUB_OUTPUT
-          echo "- **Provider:** Hetzner Cloud (k3s)" >> $GITHUB_OUTPUT
-          echo "- **GitOps:** ArgoCD" >> $GITHUB_OUTPUT
-          echo "- **Registry:** GitHub Container Registry" >> $GITHUB_OUTPUT
-          echo "- **DNS:** Cloudflare" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Create release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run Lighthouse Performance Test
+        uses: treosh/lighthouse-ci-action@v10
         with:
-          tag_name: v${{ github.run_number }}
-          release_name: Release v${{ github.run_number }}
-          body: ${{ steps.release-notes.outputs.release_notes }}
-          draft: false
-          prerelease: false
+          urls: https://magebase.dev
+          configPath: .lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+  notify:
+    name: Application Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [test, build, deploy, security-scan, performance-test]
+    if: always()
+
+    steps:
+      - name: Application Deployment Summary
+        run: |
+          echo "## 🚀 Application Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.test.result }}" == "success" ]]; then
+            echo "✅ **Tests:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Tests:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.build.result }}" == "success" ]]; then
+            echo "✅ **Build:** Successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Build:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.deploy.result }}" == "success" ]]; then
+            echo "✅ **Deployment:** Successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Deployment:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.security-scan.result }}" == "success" ]]; then
+            echo "✅ **Security Scan:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Security Scan:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.performance-test.result }}" == "success" ]]; then
+            echo "✅ **Performance Test:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Performance Test:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Application Details:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ needs.build.outputs.image-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ github.event.inputs.version || 'latest' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitOps:** ArgoCD" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry:** GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
+
+      - name: Send Slack Notification
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          payload: |
+            {
+              "text": "🚀 Application Deployment ${{ needs.deploy.result == 'success' && '✅ Success' || '❌ Failed' }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚀 Application Deployment"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Environment:* ${{ github.event.inputs.environment || 'dev' }}\\n*Version:* ${{ github.event.inputs.version || 'latest' }}\\n*Image:* ${{ needs.build.outputs.image-url }}\\n*Status:* ${{ needs.deploy.result == 'success' && '✅ Success' || '❌ Failed' }}\\n*Triggered by:* @${{ github.actor }}"
+                  }
+                }
+              ]
+            }

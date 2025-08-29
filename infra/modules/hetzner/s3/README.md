@@ -20,6 +20,7 @@ This Terraform module creates Hetzner Object Storage buckets for PostgreSQL back
 ## Providers
 
 ### MinIO Provider (Primary)
+
 ```hcl
 provider "minio" {
   alias         = "hetzner"
@@ -32,6 +33,7 @@ provider "minio" {
 ```
 
 ### AWS Provider (Fallback)
+
 ```hcl
 provider "aws" {
   alias  = "hetzner-object-storage"
@@ -65,19 +67,19 @@ module "hetzner_object_storage" {
 
 ## Inputs
 
-| Name | Description | Type | Required |
-|------|-------------|------|----------|
-| cluster_name | Name of the cluster for bucket naming | `string` | Yes |
-| hetzner_object_storage_access_key | Hetzner Object Storage access key ID | `string` | Yes |
-| hetzner_object_storage_secret_key | Hetzner Object Storage secret access key | `string` | Yes |
+| Name                              | Description                              | Type     | Required |
+| --------------------------------- | ---------------------------------------- | -------- | -------- |
+| cluster_name                      | Name of the cluster for bucket naming    | `string` | Yes      |
+| hetzner_object_storage_access_key | Hetzner Object Storage access key ID     | `string` | Yes      |
+| hetzner_object_storage_secret_key | Hetzner Object Storage secret access key | `string` | Yes      |
 
 ## Outputs
 
-| Name | Description |
-|------|-------------|
-| hetzner_object_storage_bucket | Primary bucket name (MinIO provider) |
-| hetzner_object_storage_bucket_fallback | Fallback bucket name (AWS provider) |
-| hetzner_object_storage_endpoint | Hetzner Object Storage endpoint URL |
+| Name                                   | Description                          |
+| -------------------------------------- | ------------------------------------ |
+| hetzner_object_storage_bucket          | Primary bucket name (MinIO provider) |
+| hetzner_object_storage_bucket_fallback | Fallback bucket name (AWS provider)  |
+| hetzner_object_storage_endpoint        | Hetzner Object Storage endpoint URL  |
 
 ## CloudNativePG Configuration
 

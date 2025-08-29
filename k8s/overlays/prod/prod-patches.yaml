@@ -8,14 +8,14 @@ spec:
   template:
     spec:
       containers:
-      - name: magebase
-        resources:
-          requests:
-            memory: "1Gi"
-            cpu: "500m"
-          limits:
-            memory: "2Gi"
-            cpu: "1000m"
+        - name: magebase
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
@@ -50,11 +50,11 @@ spec:
   template:
     spec:
       containers:
-      - name: redis
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "200m"
-          limits:
-            memory: "512Mi"
-            cpu: "400m"
+        - name: redis
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "400m"

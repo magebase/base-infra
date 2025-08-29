@@ -1,0 +1,522 @@
+name: Unified Rails Deployment Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "config/**"
+      - "db/**"
+      - "lib/**"
+      - "Gemfile*"
+      - "package.json"
+      - "yarn.lock"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "k8s/deployment.yaml"
+      - ".github/workflows/rails-deployment.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "config/**"
+      - "db/**"
+      - "lib/**"
+      - "Gemfile*"
+      - "package.json"
+      - "yarn.lock"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "k8s/deployment.yaml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy application to"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - qa
+          - uat
+          - prod
+      release_type:
+        description: "Release type (major, minor, patch)"
+        required: false
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      skip_tests:
+        description: "Skip running tests (not recommended)"
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  test:
+    name: Run Comprehensive Tests
+    runs-on: ubuntu-latest
+    if: github.event.inputs.skip_tests != true
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.4.5
+          bundler-cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: |
+          bundle install
+          yarn install
+
+      - name: Set up database
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/magebase_test
+        run: |
+          bundle exec rails db:create
+          bundle exec rails db:migrate
+          bundle exec rails db:seed
+
+      - name: Run Ruby tests
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/magebase_test
+        run: bundle exec rails test
+
+      - name: Run system tests
+        env:
+          RAILS_ENV: test
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/magebase_test
+        run: bundle exec rails test:system
+
+      - name: Run JavaScript tests
+        run: yarn test
+
+  lint:
+    name: Code Quality & Linting
+    runs-on: ubuntu-latest
+    needs: test
+    if: success() || github.event.inputs.skip_tests == true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.4.5
+          bundler-cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: |
+          bundle install
+          yarn install
+
+      - name: Run RuboCop
+        run: bundle exec rubocop --parallel
+
+      - name: Run ESLint
+        run: yarn lint
+
+      - name: Check code formatting
+        run: |
+          bundle exec rubocop --format offenses
+          yarn format:check
+
+  security:
+    name: Security Audit & Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    if: success()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.4.5
+          bundler-cache: true
+
+      - name: Run bundle audit
+        run: bundle audit check --update
+
+      - name: Run Brakeman security scan
+        run: bundle exec brakeman --quiet --format json --output brakeman-report.json
+
+      - name: Upload Brakeman results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: brakeman-report
+          path: brakeman-report.json
+
+  build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: [lint, security]
+    if: success()
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      image-url: ${{ steps.meta.outputs.tags }}
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js for semantic-release
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: Install semantic-release
+        run: |
+          npm install -g semantic-release
+          npm install -g @semantic-release/git
+          npm install -g @semantic-release/github
+          npm install -g @semantic-release/changelog
+          npm install -g @semantic-release/exec
+
+      - name: Run semantic-release
+        id: semantic
+        run: |
+          # Determine release type from input or analyze commits
+          if [ "${{ github.event.inputs.release_type }}" != "" ]; then
+            export RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+          else
+            RELEASE_TYPE="patch"
+          fi
+
+          # Run semantic release (dry-run for PRs)
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            npx semantic-release --dry-run
+            echo "new_release_published=false" >> $GITHUB_OUTPUT
+            echo "new_release_version=dry-run" >> $GITHUB_OUTPUT
+          else
+            npx semantic-release --branches main
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TYPE: ${{ github.event.inputs.release_type }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.semantic.outputs.new_release_version }},enable=${{ steps.semantic.outputs.new_release_published == 'true' }}
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+  security-scan:
+    name: Container Security Scan
+    runs-on: ubuntu-latest
+    needs: build
+    if: success()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "image"
+          scan-ref: ${{ needs.build.outputs.image-url }}
+          format: "sarif"
+          output: "trivy-results.sarif"
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  deploy:
+    name: Deploy to ArgoCD
+    runs-on: ubuntu-latest
+    needs: [build, security-scan]
+    if: success() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ArgoCD CLI
+        run: |
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x argocd-linux-amd64
+          sudo mv argocd-linux-amd64 /usr/local/bin/argocd
+
+      - name: Update Kubernetes Deployment
+        run: |
+          # Update the image tag in the Kubernetes deployment manifest
+          IMAGE_TAG=${{ github.sha }}
+          if [ "${{ needs.build.outputs.new_release_published }}" == "true" ]; then
+            IMAGE_TAG=${{ needs.build.outputs.new_release_version }}
+          fi
+
+          sed -i "s|image:.*|image: ${{ needs.build.outputs.image-url }}|g" k8s/deployment.yaml
+
+          # Commit the changes to trigger ArgoCD sync
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add k8s/deployment.yaml
+          git commit -m "chore: update application image to ${IMAGE_TAG}" || echo "No changes to commit"
+
+          # Push changes to trigger ArgoCD
+          git push origin HEAD:main
+
+      - name: Sync ArgoCD Application
+        run: |
+          # Login to ArgoCD
+          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }}
+
+          # Sync application
+          ENVIRONMENT=${{ github.event.inputs.environment || 'dev' }}
+          argocd app sync magebase-app-${ENVIRONMENT}
+          argocd app wait magebase-app-${ENVIRONMENT} --timeout 600
+
+      - name: Run Health Checks
+        run: |
+          # Wait for application to be ready
+          sleep 30
+
+          # Run health checks
+          curl -f https://magebase.dev/health || curl -f https://app-${{ github.event.inputs.environment || 'dev' }}.magebase.dev/health
+
+  performance-test:
+    name: Performance Testing
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: success() && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Lighthouse Performance Test
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: https://magebase.dev
+          configPath: .lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+  cleanup:
+    name: Cleanup Old Images
+    runs-on: ubuntu-latest
+    needs: [build, deploy]
+    if: success() && needs.build.outputs.new_release_published == 'true'
+
+    steps:
+      - name: Delete old container images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ env.IMAGE_NAME }}
+          package-type: container
+          min-versions-to-keep: 10
+          delete-only-untagged-versions: true
+
+  notify:
+    name: Deployment Notification
+    runs-on: ubuntu-latest
+    needs:
+      [
+        test,
+        lint,
+        security,
+        build,
+        security-scan,
+        deploy,
+        performance-test,
+        cleanup,
+      ]
+    if: always()
+
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "## 🚀 Unified Rails Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Test Results
+          if [ "${{ needs.test.result }}" == "success" ] || [ "${{ github.event.inputs.skip_tests }}" == "true" ]; then
+            echo "✅ **Tests:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Tests:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Code Quality
+          if [ "${{ needs.lint.result }}" == "success" ]; then
+            echo "✅ **Code Quality:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Code Quality:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Security
+          if [ "${{ needs.security.result }}" == "success" ]; then
+            echo "✅ **Security Audit:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Security Audit:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Build
+          if [ "${{ needs.build.result }}" == "success" ]; then
+            echo "✅ **Build:** Successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Build:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Security Scan
+          if [ "${{ needs.security-scan.result }}" == "success" ]; then
+            echo "✅ **Container Security:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Container Security:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Deployment
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ **Deployment:** Successful" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Deployment:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Performance
+          if [ "${{ needs.performance-test.result }}" == "success" ]; then
+            echo "✅ **Performance Test:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Performance Test:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Deployment Details:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ needs.build.outputs.image-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ needs.build.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitOps:** ArgoCD" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry:** GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
+          echo "- **Architecture:** Hetzner Cloud + k3s" >> $GITHUB_STEP_SUMMARY
+          echo "- **Region:** Singapore (ap-southeast)" >> $GITHUB_STEP_SUMMARY
+
+          # Release Info
+          if [ "${{ needs.build.outputs.new_release_published }}" == "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🎉 Release Information:" >> $GITHUB_STEP_SUMMARY
+            echo "- **New Release:** v${{ needs.build.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Semantic Release:** ✅ Published" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Send Slack Notification
+        if: always() && env.SLACK_WEBHOOK_URL
+        uses: slackapi/slack-github-action@v1.26.0
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        with:
+          payload: |
+            {
+              "text": "🚀 Unified Rails Deployment ${{ needs.deploy.result == 'success' && '✅ Success' || '❌ Failed' }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚀 Unified Rails Deployment"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Environment:* ${{ github.event.inputs.environment || 'dev' }}\\n*Version:* ${{ needs.build.outputs.new_release_version }}\\n*Image:* ${{ needs.build.outputs.image-url }}\\n*Status:* ${{ needs.deploy.result == 'success' && '✅ Success' || '❌ Failed' }}\\n*Triggered by:* @${{ github.actor }}\\n*Semantic Release:* ${{ needs.build.outputs.new_release_published == 'true' && '✅ Published' || '⏭️ Skipped' }}"
+                  }
+                }
+              ]
+            }

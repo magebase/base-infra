@@ -2,29 +2,29 @@ name: GitOps Application Deployment
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
     paths:
-      - 'app/**'
-      - 'config/**'
-      - 'db/**'
-      - 'lib/**'
-      - 'k8s/**'
-      - 'Dockerfile'
-      - 'docker-compose.yml'
-      - 'Gemfile*'
-      - 'package.json'
+      - "app/**"
+      - "config/**"
+      - "db/**"
+      - "lib/**"
+      - "k8s/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - "Gemfile*"
+      - "package.json"
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
+        description: "Environment to deploy to"
         required: true
-        default: 'dev'
+        default: "dev"
         type: choice
         options:
           - dev
           - prod
       skip_tests:
-        description: 'Skip running tests'
+        description: "Skip running tests"
         required: false
         default: false
         type: boolean
@@ -46,14 +46,14 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '3.2'
+          ruby-version: "3.2"
           bundler-cache: true
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm'
+          node-version: "18"
+          cache: "npm"
 
       - name: Install dependencies
         run: |
@@ -181,7 +181,7 @@ jobs:
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: 'v1.28.0'
+          version: "v1.28.0"
 
       - name: Configure kubectl
         run: |

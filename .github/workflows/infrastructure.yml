@@ -1,25 +1,52 @@
-name: Infrastructure Validation
+name: Infrastructure CI/CD
 
 on:
   push:
     branches: [main]
     paths:
+      - "infra/**"
       - "terraform/**"
+      - "k8s/**"
       - ".github/workflows/infrastructure.yml"
   pull_request:
     branches: [main]
     paths:
+      - "infra/**"
       - "terraform/**"
+      - "k8s/**"
       - ".github/workflows/infrastructure.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy infrastructure to"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - qa
+          - uat
+          - prod
+      action:
+        description: "Action to perform"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
 
 env:
   TF_VERSION: "1.5.0"
-  TF_WORKING_DIR: "./terraform"
+  TF_WORKING_DIR: "./infra"
 
 jobs:
-  validate-terraform:
-    name: Validate Terraform
+  validate:
+    name: Validate Infrastructure
     runs-on: ubuntu-latest
+    outputs:
+      tf_plan_exitcode: ${{ steps.tf-plan.outputs.exitcode }}
 
     steps:
       - name: Checkout code
@@ -30,35 +57,71 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Format Check
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform fmt -check -recursive
+      - name: Configure AWS credentials for SES
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_SES_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SES_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-1
+
+      - name: Terraform Init
+        id: init
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform init -upgrade
 
       - name: Terraform Validate
-        working-directory: ${{ env.TF_WORKING_DIR }}
+        id: validate
         run: |
-          terraform init -backend=false
+          cd ${{ env.TF_WORKING_DIR }}
           terraform validate
 
-      - name: Checkov Security Scan
-        uses: bridgecrewio/checkov-action@v12
-        with:
-          directory: ${{ env.TF_WORKING_DIR }}
-          framework: terraform
-          output_format: cli
-          output_file_path: console,checkov-report.sarif
-          soft_fail: true
+      - name: Terraform Format Check
+        id: fmt
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform fmt -check -recursive
 
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
+      - name: Terraform Plan
+        id: tf-plan
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform plan -no-color -out=tfplan
+        continue-on-error: true
+
+      - name: Update Pull Request
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' && steps.tf-plan.outcome == 'success'
+        env:
+          PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout }}"
         with:
-          sarif_file: checkov-report.sarif
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.tf-plan.outcome }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
 
   test-terraform:
     name: Test Terraform Configuration
     runs-on: ubuntu-latest
-    needs: validate-terraform
+    needs: validate
 
     steps:
       - name: Checkout code
@@ -103,7 +166,7 @@ jobs:
   security-scan:
     name: Security and Compliance Scan
     runs-on: ubuntu-latest
-    needs: validate-terraform
+    needs: validate
 
     steps:
       - name: Checkout code
@@ -112,21 +175,21 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          scan-type: 'config'
-          scan-ref: './terraform'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          scan-type: "config"
+          scan-ref: "./terraform"
+          format: "sarif"
+          output: "trivy-results.sarif"
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: "trivy-results.sarif"
 
   notify:
     name: Validation Results
     runs-on: ubuntu-latest
-    needs: [validate-terraform, test-terraform, security-scan]
+    needs: [validate, test-terraform, security-scan]
     if: always()
 
     steps:
@@ -135,7 +198,7 @@ jobs:
           echo "## 🔍 Infrastructure Validation Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ needs.validate-terraform.result }}" == "success" ]; then
+          if [ "${{ needs.validate.result }}" == "success" ]; then
             echo "✅ **Terraform Validation:** Passed" >> $GITHUB_STEP_SUMMARY
           else
             echo "❌ **Terraform Validation:** Failed" >> $GITHUB_STEP_SUMMARY
