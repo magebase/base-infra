@@ -47,7 +47,7 @@ provider "hcloud" {
 
 # Cloudflare Provider
 provider "cloudflare" {
-  api_token = var.cloudflare_api_token
+  api_token = var.cloudflare_api_token != "" ? var.cloudflare_api_token : "dummy_token_for_validation"
 }
 
 # AWS Provider (for SES only)
@@ -68,6 +68,8 @@ locals {
 
 # Cloudflare DNS Configuration
 module "cloudflare_dns" {
+  count = var.cloudflare_api_token != "" && var.cloudflare_api_token != "dummy_token_for_validation" ? 1 : 0
+
   source = "./modules/cloudflare"
 
   domain_name  = var.domain_name
@@ -77,12 +79,14 @@ module "cloudflare_dns" {
 
 # Cloudflare CDN Configuration for Active Storage
 module "cloudflare_cdn" {
+  count = var.cloudflare_api_token != "" && var.cloudflare_api_token != "dummy_token_for_validation" ? 1 : 0
+
   source = "./modules/cloudflare/cdn"
 
   domain_name             = var.domain_name
   active_storage_bucket   = module.hetzner_object_storage.hetzner_active_storage_bucket
   object_storage_endpoint = module.hetzner_object_storage.hetzner_object_storage_endpoint
-  zone_id                 = module.cloudflare_dns.zone_id
+  zone_id                 = module.cloudflare_dns[0].zone_id
 }
 
 # AWS SES Configuration (kept from old infrastructure)
@@ -150,7 +154,7 @@ output "hetzner_object_storage_endpoint" {
 }
 
 output "active_storage_cdn_url" {
-  value       = module.cloudflare_cdn.active_storage_cdn_url
+  value       = length(module.cloudflare_cdn) > 0 ? module.cloudflare_cdn[0].active_storage_cdn_url : null
   description = "Cloudflare CDN URL for Active Storage files"
 }
 
