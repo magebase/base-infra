@@ -46,12 +46,12 @@ resource "aws_organizations_account" "production" {
 # Create Organizational Units
 resource "aws_organizations_organizational_unit" "development" {
   name      = "Development"
-  parent_id = aws_organizations_organization.main.roots[0].id
+  parent_id = data.aws_organizations_organization.main.roots[0].id
 }
 
 resource "aws_organizations_organizational_unit" "production" {
   name      = "Production"
-  parent_id = aws_organizations_organization.main.roots[0].id
+  parent_id = data.aws_organizations_organization.main.roots[0].id
 }
 
 # Reference existing organization (don't create if it exists)
