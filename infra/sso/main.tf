@@ -9,6 +9,14 @@ terraform {
   required_version = ">= 1.5.0"
 }
 
+# Configure the AWS Provider
+provider "aws" {
+  region = var.region
+
+  # Use default credentials chain (AWS CLI, environment variables, IAM roles)
+  # For SSO, you might need to configure assume_role if deploying from a different account
+}
+
 # AWS SSO/IAM Identity Center Configuration
 # This should be deployed to the management account
 
