@@ -35,11 +35,29 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Validate Variables
+        run: |
+          if [ -z "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
+            echo "❌ Error: MANAGEMENT_ACCOUNT_ID variable is not set"
+            echo "📋 Please set the MANAGEMENT_ACCOUNT_ID variable in your repository settings"
+            echo "📖 See infra/sso/AWS_SETUP_GUIDE.md for detailed setup instructions"
+            exit 1
+          fi
+          echo "✅ MANAGEMENT_ACCOUNT_ID variable is configured"
+          echo "🔍 Account ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSSORole
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSSORole
           aws-region: ${{ env.AWS_REGION }}
+        timeout-minutes: 5
+
+      - name: Validate AWS Credentials
+        run: |
+          echo "Validating AWS credentials..."
+          aws sts get-caller-identity
+          echo "AWS credentials configured successfully"
 
       - name: Terraform Format
         id: fmt
