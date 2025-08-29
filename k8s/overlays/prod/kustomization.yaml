@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: magebase-prod
+
+bases:
+  - ../../base
+
+patchesStrategicMerge:
+  - prod-patches.yaml
+
+images:
+  - name: magebase-app
+    newTag: ${IMAGE_TAG}
+
+configMapGenerator:
+  - name: magebase-config
+    behavior: replace
+    literals:
+      - RAILS_ENV=production
+      - RAILS_LOG_TO_STDOUT=true
+      - RAILS_SERVE_STATIC_FILES=true
+
+namespace: magebase-prod

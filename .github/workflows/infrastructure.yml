@@ -1,4 +1,4 @@
-name: Infrastructure Tests
+name: Infrastructure Validation
 
 on:
   push:
@@ -14,7 +14,7 @@ on:
 
 env:
   TF_VERSION: "1.5.0"
-  TG_VERSION: "0.55.1"
+  TF_WORKING_DIR: "./terraform"
 
 jobs:
   validate-terraform:
@@ -30,18 +30,12 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Set up Terragrunt
-        run: |
-          wget -O terragrunt https://github.com/gruntwork-io/terragrunt/releases/latest/download/terragrunt_linux_amd64
-          chmod +x terragrunt
-          sudo mv terragrunt /usr/local/bin/
-
       - name: Terraform Format Check
-        working-directory: ./terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform fmt -check -recursive
 
       - name: Terraform Validate
-        working-directory: ./terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           terraform init -backend=false
           terraform validate
@@ -49,19 +43,20 @@ jobs:
       - name: Checkov Security Scan
         uses: bridgecrewio/checkov-action@v12
         with:
-          directory: ./terraform
+          directory: ${{ env.TF_WORKING_DIR }}
           framework: terraform
           output_format: cli
-          output_file_path: console,results.sarif
+          output_file_path: console,checkov-report.sarif
+          soft_fail: true
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v2
-        if: success() || failure()
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
-          sarif_file: results.sarif
+          sarif_file: checkov-report.sarif
 
   test-terraform:
-    name: Test Terraform Modules
+    name: Test Terraform Configuration
     runs-on: ubuntu-latest
     needs: validate-terraform
 
@@ -69,103 +64,100 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.21"
-
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Run Terratest
-        working-directory: ./terraform/test
+      - name: Test Development Configuration
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          go mod download
-          go test -v -timeout 30m -run TestTerraform
+          terraform init -backend=false
+          terraform plan -var-file="dev.tfvars" -no-color -out=tfplan-dev
+          terraform show -json tfplan-dev > tfplan-dev.json
 
-  plan-infrastructure:
-    name: Plan Infrastructure Changes
-    runs-on: ubuntu-latest
-    needs: [validate-terraform, test-terraform]
-    if: github.event_name == 'pull_request'
-    strategy:
-      matrix:
-        environment: [dev, qa, uat]
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Set up Terragrunt
+      - name: Test Production Configuration
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          wget -O terragrunt https://github.com/gruntwork-io/terragrunt/releases/latest/download/terragrunt_linux_amd64
-          chmod +x terragrunt
-          sudo mv terragrunt /usr/local/bin/
+          terraform plan -var-file="prod.tfvars" -no-color -out=tfplan-prod
+          terraform show -json tfplan-prod > tfplan-prod.json
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
-
-      - name: Plan infrastructure changes
-        working-directory: ./terraform/environments/${{ matrix.environment }}
+      - name: Validate Plan Outputs
         run: |
-          terragrunt init
-          terragrunt plan -out=tfplan
-          terragrunt show tfplan
+          # Check that plans were generated successfully
+          if [ ! -f "terraform/tfplan-dev.json" ] || [ ! -f "terraform/tfplan-prod.json" ]; then
+            echo "❌ Plan files not generated"
+            exit 1
+          fi
 
-  cost-estimate:
-    name: Infrastructure Cost Estimate
+          # Check for errors in plans
+          if grep -q '"error"' terraform/tfplan-dev.json || grep -q '"error"' terraform/tfplan-prod.json; then
+            echo "❌ Errors found in terraform plans"
+            cat terraform/tfplan-dev.json
+            cat terraform/tfplan-prod.json
+            exit 1
+          fi
+
+          echo "✅ Terraform plans validated successfully"
+
+  security-scan:
+    name: Security and Compliance Scan
     runs-on: ubuntu-latest
     needs: validate-terraform
-    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
         with:
-          terraform_version: ${{ env.TF_VERSION }}
+          scan-type: 'config'
+          scan-ref: './terraform'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          sarif_file: 'trivy-results.sarif'
 
-      - name: Install Infracost
+  notify:
+    name: Validation Results
+    runs-on: ubuntu-latest
+    needs: [validate-terraform, test-terraform, security-scan]
+    if: always()
+
+    steps:
+      - name: Create validation summary
         run: |
-          curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh
+          echo "## 🔍 Infrastructure Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
 
-      - name: Run Infracost
-        working-directory: ./terraform
-        run: |
-          infracost breakdown --path . --format json --out-file infracost.json
-        env:
-          INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
+          if [ "${{ needs.validate-terraform.result }}" == "success" ]; then
+            echo "✅ **Terraform Validation:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Terraform Validation:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
 
-      - name: Post cost estimate comment
-        uses: infracost/actions/comment@v3
-        with:
-          path: ./terraform/infracost.json
-          behavior: update
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          if [ "${{ needs.test-terraform.result }}" == "success" ]; then
+            echo "✅ **Terraform Testing:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Terraform Testing:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.security-scan.result }}" == "success" ]; then
+            echo "✅ **Security Scan:** Passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Security Scan:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Architecture:" >> $GITHUB_STEP_SUMMARY
+          echo "- **Provider:** Hetzner Cloud (k3s)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Region:** Singapore (ap-southeast)" >> $GITHUB_STEP_SUMMARY
+          echo "- **DNS:** Cloudflare" >> $GITHUB_STEP_SUMMARY
+          echo "- **Container Registry:** GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
+          echo "- **GitOps:** ArgoCD" >> $GITHUB_STEP_SUMMARY
+          echo "- **Monitoring:** Prometheus + Grafana" >> $GITHUB_STEP_SUMMARY

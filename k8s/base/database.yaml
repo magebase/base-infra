@@ -1,0 +1,73 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: magebase-db
+  namespace: magebase
+spec:
+  instances: 2
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 10Gi
+    storageClass: hcloud-volumes
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: "256MB"
+      effective_cache_size: "1GB"
+      maintenance_work_mem: "64MB"
+      checkpoint_completion_target: "0.9"
+      wal_buffers: "16MB"
+      default_statistics_target: "100"
+    pg_hba:
+      - host all all 10.0.0.0/8 md5
+      - host all all 172.16.0.0/12 md5
+      - host all all 192.168.0.0/16 md5
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://magebase-postgres-backups/
+      endpointURL: https://sin.magebase.dev
+      s3Credentials:
+        accessKeyId:
+          name: hetzner-object-storage-credentials
+          key: access_key_id
+        secretAccessKey:
+          name: hetzner-object-storage-credentials
+          key: secret_access_key
+      wal:
+        compression: gzip
+        maxParallel: 8
+    retentionPolicy: "30d"
+    target: prefer-standby
+  monitoring:
+    enablePodMonitor: true
+    customQueriesConfigMap:
+      name: cnpg-default-monitoring
+      key: queries
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hetzner-object-storage-credentials
+  namespace: magebase
+type: Opaque
+data:
+  access_key_id: "${HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64}"
+  secret_access_key: "${HETZNER_OBJECT_STORAGE_SECRET_KEY_B64}"
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: magebase-db-backup
+  namespace: magebase
+spec:
+  schedule: "0 2 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: magebase-db
