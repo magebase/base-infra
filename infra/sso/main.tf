@@ -254,7 +254,11 @@ locals {
 
 # Create Permission Sets (only if SSO is enabled)
 resource "aws_ssoadmin_permission_set" "main" {
-  for_each = local.sso_enabled ? local.permission_sets : {}
+  for_each = {
+    for k, v in local.permission_sets :
+    k => v
+    if local.sso_enabled
+  }
 
   name        = each.value.name
   description = each.value.description
@@ -269,17 +273,21 @@ resource "aws_ssoadmin_permission_set" "main" {
 
 # Attach managed policies to permission sets
 resource "aws_ssoadmin_managed_policy_attachment" "managed_policies" {
-  for_each = merge([
-    for ps_name, ps_config in local.permission_sets : {
-      for policy_arn in ps_config.managed_policies :
-      "${ps_name}-${basename(policy_arn)}" => {
-        permission_set_arn = aws_ssoadmin_permission_set.main[ps_name].arn
-        policy_arn         = policy_arn
-      }
-    }
-  ]...)
+  for_each = {
+    for item in flatten([
+      for ps_name, ps_config in local.permission_sets : [
+        for policy_arn in ps_config.managed_policies : {
+          key = "${ps_name}-${basename(policy_arn)}"
+          permission_set_arn = aws_ssoadmin_permission_set.main[ps_name].arn
+          policy_arn = policy_arn
+        }
+      ]
+    ]) :
+    item.key => item
+    if local.sso_enabled
+  }
 
-  instance_arn       = tolist(data.aws_ssoadmin_instances.main.arns)[0]
+  instance_arn       = local.sso_instance_arn
   permission_set_arn = each.value.permission_set_arn
   managed_policy_arn = each.value.policy_arn
 }
@@ -289,7 +297,7 @@ resource "aws_ssoadmin_permission_set_inline_policy" "inline_policies" {
   for_each = {
     for ps_name, ps_config in local.permission_sets :
     ps_name => ps_config
-    if lookup(ps_config, "inline_policy", null) != null
+    if lookup(ps_config, "inline_policy", null) != null && local.sso_enabled
   }
 
   inline_policy      = each.value.inline_policy
@@ -299,7 +307,11 @@ resource "aws_ssoadmin_permission_set_inline_policy" "inline_policies" {
 
 # Create User Groups in AWS Identity Store (only if SSO is enabled)
 resource "aws_identitystore_group" "main" {
-  for_each = local.sso_enabled ? local.user_groups : {}
+  for_each = {
+    for k, v in local.user_groups :
+    k => v
+    if local.sso_enabled
+  }
 
   display_name = each.value.display_name
   description  = each.value.description
@@ -308,23 +320,27 @@ resource "aws_identitystore_group" "main" {
 
 # Create account assignments (only if SSO is enabled)
 resource "aws_ssoadmin_account_assignment" "main" {
-  for_each = local.sso_enabled ? merge(flatten([
-    for account_key, account_config in local.account_assignments : [
-      for assignment in account_config.assignments : {
-        key = "${account_key}-${assignment.permission_set}-${assignment.principal_type}-${assignment.principal_name}"
-        account_id = account_config.account_id
-        permission_set_arn = aws_ssoadmin_permission_set.main[assignment.permission_set].arn
-        principal_type = assignment.principal_type
-        principal_id = assignment.principal_type == "USER" ? (
-          # For users, we'll need to create them separately or use existing ones
-          # For now, this will need manual user creation in AWS SSO console
-          "USER_ID_PLACEHOLDER_${assignment.principal_name}"
-        ) : (
-          aws_identitystore_group.main[assignment.principal_name].group_id
-        )
-      }
-    ]
-  ])...) : {}
+  for_each = {
+    for item in flatten([
+      for account_key, account_config in local.account_assignments : [
+        for assignment in account_config.assignments : {
+          key = "${account_key}-${assignment.permission_set}-${assignment.principal_type}-${assignment.principal_name}"
+          account_id = account_config.account_id
+          permission_set_arn = aws_ssoadmin_permission_set.main[assignment.permission_set].arn
+          principal_type = assignment.principal_type
+          principal_id = assignment.principal_type == "USER" ? (
+            # For users, we'll need to create them separately or use existing ones
+            # For now, this will need manual user creation in AWS SSO console
+            "USER_ID_PLACEHOLDER_${assignment.principal_name}"
+          ) : (
+            aws_identitystore_group.main[assignment.principal_name].group_id
+          )
+        }
+      ]
+    ]) :
+    item.key => item
+    if local.sso_enabled
+  }
 
   instance_arn       = local.sso_instance_arn
   permission_set_arn = each.value.permission_set_arn
