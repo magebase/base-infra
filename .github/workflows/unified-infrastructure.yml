@@ -234,6 +234,9 @@ jobs:
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           cd ${{ env.TF_WORKING_DIR }}
           echo "🚀 Applying AWS Organizations and SSO configuration..."
@@ -241,8 +244,6 @@ jobs:
           # Apply with dummy values for non-AWS variables
           terraform apply -auto-approve -input=false \
             -var-file="dev.tfvars" \
-            -var="hcloud_token=dummy" \
-            -var="cloudflare_api_token=dummy" \
             -var="aws_ses_account_id=dummy" \
             -var="database_url=dummy" \
             -var="cache_database_url=dummy" \
@@ -342,6 +343,8 @@ jobs:
         env:
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           cd ${{ env.TF_WORKING_DIR }}
           terraform plan -no-color -out=tfplan
@@ -381,6 +384,8 @@ jobs:
         env:
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           cd ${{ env.TF_WORKING_DIR }}
           terraform apply -auto-approve tfplan
