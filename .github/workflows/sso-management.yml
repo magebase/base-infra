@@ -63,19 +63,23 @@ jobs:
         id: fmt
         run: terraform fmt -check
         continue-on-error: true
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Init
         run: terraform init -input=false -upgrade
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Plan
         id: plan
         if: github.event_name == 'pull_request'
         run: terraform plan -no-color -input=false
         continue-on-error: true
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Update Pull Request
         uses: actions/github-script@v7
@@ -112,3 +116,4 @@ jobs:
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: terraform apply -auto-approve -input=false
+        working-directory: ${{ env.TF_WORKING_DIR }}
