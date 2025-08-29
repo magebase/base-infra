@@ -1,6 +1,6 @@
 # Terraform configuration for Magebase infrastructure using Hetzner + k3s
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.8.0"
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
@@ -34,7 +34,6 @@ module "organizations" {
 # AWS SSO Configuration (depends on organizations module)
 module "sso" {
   source = "./sso"
-  depends_on = [module.organizations]
 
   development_account_id = module.organizations.development_account_id
   production_account_id  = module.organizations.production_account_id

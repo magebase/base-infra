@@ -33,7 +33,7 @@ on:
       - ".github/workflows/sso-management.yml"
 
 env:
-  TF_VERSION: "1.5.0"
+  TF_VERSION: "1.8.0"
   TF_WORKING_DIR: infra
   AWS_REGION: us-east-1 # Organizations must be in us-east-1
   SSO_REGION: ap-southeast-1
