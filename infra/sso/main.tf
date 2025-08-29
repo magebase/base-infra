@@ -6,7 +6,7 @@ terraform {
     }
   }
 
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.8.0"
 }
 
 # Configure the AWS Provider
@@ -20,7 +20,7 @@ provider "aws" {
 # AWS SSO/IAM Identity Center Configuration
 # This should be deployed to the management account
 
-data "aws_organizations_organization" "main" {}
+
 
 locals {
   # SSO Configuration
@@ -175,7 +175,7 @@ locals {
       ]
     }
 
-    # Development Account (if separate)
+    # Development Account
     development = {
       account_id = var.development_account_id
       assignments = [
@@ -197,7 +197,7 @@ locals {
       ]
     }
 
-    # Production Account (if separate)
+    # Production Account
     production = {
       account_id = var.production_account_id
       assignments = [
