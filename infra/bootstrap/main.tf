@@ -60,49 +60,50 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
 }
 
 # S3 bucket policy to allow access from GitHub Actions SSO role
-resource "aws_s3_bucket_policy" "terraform_state_policy" {
-  bucket = aws_s3_bucket.terraform_state.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "AllowGitHubActionsSSOAccess"
-        Effect    = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/GitHubActionsSSORole"
-        }
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          aws_s3_bucket.terraform_state.arn,
-          "${aws_s3_bucket.terraform_state.arn}/*"
-        ]
-      },
-      {
-        Sid       = "AllowCurrentUserAccess"
-        Effect    = "Allow"
-        Principal = {
-          AWS = data.aws_caller_identity.current.arn
-        }
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          aws_s3_bucket.terraform_state.arn,
-          "${aws_s3_bucket.terraform_state.arn}/*"
-        ]
-      }
-    ]
-  })
-}
+# Note: This will be created after SSO roles are set up
+# resource "aws_s3_bucket_policy" "terraform_state_policy" {
+#   bucket = aws_s3_bucket.terraform_state.id
+#
+#   policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [
+#       {
+#         Sid       = "AllowGitHubActionsSSOAccess"
+#         Effect    = "Allow"
+#         Principal = {
+#           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/GitHubActionsSESRole"
+#         }
+#         Action = [
+#           "s3:GetObject",
+#           "s3:PutObject",
+#           "s3:DeleteObject",
+#           "s3:ListBucket"
+#         ]
+#         Resource = [
+#           aws_s3_bucket.terraform_state.arn,
+#           "${aws_s3_bucket.terraform_state.arn}/*"
+#         ]
+#       },
+#       {
+#         Sid       = "AllowCurrentUserAccess"
+#         Effect    = "Allow"
+#         Principal = {
+#           AWS = data.aws_caller_identity.current.arn
+#         }
+#         Action = [
+#           "s3:GetObject",
+#           "s3:PutObject",
+#           "s3:DeleteObject",
+#           "s3:ListBucket"
+#         ]
+#         Resource = [
+#           aws_s3_bucket.terraform_state.arn,
+#           "${aws_s3_bucket.terraform_state.arn}/*"
+#         ]
+#       }
+#     ]
+#   })
+# }
 
 # Create DynamoDB table for state locking
 resource "aws_dynamodb_table" "terraform_locks" {
