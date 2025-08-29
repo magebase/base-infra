@@ -330,6 +330,9 @@ jobs:
       - name: Terraform Plan
         id: tf-plan
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        env:
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
         run: |
           cd ${{ env.TF_WORKING_DIR }}
           terraform plan -no-color -out=tfplan
@@ -366,6 +369,9 @@ jobs:
 
       - name: Terraform Apply
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        env:
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
         run: |
           cd ${{ env.TF_WORKING_DIR }}
           terraform apply -auto-approve tfplan
