@@ -54,9 +54,7 @@ provider "cloudflare" {
 provider "aws" {
   alias  = "route53"
   region = "us-east-1" # Route53 is a global service, but provider needs a region
-  assume_role {
-    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
-  }
+  # No assume_role needed - using the already assumed GitHubActionsSSORole
 }
 
 # IAM Role for SES Management (created outside module to avoid cycle)

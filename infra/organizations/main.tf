@@ -11,6 +11,11 @@ terraform {
 # Management Account Provider
 provider "aws" {
   region = var.region # Organizations must be in us-east-1
+
+  # Skip role assumption if credentials are already from an assumed role
+  # This prevents circular role assumption when running in CI/CD or with SSO
+  skip_metadata_api_check     = true
+  skip_credentials_validation = true
 }
 
 # Create Development Account

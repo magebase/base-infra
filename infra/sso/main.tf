@@ -13,6 +13,11 @@ terraform {
 provider "aws" {
   region = var.region
 
+  # Skip role assumption if credentials are already from an assumed role
+  # This prevents circular role assumption when running in CI/CD or with SSO
+  skip_metadata_api_check     = true
+  skip_credentials_validation = true
+
   # Use default credentials chain (AWS CLI, environment variables, IAM roles)
   # For SSO, you might need to configure assume_role if deploying from a different account
 }
