@@ -18,6 +18,14 @@ terraform/
 ├── modules/
 │   ├── cloudflare/        # Cloudflare DNS configuration
 │   └── aws-ses/          # AWS SES email service
+├── organizations/         # AWS Organizations account creation
+│   ├── main.tf           # AWS account and OU creation
+│   ├── variables.tf      # Variable definitions
+│   └── terraform.tfvars  # Account configuration
+├── sso/                   # AWS SSO/IAM Identity Center
+│   ├── main.tf           # SSO resources and assignments
+│   ├── variables.tf      # Variable definitions
+│   └── terraform.tfvars  # Account IDs and settings
 └── extra-manifests/      # ArgoCD applications
 ```
 
@@ -55,7 +63,49 @@ STRIPE_API_KEY=sk_test_your-stripe-key
 STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
 ```
 
-### 3. Deploy Infrastructure
+### 3. AWS Account Setup (NEW)
+
+#### Option A: Create Accounts via Terraform (Recommended)
+
+```bash
+# Navigate to AWS Organizations setup
+cd organizations
+
+# Update terraform.tfvars with your email addresses
+# Edit terraform.tfvars and replace the email addresses
+
+# Initialize and create accounts
+terraform init
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+
+# Get the account IDs
+terraform output development_account_id
+terraform output production_account_id
+```
+
+#### Option B: Manual Account Creation
+
+1. Go to AWS Organizations Console
+2. Create "Development" and "Production" accounts
+3. Note the account IDs
+
+#### Configure SSO
+
+```bash
+# Navigate to SSO setup
+cd ../sso
+
+# Update terraform.tfvars with account IDs from step above
+# Replace placeholder values with real account IDs
+
+# Initialize and apply SSO configuration
+terraform init
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+```
+
+### 4. Deploy Infrastructure
 
 #### Using GitHub Actions (Recommended)
 
@@ -84,6 +134,14 @@ terraform apply -var-file="dev.tfvars"
 ```
 
 ## 🏗️ Infrastructure Components
+
+### AWS Organizations & SSO (NEW)
+
+- **AWS Organizations**: Multi-account management and governance
+- **AWS SSO**: Centralized identity and access management
+- **Permission Sets**: Administrator, Infrastructure, Deployment, ReadOnly roles
+- **Account Assignments**: Group-based access to development/production accounts
+- **Organizational Units**: Development and Production environments
 
 ### Hetzner Cloud k3s Clusters
 

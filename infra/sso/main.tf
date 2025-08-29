@@ -237,6 +237,33 @@ locals {
       description  = "Read-only access for auditing and compliance"
     }
   }
+
+  # Conditionally build managed policy attachments
+  managed_policy_attachments = local.sso_enabled ? flatten([
+    for ps_name, ps_config in local.permission_sets : [
+      for policy_arn in ps_config.managed_policies : {
+        key = "${ps_name}-${basename(policy_arn)}"
+        ps_name = ps_name
+        policy_arn = policy_arn
+      }
+    ]
+  ]) : []
+
+  # Conditionally build account assignments (only groups for now, users need to be created first)
+  account_assignments_list = local.sso_enabled ? flatten([
+    for account_key, account_config in local.account_assignments : [
+      for assignment in account_config.assignments : {
+        key = "${account_key}-${assignment.permission_set}-${assignment.principal_type}-${assignment.principal_name}"
+        account_id = account_config.account_id
+        ps_name = assignment.permission_set
+        principal_type = assignment.principal_type
+        principal_name = assignment.principal_name
+        is_user = assignment.principal_type == "USER"
+      }
+      # Only include GROUP assignments for now (users need to be created in AWS SSO first)
+      if assignment.principal_type == "GROUP"
+    ]
+  ]) : []
 }
 
 # Get current account identity
@@ -274,21 +301,12 @@ resource "aws_ssoadmin_permission_set" "main" {
 # Attach managed policies to permission sets
 resource "aws_ssoadmin_managed_policy_attachment" "managed_policies" {
   for_each = {
-    for item in flatten([
-      for ps_name, ps_config in local.permission_sets : [
-        for policy_arn in ps_config.managed_policies : {
-          key = "${ps_name}-${basename(policy_arn)}"
-          permission_set_arn = aws_ssoadmin_permission_set.main[ps_name].arn
-          policy_arn = policy_arn
-        }
-      ]
-    ]) :
+    for item in local.managed_policy_attachments :
     item.key => item
-    if local.sso_enabled
   }
 
   instance_arn       = local.sso_instance_arn
-  permission_set_arn = each.value.permission_set_arn
+  permission_set_arn = aws_ssoadmin_permission_set.main[each.value.ps_name].arn
   managed_policy_arn = each.value.policy_arn
 }
 
@@ -321,31 +339,20 @@ resource "aws_identitystore_group" "main" {
 # Create account assignments (only if SSO is enabled)
 resource "aws_ssoadmin_account_assignment" "main" {
   for_each = {
-    for item in flatten([
-      for account_key, account_config in local.account_assignments : [
-        for assignment in account_config.assignments : {
-          key = "${account_key}-${assignment.permission_set}-${assignment.principal_type}-${assignment.principal_name}"
-          account_id = account_config.account_id
-          permission_set_arn = aws_ssoadmin_permission_set.main[assignment.permission_set].arn
-          principal_type = assignment.principal_type
-          principal_id = assignment.principal_type == "USER" ? (
-            # For users, we'll need to create them separately or use existing ones
-            # For now, this will need manual user creation in AWS SSO console
-            "USER_ID_PLACEHOLDER_${assignment.principal_name}"
-          ) : (
-            aws_identitystore_group.main[assignment.principal_name].group_id
-          )
-        }
-      ]
-    ]) :
+    for item in local.account_assignments_list :
     item.key => item
-    if local.sso_enabled
   }
 
   instance_arn       = local.sso_instance_arn
-  permission_set_arn = each.value.permission_set_arn
+  permission_set_arn = aws_ssoadmin_permission_set.main[each.value.ps_name].arn
   principal_type     = each.value.principal_type
-  principal_id       = each.value.principal_id
+  principal_id       = each.value.is_user ? (
+    # For users, we'll need to create them separately or use existing ones
+    # For now, this will need manual user creation in AWS SSO console
+    "USER_ID_PLACEHOLDER_${each.value.principal_name}"
+  ) : (
+    aws_identitystore_group.main[each.value.principal_name].group_id
+  )
   target_id          = each.value.account_id
   target_type        = "AWS_ACCOUNT"
 
