@@ -242,16 +242,23 @@ locals {
 # Get current account identity
 data "aws_caller_identity" "current" {}
 
-# Get AWS SSO instance
+# Get AWS SSO instance (only if it exists)
 data "aws_ssoadmin_instances" "main" {}
 
-# Create Permission Sets
+# Check if SSO is enabled
+locals {
+  sso_enabled = length(data.aws_ssoadmin_instances.main.arns) > 0
+  sso_instance_arn = local.sso_enabled ? tolist(data.aws_ssoadmin_instances.main.arns)[0] : null
+  identity_store_id = local.sso_enabled ? tolist(data.aws_ssoadmin_instances.main.identity_store_ids)[0] : null
+}
+
+# Create Permission Sets (only if SSO is enabled)
 resource "aws_ssoadmin_permission_set" "main" {
-  for_each = local.permission_sets
+  for_each = local.sso_enabled ? local.permission_sets : {}
 
   name        = each.value.name
   description = each.value.description
-  instance_arn = tolist(data.aws_ssoadmin_instances.main.arns)[0]
+  instance_arn = local.sso_instance_arn
 
   tags = {
     Name        = each.value.name
@@ -286,22 +293,22 @@ resource "aws_ssoadmin_permission_set_inline_policy" "inline_policies" {
   }
 
   inline_policy      = each.value.inline_policy
-  instance_arn       = tolist(data.aws_ssoadmin_instances.main.arns)[0]
+  instance_arn       = local.sso_instance_arn
   permission_set_arn = aws_ssoadmin_permission_set.main[each.key].arn
 }
 
-# Create User Groups in AWS Identity Store
+# Create User Groups in AWS Identity Store (only if SSO is enabled)
 resource "aws_identitystore_group" "main" {
-  for_each = local.user_groups
+  for_each = local.sso_enabled ? local.user_groups : {}
 
   display_name = each.value.display_name
   description  = each.value.description
-  identity_store_id = tolist(data.aws_ssoadmin_instances.main.identity_store_ids)[0]
+  identity_store_id = local.identity_store_id
 }
 
-# Create account assignments
+# Create account assignments (only if SSO is enabled)
 resource "aws_ssoadmin_account_assignment" "main" {
-  for_each = merge(flatten([
+  for_each = local.sso_enabled ? merge(flatten([
     for account_key, account_config in local.account_assignments : [
       for assignment in account_config.assignments : {
         key = "${account_key}-${assignment.permission_set}-${assignment.principal_type}-${assignment.principal_name}"
@@ -317,9 +324,9 @@ resource "aws_ssoadmin_account_assignment" "main" {
         )
       }
     ]
-  ])...)
+  ])...) : {}
 
-  instance_arn       = tolist(data.aws_ssoadmin_instances.main.arns)[0]
+  instance_arn       = local.sso_instance_arn
   permission_set_arn = each.value.permission_set_arn
   principal_type     = each.value.principal_type
   principal_id       = each.value.principal_id
@@ -369,37 +376,42 @@ resource "aws_ssoadmin_account_assignment" "main" {
 # }
 
 # Outputs
+output "sso_enabled" {
+  description = "Whether AWS SSO is enabled in this account"
+  value       = local.sso_enabled
+}
+
 output "sso_instance_arn" {
   description = "ARN of the AWS SSO instance"
-  value       = tolist(data.aws_ssoadmin_instances.main.arns)[0]
+  value       = local.sso_enabled ? local.sso_instance_arn : null
 }
 
 output "permission_sets" {
   description = "Created permission sets"
-  value = {
+  value = local.sso_enabled ? {
     for k, v in aws_ssoadmin_permission_set.main :
     k => {
       arn  = v.arn
       name = v.name
     }
-  }
+  } : {}
 }
 
 output "user_groups" {
   description = "Created user groups in AWS Identity Store"
-  value = {
+  value = local.sso_enabled ? {
     for k, v in aws_identitystore_group.main :
     k => {
       group_id     = v.group_id
       display_name = v.display_name
       description  = v.description
     }
-  }
+  } : {}
 }
 
 output "account_assignments" {
   description = "Account assignments created"
-  value = {
+  value = local.sso_enabled ? {
     for k, v in aws_ssoadmin_account_assignment.main :
     k => {
       account_id        = v.target_id
@@ -407,10 +419,10 @@ output "account_assignments" {
       principal_type    = v.principal_type
       principal_name    = split("-", k)[3]
     }
-  }
+  } : {}
 }
 
 output "sso_start_url" {
   description = "AWS SSO start URL"
-  value       = "https://${tolist(data.aws_ssoadmin_instances.main.identity_store_ids)[0]}.awsapps.com/start"
+  value       = local.sso_enabled ? "https://${local.identity_store_id}.awsapps.com/start" : null
 }
