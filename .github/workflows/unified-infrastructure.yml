@@ -266,7 +266,7 @@ jobs:
           echo "📋 Getting development account ID for SES..."
           DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
           echo "Using account ID for SES: $DEV_ACCOUNT_ID"
-          
+
           # Export the development account ID for use in subsequent steps
           echo "DEV_ACCOUNT_ID=$DEV_ACCOUNT_ID" >> $GITHUB_ENV
 
