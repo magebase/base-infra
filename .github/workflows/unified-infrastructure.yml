@@ -172,7 +172,9 @@ jobs:
             -var="hetzner_object_storage_access_key=dummy" \
             -var="hetzner_object_storage_secret_key=dummy" \
             -var="stripe_api_key=dummy" \
-            -var="stripe_webhook_secret=dummy"
+            -var="stripe_webhook_secret=dummy" \
+            -var="ssh_private_key=dummy" \
+            -var="ssh_public_key=dummy"
         continue-on-error: true
 
       - name: Update Pull Request
@@ -251,7 +253,9 @@ jobs:
             -var="hetzner_object_storage_access_key=dummy" \
             -var="hetzner_object_storage_secret_key=dummy" \
             -var="stripe_api_key=dummy" \
-            -var="stripe_webhook_secret=dummy"
+            -var="stripe_webhook_secret=dummy" \
+            -var="ssh_private_key=dummy" \
+            -var="ssh_public_key=dummy"
 
           echo "✅ AWS Organizations and SSO configuration applied successfully"
 
@@ -535,7 +539,14 @@ jobs:
   notify:
     name: Deployment Results
     runs-on: ubuntu-latest
-    needs: [sso-setup, infrastructure-deploy, validate, test-terraform, security-scan]
+    needs:
+      [
+        sso-setup,
+        infrastructure-deploy,
+        validate,
+        test-terraform,
+        security-scan,
+      ]
     if: always()
 
     steps:
