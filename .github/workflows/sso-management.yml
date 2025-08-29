@@ -65,13 +65,13 @@ jobs:
         continue-on-error: true
         working-directory: ${{ env.TF_WORKING_DIR }}
 
+      - name: Terraform Init
+        run: terraform init -input=false -upgrade
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
       - name: Terraform Validate
         id: validate
         run: terraform validate -no-color
-        working-directory: ${{ env.TF_WORKING_DIR }}
-
-      - name: Terraform Init
-        run: terraform init -input=false -upgrade
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Plan
