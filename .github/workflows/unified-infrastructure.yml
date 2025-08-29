@@ -72,6 +72,8 @@ jobs:
       id-token: write
       contents: read
       pull-requests: write
+    outputs:
+      development_account_id: ${{ steps.get-dev-account.outputs.account_id }}
     # Skip SSO setup if explicitly requested
     if: github.event.inputs.skip_sso != true
 
@@ -260,9 +262,25 @@ jobs:
 
           echo "✅ AWS Organizations and SSO configuration applied successfully"
 
+          # Get the development account ID for SES configuration
+          echo "📋 Getting development account ID for SES..."
+          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
+          echo "Using account ID for SES: $DEV_ACCOUNT_ID"
+          
+          # Export the development account ID for use in subsequent steps
+          echo "DEV_ACCOUNT_ID=$DEV_ACCOUNT_ID" >> $GITHUB_ENV
+
           # Show the created account IDs
           echo "📋 Created AWS Account IDs:"
           terraform output -json | jq '.development_account_id.value, .production_account_id.value'
+
+      - name: Get Development Account ID
+        id: get-dev-account
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
+          echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
+          echo "Using development account ID: $DEV_ACCOUNT_ID"
 
       - name: Verify SSO Configuration
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -345,7 +363,7 @@ jobs:
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
-          TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+          TF_VAR_aws_ses_account_id: ${{ needs.sso-setup.outputs.development_account_id }}
         run: |
           cd ${{ env.TF_WORKING_DIR }}
           terraform plan -no-color -out=tfplan
@@ -387,7 +405,7 @@ jobs:
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
-          TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+          TF_VAR_aws_ses_account_id: ${{ needs.sso-setup.outputs.development_account_id }}
         run: |
           cd ${{ env.TF_WORKING_DIR }}
           terraform apply -auto-approve tfplan
