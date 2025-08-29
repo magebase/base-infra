@@ -7,11 +7,13 @@ variable "region" {
 variable "development_account_id" {
   description = "AWS Account ID for the development account"
   type        = string
+  default     = null
 }
 
 variable "production_account_id" {
   description = "AWS Account ID for the production account"
   type        = string
+  default     = null
 }
 
 variable "tags" {
