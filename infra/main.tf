@@ -55,7 +55,7 @@ provider "aws" {
   alias  = "ses"
   region = "ap-southeast-1" # Singapore region for SES
   assume_role {
-    role_arn = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? "arn:aws:iam::${var.aws_ses_account_id}:role/SESManagerRole" : "arn:aws:iam::123456789012:role/DummyRole"
+    role_arn = length(module.aws_ses) > 0 ? module.aws_ses[0].ses_manager_role_arn : "arn:aws:iam::123456789012:role/DummyRole"
   }
 }
 

@@ -19,6 +19,62 @@ variable "environment" {
   type        = string
 }
 
+# IAM Role for SES Management
+resource "aws_iam_role" "ses_manager" {
+  name = "SESManagerRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/GitHubActionsSSORole"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Environment = var.environment
+    Purpose     = "SES Management"
+  }
+}
+
+# IAM Policy for SES Management
+resource "aws_iam_role_policy" "ses_manager_policy" {
+  name = "SESManagerPolicy"
+  role = aws_iam_role.ses_manager.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ses:*"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:GetChange",
+          "route53:ListHostedZones",
+          "route53:GetHostedZone",
+          "route53:ListResourceRecordSets",
+          "route53:ChangeResourceRecordSets"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Data source for current account
+data "aws_caller_identity" "current" {}
+
 # SES Domain Identity
 resource "aws_ses_domain_identity" "main" {
   domain = var.domain_name
@@ -88,4 +144,8 @@ output "dkim_tokens" {
 
 output "mail_from_domain" {
   value = aws_ses_domain_mail_from.main.mail_from_domain
+}
+
+output "ses_manager_role_arn" {
+  value = aws_iam_role.ses_manager.arn
 }
