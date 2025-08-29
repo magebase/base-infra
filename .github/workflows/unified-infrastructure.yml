@@ -137,23 +137,27 @@ jobs:
 
       - name: Terraform Format
         id: fmt
-        run: terraform fmt -check -recursive
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform fmt -check -recursive
         continue-on-error: true
-        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Init
-        run: terraform init -input=false -upgrade
-        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform init -input=false -upgrade
 
       - name: Terraform Validate
         id: validate
-        run: terraform validate -no-color
-        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform validate -no-color
 
       - name: Terraform Plan
         id: plan
         if: github.event_name == 'pull_request'
         run: |
+          cd ${{ env.TF_WORKING_DIR }}
           terraform plan -no-color -input=false -var-file="dev.tfvars" \
             -var="hcloud_token=dummy" \
             -var="cloudflare_api_token=dummy" \
@@ -169,7 +173,6 @@ jobs:
             -var="stripe_api_key=dummy" \
             -var="stripe_webhook_secret=dummy"
         continue-on-error: true
-        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Update Pull Request
         uses: actions/github-script@v7
@@ -229,6 +232,7 @@ jobs:
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
+          cd ${{ env.TF_WORKING_DIR }}
           echo "🚀 Applying AWS Organizations and SSO configuration..."
 
           # Apply with dummy values for non-AWS variables
@@ -252,7 +256,6 @@ jobs:
           # Show the created account IDs
           echo "📋 Created AWS Account IDs:"
           terraform output -json | jq '.development_account_id.value, .production_account_id.value'
-        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Verify SSO Configuration
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
