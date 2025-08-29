@@ -105,7 +105,6 @@ jobs:
         run: |
           bundle install
           yarn install
-
       - name: Set up database
         env:
           RAILS_ENV: test
