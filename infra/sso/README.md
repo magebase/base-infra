@@ -20,17 +20,49 @@ The following user groups are automatically created:
 
 ## Prerequisites
 
-1. **AWS Management Account**: You need an AWS management account (the account that will host the SSO instance)
-2. **AWS Organization**: The management account should be part of an AWS Organization
-3. **Member Accounts**: Development and production accounts should be member accounts in the organization
+Before deploying the SSO configuration, you need to set up AWS credentials and permissions:
 
-## Required Secrets
+### 1. AWS Organization Setup
 
-Add the following secrets to your GitHub repository:
+**First, set up your AWS Organization and accounts:**
 
-- `MANAGEMENT_ACCOUNT_ID`: The AWS account ID of your management account
-- `DEVELOPMENT_ACCOUNT_ID`: The AWS account ID of your development account
-- `PRODUCTION_ACCOUNT_ID`: The AWS account ID of your production account
+- 📖 **Complete Guide**: [`ORGANIZATION_SETUP.md`](ORGANIZATION_SETUP.md)
+- This will convert your existing AWS account into a management account
+- Create development and production member accounts
+- Get all the account IDs you'll need
+
+### 2. GitHub OIDC Setup
+
+**Then configure GitHub Actions authentication:**
+
+- 📖 **Detailed Guide**: [`AWS_SETUP_GUIDE.md`](AWS_SETUP_GUIDE.md)
+- Set up GitHub OIDC provider in AWS
+- Create IAM role for GitHub Actions
+- Configure repository secrets
+
+### 3. Required Variables and Secrets
+
+Add the following to your GitHub repository (Settings → Secrets and variables):
+
+**Variables** (visible in logs):
+
+- `MANAGEMENT_ACCOUNT_ID`: Your AWS management account ID (12-digit number)
+
+**Secrets** (hidden from logs):
+
+- `DEVELOPMENT_ACCOUNT_ID`: Your development account ID (if different)
+- `PRODUCTION_ACCOUNT_ID`: Your production account ID (if different)
+
+### 4. Troubleshooting Hanging Workflows
+
+If your workflow hangs at "Assuming role with OIDC":
+
+1. **Check Repository Secrets**: Ensure `MANAGEMENT_ACCOUNT_ID` is set correctly
+2. **Verify IAM Role**: Confirm the `GitHubActionsSSORole` exists with correct trust policy
+3. **OIDC Provider**: Ensure GitHub OIDC provider is configured in AWS
+4. **Permissions**: Verify the role has necessary permissions for SSO operations
+
+See [`AWS_SETUP_GUIDE.md`](AWS_SETUP_GUIDE.md) for detailed troubleshooting steps.
 
 ## Setup Process
 
