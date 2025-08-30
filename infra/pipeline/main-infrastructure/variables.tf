@@ -98,6 +98,18 @@ variable "stripe_webhook_secret" {
   sensitive   = true
 }
 
+variable "company_name" {
+  description = "Company name for billing and legal purposes"
+  type        = string
+  default     = "Magebase"
+}
+
+variable "support_email" {
+  description = "Support email address for customer communications"
+  type        = string
+  default     = "support@magebase.dev"
+}
+
 variable "development_email" {
   description = "Email address for development AWS account"
   type        = string

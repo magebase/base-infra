@@ -60,7 +60,7 @@ on:
 
 env:
   TF_VERSION: "1.8.0"
-  TF_WORKING_DIR: infra
+  TF_WORKING_DIR: infra/pipeline
   AWS_REGION: us-east-1 # Organizations must be in us-east-1
   SSO_REGION: ap-southeast-1
   INFRA_REGION: ap-southeast-1
@@ -261,7 +261,7 @@ jobs:
           echo ""
           echo "📋 If the automatic unlock failed, please manually force-unlock the bootstrap state:"
           echo "1. Find the lock ID from the failed bootstrap step logs above"
-          echo "2. Run: cd infra/bootstrap && terraform force-unlock -force <lock_id>"
+          echo "2. Run: cd infra/pipeline/bootstrap && terraform force-unlock -force <lock_id>"
           echo "3. Re-run the workflow"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -375,14 +375,14 @@ jobs:
       - name: Terraform Format
         id: fmt
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline
           terraform fmt -check -recursive
         continue-on-error: true
 
       - name: Handle State Locks
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline
           echo "🔍 Checking for existing Terraform state locks..."
 
           # Scan DynamoDB table for any existing locks
@@ -426,20 +426,20 @@ jobs:
 
       - name: Terraform Init
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline
           terraform init -input=false -upgrade
 
       - name: Terraform Validate
         id: validate
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline
           terraform validate -no-color
 
       - name: Terraform Plan
         id: plan
         if: github.event_name == 'pull_request'
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline
           terraform plan -no-color -input=false \
             -var-file="dev.tfvars" \
             -var="hcloud_token=dummy" \
@@ -456,7 +456,7 @@ jobs:
             -var="stripe_api_key=dummy" \
             -var="stripe_webhook_secret=dummy" \
             -var="ssh_private_key=dummy" \
-            -var="ssh_public_key=dummy"
+            -var="_key=dummy"
         continue-on-error: true
 
       - name: Update Pull Request
@@ -521,7 +521,7 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
           TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline
           echo "🚀 Applying AWS Organizations and SSO configuration..."
 
           # Apply with dummy values for non-AWS variables
@@ -557,7 +557,7 @@ jobs:
       - name: Force Unlock on Failure
         if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline
           echo "🔍 Attempting to force unlock Terraform state after failure..."
 
           # Try to extract lock ID from previous step's output (if available)
@@ -615,7 +615,7 @@ jobs:
       - name: Get Development Account ID
         id: get-dev-account
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline
           DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
           echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
           echo "Using development account ID: $DEV_ACCOUNT_ID"
@@ -650,7 +650,7 @@ jobs:
               --account-id "$PROD_ACCOUNT_ID" \
               --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} | jq -r '.PermissionSets[0]') 2>/dev/null || echo "No assignments found for production account"
           fi
-        working-directory: ${{ env.TF_WORKING_DIR }}
+        working-directory: infra/pipeline
 
   # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON BOOTSTRAP & SSO) =====
   infrastructure-deploy:
@@ -678,64 +678,27 @@ jobs:
       - name: Handle State Locks
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           echo "🔍 Checking for existing Terraform state locks..."
-
-          # Scan DynamoDB table for any existing locks
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-bootstrap" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
-
-          # Check if we found any lock items
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
-
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Force unlocking state with ID: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
-
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID"; then
-                  echo "✅ Successfully unlocked: $LOCK_ID"
-                else
-                  echo "⚠️  Force unlock failed for: $LOCK_ID"
-                  # Continue anyway - sometimes locks are stale and will be overwritten
-                fi
-              else
-                echo "⚠️  Could not extract lock ID from item $i"
-              fi
-            done
-          else
-            echo "✅ No state locks found"
-          fi
 
           echo "🔄 Proceeding with Terraform operations..."
 
       - name: Terraform Init
         id: init
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           terraform init -upgrade
 
       - name: Terraform Validate
         id: validate
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           terraform validate
 
       - name: Terraform Format Check
         id: fmt
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           terraform fmt -check -recursive
 
       - name: Terraform Plan
@@ -748,7 +711,7 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
           TF_VAR_aws_ses_account_id: ${{ needs.sso-setup.outputs.development_account_id }}
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           terraform plan -no-color -out=tfplan
         continue-on-error: true
 
@@ -790,13 +753,13 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
           TF_VAR_aws_ses_account_id: ${{ needs.sso-setup.outputs.development_account_id }}
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           terraform apply -auto-approve tfplan
 
       - name: Force Unlock Infrastructure on Failure
         if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           echo "🔍 Attempting to force unlock infrastructure Terraform state after failure..."
 
           # Try to scan DynamoDB for any existing locks
@@ -848,7 +811,7 @@ jobs:
       - name: Terraform Destroy
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           terraform destroy -auto-approve
 
   # ===== VALIDATION & TESTING =====
@@ -876,7 +839,7 @@ jobs:
 
       - name: Handle State Locks
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           echo "🔍 Checking for existing Terraform state locks..."
 
           # Scan DynamoDB table for any existing locks
@@ -921,26 +884,26 @@ jobs:
       - name: Terraform Init
         id: init
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           terraform init -upgrade
 
       - name: Terraform Validate
         id: validate
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           terraform validate
 
       - name: Terraform Format Check
         id: fmt
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           terraform fmt -check -recursive
 
       - name: Terraform Plan
         id: tf-plan
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: |
-          cd ${{ env.TF_WORKING_DIR }}
+          cd infra/pipeline/main-infrastructure
           terraform plan -no-color -out=tfplan
         continue-on-error: true
 
@@ -987,14 +950,14 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Test Development Configuration
-        working-directory: ${{ env.TF_WORKING_DIR }}
+        working-directory: infra/pipeline/main-infrastructure
         run: |
           terraform init -backend=false
           terraform plan -var-file="dev.tfvars" -no-color -out=tfplan-dev
           terraform show -json tfplan-dev > tfplan-dev.json
 
       - name: Test Production Configuration
-        working-directory: ${{ env.TF_WORKING_DIR }}
+        working-directory: infra/pipeline/main-infrastructure
         run: |
           terraform plan -var-file="prod.tfvars" -no-color -out=tfplan-prod
           terraform show -json tfplan-prod > tfplan-prod.json
@@ -1002,16 +965,16 @@ jobs:
       - name: Validate Plan Outputs
         run: |
           # Check that plans were generated successfully
-          if [ ! -f "${{ env.TF_WORKING_DIR }}/tfplan-dev.json" ] || [ ! -f "${{ env.TF_WORKING_DIR }}/tfplan-prod.json" ]; then
+          if [ ! -f "infra/pipeline/main-infrastructure/tfplan-dev.json" ] || [ ! -f "infra/pipeline/main-infrastructure/tfplan-prod.json" ]; then
             echo "❌ Plan files not generated"
             exit 1
           fi
 
           # Check for errors in plans
-          if grep -q '"error"' ${{ env.TF_WORKING_DIR }}/tfplan-dev.json || grep -q '"error"' ${{ env.TF_WORKING_DIR }}/tfplan-prod.json; then
+          if grep -q '"error"' infra/pipeline/main-infrastructure/tfplan-dev.json || grep -q '"error"' infra/pipeline/main-infrastructure/tfplan-prod.json; then
             echo "❌ Errors found in terraform plans"
-            cat ${{ env.TF_WORKING_DIR }}/tfplan-dev.json
-            cat ${{ env.TF_WORKING_DIR }}/tfplan-prod.json
+            cat infra/pipeline/main-infrastructure/tfplan-dev.json
+            cat infra/pipeline/main-infrastructure/tfplan-prod.json
             exit 1
           fi
 
