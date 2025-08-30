@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -18,7 +22,7 @@ provider "aws" {
 
 # Create S3 bucket for Terraform state
 resource "aws_s3_bucket" "terraform_state" {
-  bucket = "${var.account_alias}-tf-state-${var.region}"
+  bucket = "${var.account_alias}-tf-state-${var.region}-${random_string.bucket_suffix.result}"
 
   tags = {
     Name        = "Terraform State Bucket"
@@ -27,6 +31,15 @@ resource "aws_s3_bucket" "terraform_state" {
     ManagedBy   = "terraform"
     Purpose     = "terraform-state-management"
   }
+}
+
+# Generate a random suffix for the bucket name to avoid conflicts
+resource "random_string" "bucket_suffix" {
+  length  = 8
+  lower   = true
+  upper   = false
+  numeric = true
+  special = false
 }
 
 # Enable versioning on the S3 bucket
@@ -107,7 +120,7 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
 
 # Create DynamoDB table for state locking
 resource "aws_dynamodb_table" "terraform_locks" {
-  name         = var.dynamodb_table_name
+  name         = "${var.dynamodb_table_name}-${random_string.bucket_suffix.result}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "LockID"
 
