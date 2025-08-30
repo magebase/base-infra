@@ -352,6 +352,11 @@ jobs:
             echo "✅ No state locks found"
           fi
 
+      - name: Terraform Init
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          terraform init -input=false -upgrade
+
       - name: Terraform Validate
         id: validate
         run: |
