@@ -119,9 +119,19 @@ jobs:
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials via OIDC
+        id: oidc-auth
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ steps.get-bootstrap-account.outputs.account_id }}:role/GitHubActionsSSORole
+          aws-region: ${{ env.INFRA_REGION }}
+        continue-on-error: true
+
+      - name: Configure AWS credentials via static credentials (fallback)
+        if: steps.oidc-auth.outcome == 'failure'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.INFRA_REGION }}
 
       - name: Bootstrap Terraform State Backend
