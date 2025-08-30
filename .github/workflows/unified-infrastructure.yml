@@ -140,42 +140,84 @@ jobs:
           cd ${{ env.TF_WORKING_DIR }}/bootstrap
           echo "🚀 Bootstrapping Terraform state backend..."
 
-          # Initialize bootstrap with local backend
+          # Initialize Terraform
           terraform init -upgrade
 
-          # Check if bootstrap resources already exist by examining terraform state
-          echo "🔍 Checking for existing bootstrap state..."
+          # Expected resource names based on bootstrap configuration
+          STATE_BUCKET="magebase-tf-state-bootstrap-ap-southeast-1"
+          LOGS_BUCKET="magebase-tf-state-bootstrap-log-ap-southeast-1"
+          DYNAMODB_TABLE="magebase-terraform-locks-bootstrap"
 
-          if [ -f "terraform.tfstate" ]; then
-            echo "📄 Terraform state file exists, checking contents..."
+          echo "📋 Expected resources:"
+          echo "  - State Bucket: $STATE_BUCKET"
+          echo "  - Logs Bucket: $LOGS_BUCKET"
+          echo "  - DynamoDB Table: $DYNAMODB_TABLE"
 
-            # Check if state contains our bootstrap resources
-            STATE_BUCKET_IN_STATE=$(terraform state list | grep "module.bootstrap.module.terraform_state_bucket.aws_s3_bucket.private_bucket" || echo "")
-            DYNAMODB_TABLE_IN_STATE=$(terraform state list | grep "module.bootstrap.aws_dynamodb_table.terraform_state_lock" || echo "")
-            LOGS_BUCKET_IN_STATE=$(terraform state list | grep "module.bootstrap.module.terraform_state_bucket_logs.aws_s3_bucket.aws_logs" || echo "")
+          # Check if bootstrap resources already exist in AWS
+          echo "🔍 Checking for existing bootstrap resources in AWS..."
 
-            if [ -n "$STATE_BUCKET_IN_STATE" ] && [ -n "$DYNAMODB_TABLE_IN_STATE" ] && [ -n "$LOGS_BUCKET_IN_STATE" ]; then
-              echo "✅ All bootstrap resources found in Terraform state"
-              echo "⏭️  Skipping terraform apply - resources already exist"
+          STATE_BUCKET_EXISTS=false
+          LOGS_BUCKET_EXISTS=false
+          DYNAMODB_TABLE_EXISTS=false
 
-              # Get outputs from existing state
-              STATE_BUCKET=$(terraform output -raw state_bucket)
-              DYNAMODB_TABLE=$(terraform output -raw dynamodb_table)
-            else
-              echo "⚠️  Some bootstrap resources missing from state, will apply..."
-              terraform apply -auto-approve -var-file=terraform.tfvars
-            fi
+          # Check S3 state bucket
+          if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+            echo "✅ State bucket $STATE_BUCKET exists"
+            STATE_BUCKET_EXISTS=true
           else
-            echo "📝 No existing terraform state found, creating bootstrap resources..."
+            echo "ℹ️  State bucket $STATE_BUCKET does not exist"
+          fi
+
+          # Check S3 logs bucket
+          if aws s3 ls "s3://$LOGS_BUCKET" >/dev/null 2>&1; then
+            echo "✅ Logs bucket $LOGS_BUCKET exists"
+            LOGS_BUCKET_EXISTS=true
+          else
+            echo "ℹ️  Logs bucket $LOGS_BUCKET does not exist"
+          fi
+
+          # Check DynamoDB table
+          if aws dynamodb describe-table --table-name "$DYNAMODB_TABLE" >/dev/null 2>&1; then
+            echo "✅ DynamoDB table $DYNAMODB_TABLE exists"
+            DYNAMODB_TABLE_EXISTS=true
+          else
+            echo "ℹ️  DynamoDB table $DYNAMODB_TABLE does not exist"
+          fi
+
+          # If all resources exist, try to import them into Terraform state
+          if [ "$STATE_BUCKET_EXISTS" = true ] && [ "$LOGS_BUCKET_EXISTS" = true ] && [ "$DYNAMODB_TABLE_EXISTS" = true ]; then
+            echo "✅ All bootstrap resources exist in AWS"
+            echo "🔄 Importing existing resources into Terraform state..."
+
+            # Import the DynamoDB table
+            echo "📥 Importing DynamoDB table..."
+            terraform import module.bootstrap.aws_dynamodb_table.terraform_state_lock "$DYNAMODB_TABLE" || echo "⚠️  Failed to import DynamoDB table"
+
+            # Import the state bucket
+            echo "📥 Importing state S3 bucket..."
+            terraform import module.bootstrap.module.terraform_state_bucket.aws_s3_bucket.private_bucket "$STATE_BUCKET" || echo "⚠️  Failed to import state bucket"
+
+            # Import the logs bucket
+            echo "📥 Importing logs S3 bucket..."
+            terraform import module.bootstrap.module.terraform_state_bucket_logs.aws_s3_bucket.aws_logs "$LOGS_BUCKET" || echo "⚠️  Failed to import logs bucket"
+
+            echo "✅ Import process completed"
+
+            # Get outputs from existing state
+            STATE_BUCKET=$(terraform output -raw state_bucket 2>/dev/null || echo "$STATE_BUCKET")
+            DYNAMODB_TABLE=$(terraform output -raw dynamodb_table 2>/dev/null || echo "$DYNAMODB_TABLE")
+
+          else
+            echo "ℹ️  Some bootstrap resources missing, will create them..."
             terraform apply -auto-approve -var-file=terraform.tfvars
           fi
 
           # Ensure we have the outputs
           if [ -z "$STATE_BUCKET" ]; then
-            STATE_BUCKET=$(terraform output -raw state_bucket)
+            STATE_BUCKET=$(terraform output -raw state_bucket 2>/dev/null || echo "magebase-tf-state-bootstrap-ap-southeast-1")
           fi
           if [ -z "$DYNAMODB_TABLE" ]; then
-            DYNAMODB_TABLE=$(terraform output -raw dynamodb_table)
+            DYNAMODB_TABLE=$(terraform output -raw dynamodb_table 2>/dev/null || echo "magebase-terraform-locks-bootstrap")
           fi
 
           echo "✅ Terraform state backend bootstrapped successfully"
@@ -192,25 +234,29 @@ jobs:
         run: |
           cd ${{ env.TF_WORKING_DIR }}/bootstrap
 
-          # Check if there are changes to commit
-          if git diff --quiet terraform.tfstate; then
-            echo "ℹ️  No changes to bootstrap state file"
+          # Check if terraform.tfstate exists and has changes
+          if [ -f "terraform.tfstate" ]; then
+            if git diff --quiet terraform.tfstate; then
+              echo "ℹ️  No changes to bootstrap state file"
+            else
+              echo "📝 Committing bootstrap state changes..."
+
+              git config --global user.name "GitHub Actions"
+              git config --global user.email "actions@github.com"
+
+              git add terraform.tfstate
+              git commit -m "🤖 Bootstrap: Update Terraform state backend
+
+                - S3 bucket: ${{ steps.bootstrap.outputs.state_bucket }}
+                - DynamoDB table: ${{ steps.bootstrap.outputs.dynamodb_table }}
+                - Auto-generated by GitHub Actions workflow"
+
+              git push origin main
+
+              echo "✅ Bootstrap state committed to repository"
+            fi
           else
-            echo "📝 Committing bootstrap state changes..."
-
-            git config --global user.name "GitHub Actions"
-            git config --global user.email "actions@github.com"
-
-            git add terraform.tfstate
-            git commit -m "🤖 Bootstrap: Update Terraform state backend
-
-              - S3 bucket: ${{ steps.bootstrap.outputs.state_bucket }}
-              - DynamoDB table: ${{ steps.bootstrap.outputs.dynamodb_table }}
-              - Auto-generated by GitHub Actions workflow"
-
-            git push origin main
-
-            echo "✅ Bootstrap state committed to repository"
+            echo "ℹ️  No bootstrap state file found to commit"
           fi
 
   # ===== AWS ORGANIZATIONS & SSO SETUP =====

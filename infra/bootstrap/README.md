@@ -105,6 +105,7 @@ This migrates any existing local state to the S3 backend.
 ### For Existing Team Members
 
 The backend is already configured, so just run:
+
 ```bash
 terraform init
 terraform plan
@@ -123,6 +124,7 @@ terraform plan
 If you get backend initialization errors:
 
 1. Ensure the bootstrap resources exist:
+
    ```bash
    cd infra/bootstrap
    terraform plan
@@ -156,12 +158,12 @@ If state is locked:
 
 ## Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `region` | AWS region for resources | `us-east-1` |
-| `account_alias` | IAM account alias | `magebase` |
-| `environment` | Environment tag | `dev` |
-| `dynamodb_table_name` | DynamoDB table name | `magebase-terraform-locks` |
+| Variable              | Description              | Default                    |
+| --------------------- | ------------------------ | -------------------------- |
+| `region`              | AWS region for resources | `us-east-1`                |
+| `account_alias`       | IAM account alias        | `magebase`                 |
+| `environment`         | Environment tag          | `dev`                      |
+| `dynamodb_table_name` | DynamoDB table name      | `magebase-terraform-locks` |
 
 ## Related Documentation
 
