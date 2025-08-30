@@ -105,21 +105,18 @@ jobs:
           # For bootstrap, we need to determine which account to use
           # If development account exists (after SSO setup), use it
           # Otherwise, use management account as fallback
-          if [ -f "${{ env.TF_WORKING_DIR }}/terraform.tfstate" ]; then
-            # Try to get development account from existing state
-            DEV_ACCOUNT_ID=$(cd ${{ env.TF_WORKING_DIR }} && terraform output -raw development_account_id 2>/dev/null || echo "")
-            if [ -n "$DEV_ACCOUNT_ID" ] && [ "$DEV_ACCOUNT_ID" != "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
-              echo "Using development account for bootstrap: $DEV_ACCOUNT_ID"
-              echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
-            else
-              echo "Using management account for bootstrap: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-              echo "account_id=${{ vars.MANAGEMENT_ACCOUNT_ID }}" >> $GITHUB_OUTPUT
-            fi
-          else
-            # No state file exists yet, use management account
-            echo "No existing state found, using management account for bootstrap: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-            echo "account_id=${{ vars.MANAGEMENT_ACCOUNT_ID }}" >> $GITHUB_OUTPUT
+
+          # First, check if MANAGEMENT_ACCOUNT_ID is set
+          if [ -z "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
+            echo "❌ Error: MANAGEMENT_ACCOUNT_ID is not set"
+            exit 1
           fi
+
+          # For initial bootstrap, always use management account
+          # The development account won't exist until after SSO setup
+          ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+          echo "Using management account for bootstrap: $ACCOUNT_ID"
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
