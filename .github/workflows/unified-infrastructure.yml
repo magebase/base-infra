@@ -213,6 +213,61 @@ jobs:
           echo "  - State Bucket: $STATE_BUCKET"
           echo "  - DynamoDB Table: $DYNAMODB_TABLE"
 
+      - name: Force Unlock Bootstrap on Failure
+        if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}/bootstrap
+          echo "🔍 Attempting to force unlock bootstrap Terraform state after failure..."
+
+          # For bootstrap, we use a different DynamoDB table
+          DYNAMODB_TABLE="magebase-terraform-locks-bootstrap"
+
+          # Try to scan DynamoDB for any existing locks
+          echo "🔍 Scanning DynamoDB for existing bootstrap locks..."
+          LOCK_ITEMS=$(aws dynamodb scan \
+            --table-name "$DYNAMODB_TABLE" \
+            --region ${{ env.INFRA_REGION }} \
+            --query 'Items[?attribute_exists(LockID)]' \
+            --output json 2>/dev/null || echo "[]")
+
+          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+
+          if [ "$LOCK_COUNT" -gt 0 ]; then
+            echo "🔒 Found $LOCK_COUNT existing bootstrap state lock(s), attempting to force unlock..."
+
+            # Process each lock item
+            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+
+              if [ -n "$LOCK_ID" ]; then
+                echo "🔓 Attempting to force unlock bootstrap: $LOCK_ID"
+                echo "Lock info: $LOCK_INFO"
+
+                # Attempt force unlock
+                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+                  echo "✅ Successfully force unlocked bootstrap: $LOCK_ID"
+                  break
+                else
+                  echo "⚠️  Force unlock failed for bootstrap: $LOCK_ID"
+                fi
+              fi
+            done
+          else
+            echo "ℹ️  No bootstrap locks found in DynamoDB table"
+          fi
+
+          # Provide manual instructions
+          echo ""
+          echo "📋 If the automatic unlock failed, please manually force-unlock the bootstrap state:"
+          echo "1. Find the lock ID from the failed bootstrap step logs above"
+          echo "2. Run: cd infra/bootstrap && terraform force-unlock -force <lock_id>"
+          echo "3. Re-run the workflow"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+
       - name: Commit Bootstrap State
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
@@ -499,6 +554,64 @@ jobs:
           echo "📋 Created AWS Account IDs:"
           terraform output -json | jq '.development_account_id.value, .production_account_id.value'
 
+      - name: Force Unlock on Failure
+        if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          echo "🔍 Attempting to force unlock Terraform state after failure..."
+
+          # Try to extract lock ID from previous step's output (if available)
+          # This is a best-effort attempt - the lock ID might not be in the logs
+
+          # First, try to scan DynamoDB for any existing locks
+          echo "🔍 Scanning DynamoDB for existing locks..."
+          LOCK_ITEMS=$(aws dynamodb scan \
+            --table-name "magebase-terraform-locks-bootstrap" \
+            --region ${{ env.INFRA_REGION }} \
+            --query 'Items[?attribute_exists(LockID)]' \
+            --output json 2>/dev/null || echo "[]")
+
+          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+
+          if [ "$LOCK_COUNT" -gt 0 ]; then
+            echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
+
+            # Process each lock item
+            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+
+              if [ -n "$LOCK_ID" ]; then
+                echo "🔓 Attempting to force unlock: $LOCK_ID"
+                echo "Lock info: $LOCK_INFO"
+
+                # Attempt force unlock
+                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+                  echo "✅ Successfully force unlocked: $LOCK_ID"
+                  break
+                else
+                  echo "⚠️  Force unlock failed for: $LOCK_ID"
+                fi
+              fi
+            done
+          else
+            echo "ℹ️  No locks found in DynamoDB table"
+          fi
+
+          # If we couldn't find locks in DynamoDB, provide manual instructions
+          echo ""
+          echo "📋 If the automatic unlock failed, please manually force-unlock the state:"
+          echo "1. Find the lock ID from the failed 'Terraform Apply' step logs above"
+          echo "2. Look for: 'Lock Info: ID: <lock_id>'"
+          echo "3. Run: terraform force-unlock -force <lock_id>"
+          echo "4. Re-run the workflow"
+          echo ""
+          echo "Example lock ID from your error: 533db39e-ed09-5a60-b296-223c142784e5"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+
       - name: Get Development Account ID
         id: get-dev-account
         run: |
@@ -679,6 +792,58 @@ jobs:
         run: |
           cd ${{ env.TF_WORKING_DIR }}
           terraform apply -auto-approve tfplan
+
+      - name: Force Unlock Infrastructure on Failure
+        if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          echo "🔍 Attempting to force unlock infrastructure Terraform state after failure..."
+
+          # Try to scan DynamoDB for any existing locks
+          echo "🔍 Scanning DynamoDB for existing infrastructure locks..."
+          LOCK_ITEMS=$(aws dynamodb scan \
+            --table-name "magebase-terraform-locks-bootstrap" \
+            --region ${{ env.INFRA_REGION }} \
+            --query 'Items[?attribute_exists(LockID)]' \
+            --output json 2>/dev/null || echo "[]")
+
+          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+
+          if [ "$LOCK_COUNT" -gt 0 ]; then
+            echo "🔒 Found $LOCK_COUNT existing infrastructure state lock(s), attempting to force unlock..."
+
+            # Process each lock item
+            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+
+              if [ -n "$LOCK_ID" ]; then
+                echo "🔓 Attempting to force unlock infrastructure: $LOCK_ID"
+                echo "Lock info: $LOCK_INFO"
+
+                # Attempt force unlock
+                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+                  echo "✅ Successfully force unlocked infrastructure: $LOCK_ID"
+                  break
+                else
+                  echo "⚠️  Force unlock failed for infrastructure: $LOCK_ID"
+                fi
+              fi
+            done
+          else
+            echo "ℹ️  No infrastructure locks found in DynamoDB table"
+          fi
+
+          # Provide manual instructions
+          echo ""
+          echo "📋 If the automatic unlock failed, please manually force-unlock the infrastructure state:"
+          echo "1. Find the lock ID from the failed infrastructure deployment step logs above"
+          echo "2. Run: cd infra && terraform force-unlock -force <lock_id>"
+          echo "3. Re-run the workflow"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
 
       - name: Terraform Destroy
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
