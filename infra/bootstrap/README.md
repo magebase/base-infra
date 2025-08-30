@@ -8,8 +8,8 @@ This setup uses the proven trussworks bootstrap module to solve the chicken-and-
 
 ## Architecture
 
-- **S3 Bucket**: `magebase-tf-state-ap-southeast-1` - Stores Terraform state files
-- **DynamoDB Table**: `magebase-terraform-locks` - Provides state locking to prevent concurrent modifications
+- **S3 Bucket**: `magebase-tf-state-bootstrap-ap-southeast-1` - Stores Terraform state files
+- **DynamoDB Table**: `magebase-terraform-locks-bootstrap` - Provides state locking to prevent concurrent modifications
 - **IAM Account Alias**: `magebase` - Friendly account identifier
 
 ## Bootstrap Process

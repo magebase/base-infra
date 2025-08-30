@@ -2,11 +2,11 @@
 remote_state {
   backend = "s3"
   config = {
-    bucket         = "magebase-terraform-state-${get_env("ENVIRONMENT", "dev")}"
+    bucket         = "magebase-tf-state-bootstrap-ap-southeast-1"
     key            = "${path_relative_to_include()}/terraform.tfstate"
-    region         = "us-east-1"
+    region         = "ap-southeast-1"
     encrypt        = true
-    dynamodb_table = "magebase-terraform-locks"
+    dynamodb_table = "magebase-terraform-locks-bootstrap"
   }
 }
 

@@ -4,10 +4,10 @@ terraform {
 
   # Backend configuration using S3 bucket created by bootstrap
   backend "s3" {
-    bucket         = "magebase-tf-state-ap-southeast-1"
+    bucket         = "magebase-tf-state-bootstrap-ap-southeast-1"
     key            = "magebase/terraform.tfstate"
     region         = "ap-southeast-1"
-    dynamodb_table = "magebase-terraform-locks"
+    dynamodb_table = "magebase-terraform-locks-bootstrap"
     encrypt        = true
   }
 
