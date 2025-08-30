@@ -54,3 +54,6 @@ output "dynamodb_table_arn" {
 
 # Data source to get current account ID
 data "aws_caller_identity" "current" {}
+
+# Data source to get current account ID
+data "aws_caller_identity" "current" {}
