@@ -1,10 +1,10 @@
 # Terraform State Management - Bootstrap Setup
 
-This directory contains the bootstrap configuration for setting up Terraform state management with AWS S3 and DynamoDB.
+This directory contains the bootstrap configuration for setting up Terraform state management with AWS S3 and DynamoDB using the [trussworks/bootstrap/aws](https://registry.terraform.io/modules/trussworks/bootstrap/aws) module.
 
 ## Overview
 
-This setup implements a "bootstrapping" approach for Terraform state management, where we create the backend resources (S3 bucket and DynamoDB table) in a separate Terraform configuration before using them in the main configuration.
+This setup uses the proven trussworks bootstrap module to solve the chicken-and-egg problem of managing Terraform state. The module creates the backend resources (S3 bucket and DynamoDB table) in a separate Terraform configuration before using them in the main configuration.
 
 ## Architecture
 
@@ -18,8 +18,8 @@ This setup implements a "bootstrapping" approach for Terraform state management,
 
 The bootstrap process is now automated as part of the GitHub Actions workflow:
 
-1. **SSO Setup**: Creates AWS organization accounts
-2. **Bootstrap**: Automatically runs in the development account to create S3 and DynamoDB resources
+1. **Bootstrap**: Uses the trussworks module to create S3 and DynamoDB resources
+2. **State Management**: Keeps local statefile that only manages bootstrap resources
 3. **Infrastructure Deployment**: Uses the bootstrapped backend for state management
 
 ### Manual Bootstrap (if needed)
@@ -33,13 +33,32 @@ terraform plan -var-file=terraform.tfvars
 terraform apply -var-file=terraform.tfvars
 ```
 
-**Note**: When running manually, ensure you're using credentials for the development account, not the management account.
-
 This creates:
 
 - S3 bucket with versioning, encryption, and public access blocking
 - DynamoDB table with pay-per-request billing and point-in-time recovery
 - IAM account alias (optional)
+
+### Module Configuration
+
+The bootstrap uses the following trussworks module configuration:
+
+```hcl
+module "bootstrap" {
+  source  = "trussworks/bootstrap/aws"
+  version = "7.0.0"
+
+  region        = var.region
+  account_alias = var.account_alias
+
+  bucket_purpose       = "tf-state"
+  dynamodb_table_name  = var.dynamodb_table_name
+
+  dynamodb_point_in_time_recovery = true
+  enable_s3_public_access_block   = true
+  manage_account_alias           = var.create_account_alias
+}
+```
 
 ### Step 2: Configure Main Terraform
 
