@@ -143,21 +143,7 @@ jobs:
           # Initialize bootstrap with local backend
           terraform init -upgrade
 
-          # Check if S3 bucket already exists and import it if needed
-          BUCKET_NAME="magebase-tf-state-ap-southeast-1"
-          if aws s3api head-bucket --bucket "$BUCKET_NAME" 2>/dev/null; then
-            echo "📦 S3 bucket $BUCKET_NAME already exists, importing..."
-            terraform import aws_s3_bucket.terraform_state "$BUCKET_NAME" || echo "Import failed, bucket may already be in state"
-          fi
-
-          # Check if DynamoDB table already exists and import it if needed
-          TABLE_NAME="magebase-terraform-locks"
-          if aws dynamodb describe-table --table-name "$TABLE_NAME" 2>/dev/null; then
-            echo "🔒 DynamoDB table $TABLE_NAME already exists, importing..."
-            terraform import aws_dynamodb_table.terraform_locks "$TABLE_NAME" || echo "Import failed, table may already be in state"
-          fi
-
-          # Apply bootstrap configuration
+          # Apply bootstrap configuration using trussworks module
           terraform apply -auto-approve -var-file=terraform.tfvars
 
           echo "✅ Terraform state backend bootstrapped successfully"
