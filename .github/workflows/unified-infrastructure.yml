@@ -324,10 +324,33 @@ jobs:
           terraform fmt -check -recursive
         continue-on-error: true
 
-      - name: Terraform Init
+      - name: Handle State Locks
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           cd ${{ env.TF_WORKING_DIR }}
-          terraform init -input=false -upgrade
+          echo "🔍 Checking for existing Terraform state locks..."
+
+          # Check if there's a state lock in DynamoDB
+          LOCK_INFO=$(aws dynamodb get-item \
+            --table-name "${{ steps.bootstrap.outputs.dynamodb_table }}" \
+            --key '{"LockID": {"S": "magebase/terraform.tfstate"}}' \
+            --region ${{ env.INFRA_REGION }} 2>/dev/null || echo "")
+
+          if [ -n "$LOCK_INFO" ]; then
+            echo "🔒 Found existing state lock, attempting to force unlock..."
+
+            # Extract lock ID from the DynamoDB item (if available)
+            LOCK_ID=$(echo "$LOCK_INFO" | jq -r '.Item.Info.S // empty' 2>/dev/null || echo "")
+
+            if [ -n "$LOCK_ID" ]; then
+              echo "🔓 Force unlocking state with ID: $LOCK_ID"
+              terraform force-unlock -force "$LOCK_ID" || echo "⚠️  Force unlock failed, but continuing..."
+            else
+              echo "ℹ️  Could not extract lock ID, proceeding without unlock"
+            fi
+          else
+            echo "✅ No state locks found"
+          fi
 
       - name: Terraform Validate
         id: validate
@@ -517,6 +540,34 @@ jobs:
           role-to-assume: arn:aws:iam::${{ vars.DEVELOPMENT_ACCOUNT_ID }}:role/GitHubActionsSESRole
           aws-region: ${{ env.INFRA_REGION }}
 
+      - name: Handle State Locks
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          echo "🔍 Checking for existing Terraform state locks..."
+
+          # Check if there's a state lock in DynamoDB
+          LOCK_INFO=$(aws dynamodb get-item \
+            --table-name "${{ steps.bootstrap.outputs.dynamodb_table }}" \
+            --key '{"LockID": {"S": "magebase/terraform.tfstate"}}' \
+            --region ${{ env.INFRA_REGION }} 2>/dev/null || echo "")
+
+          if [ -n "$LOCK_INFO" ]; then
+            echo "🔒 Found existing state lock, attempting to force unlock..."
+
+            # Extract lock ID from the DynamoDB item (if available)
+            LOCK_ID=$(echo "$LOCK_INFO" | jq -r '.Item.Info.S // empty' 2>/dev/null || echo "")
+
+            if [ -n "$LOCK_ID" ]; then
+              echo "🔓 Force unlocking state with ID: $LOCK_ID"
+              terraform force-unlock -force "$LOCK_ID" || echo "⚠️  Force unlock failed, but continuing..."
+            else
+              echo "ℹ️  Could not extract lock ID, proceeding without unlock"
+            fi
+          else
+            echo "✅ No state locks found"
+          fi
+
       - name: Terraform Init
         id: init
         run: |
@@ -618,6 +669,33 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ vars.DEVELOPMENT_ACCOUNT_ID }}:role/GitHubActionsSESRole
           aws-region: ${{ env.INFRA_REGION }}
+
+      - name: Handle State Locks
+        run: |
+          cd ${{ env.TF_WORKING_DIR }}
+          echo "🔍 Checking for existing Terraform state locks..."
+
+          # Check if there's a state lock in DynamoDB
+          LOCK_INFO=$(aws dynamodb get-item \
+            --table-name "${{ steps.bootstrap.outputs.dynamodb_table }}" \
+            --key '{"LockID": {"S": "magebase/terraform.tfstate"}}' \
+            --region ${{ env.INFRA_REGION }} 2>/dev/null || echo "")
+
+          if [ -n "$LOCK_INFO" ]; then
+            echo "🔒 Found existing state lock, attempting to force unlock..."
+
+            # Extract lock ID from the DynamoDB item (if available)
+            LOCK_ID=$(echo "$LOCK_INFO" | jq -r '.Item.Info.S // empty' 2>/dev/null || echo "")
+
+            if [ -n "$LOCK_ID" ]; then
+              echo "🔓 Force unlocking state with ID: $LOCK_ID"
+              terraform force-unlock -force "$LOCK_ID" || echo "⚠️  Force unlock failed, but continuing..."
+            else
+              echo "ℹ️  Could not extract lock ID, proceeding without unlock"
+            fi
+          else
+            echo "✅ No state locks found"
+          fi
 
       - name: Terraform Init
         id: init
