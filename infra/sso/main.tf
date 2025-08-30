@@ -161,67 +161,70 @@ locals {
     }
   }
 
-  # Account Assignments
+  # Account Assignments - Comprehensive assignments for all permission sets
   account_assignments = {
-    # Management Account
-    management = {
-      account_id = data.aws_caller_identity.current.account_id
-      assignments = [
-        {
-          permission_set = "administrator"
-          principal_type = "USER"
-          principal_name = "admin@magebase.dev"
-        },
-        {
-          permission_set = "infrastructure"
-          principal_type = "GROUP"
-          principal_name = "InfrastructureTeam"
-        }
-      ]
+    # Development Account Assignments
+    development_administrator = {
+      account_id     = var.development_account_id
+      permission_set = "administrator"
+      principal_type = "GROUP"
+      principal_name = "InfrastructureTeam"
+    }
+    development_infrastructure = {
+      account_id     = var.development_account_id
+      permission_set = "infrastructure"
+      principal_type = "GROUP"
+      principal_name = "InfrastructureTeam"
+    }
+    development_deployment = {
+      account_id     = var.development_account_id
+      permission_set = "deployment"
+      principal_type = "GROUP"
+      principal_name = "DevelopmentTeam"
+    }
+    development_ses = {
+      account_id     = var.development_account_id
+      permission_set = "ses"
+      principal_type = "GROUP"
+      principal_name = "InfrastructureTeam"
+    }
+    development_readonly = {
+      account_id     = var.development_account_id
+      permission_set = "readonly"
+      principal_type = "GROUP"
+      principal_name = "Auditors"
     }
 
-    # Development Account
-    development = {
-      account_id = var.development_account_id
-      assignments = [
-        {
-          permission_set = "infrastructure"
-          principal_type = "GROUP"
-          principal_name = "InfrastructureTeam"
-        },
-        {
-          permission_set = "deployment"
-          principal_type = "GROUP"
-          principal_name = "DevelopmentTeam"
-        },
-        {
-          permission_set = "ses"
-          principal_type = "USER"
-          principal_name = "ses-service@magebase.dev"
-        }
-      ]
+    # Production Account Assignments
+    production_administrator = {
+      account_id     = var.production_account_id
+      permission_set = "administrator"
+      principal_type = "GROUP"
+      principal_name = "InfrastructureTeam"
     }
-
-    # Production Account
-    production = {
-      account_id = var.production_account_id
-      assignments = [
-        {
-          permission_set = "infrastructure"
-          principal_type = "GROUP"
-          principal_name = "InfrastructureTeam"
-        },
-        {
-          permission_set = "deployment"
-          principal_type = "GROUP"
-          principal_name = "ProductionTeam"
-        },
-        {
-          permission_set = "readonly"
-          principal_type = "GROUP"
-          principal_name = "Auditors"
-        }
-      ]
+    production_infrastructure = {
+      account_id     = var.production_account_id
+      permission_set = "infrastructure"
+      principal_type = "GROUP"
+      principal_name = "InfrastructureTeam"
+    }
+    production_deployment = {
+      account_id     = var.production_account_id
+      permission_set = "deployment"
+      principal_type = "GROUP"
+      principal_name = "ProductionTeam"
+    }
+    production_ses = {
+      account_id     = var.production_account_id
+      permission_set = "ses"
+      principal_type = "GROUP"
+      principal_name = "InfrastructureTeam"
+    }
+    production_readonly = {
+      account_id     = var.production_account_id
+      permission_set = "readonly"
+      principal_type = "GROUP"
+      principal_name = "Auditors"
     }
   }
 
@@ -257,20 +260,16 @@ locals {
   ]) : []
 
   # Conditionally build account assignments (only groups for now, users need to be created first)
-  account_assignments_list = local.sso_enabled ? flatten([
-    for account_key, account_config in local.account_assignments : [
-      for assignment in account_config.assignments : {
-        key            = "${account_key}-${assignment.permission_set}-${assignment.principal_type}-${assignment.principal_name}"
-        account_id     = account_config.account_id
-        ps_name        = assignment.permission_set
-        principal_type = assignment.principal_type
-        principal_name = assignment.principal_name
-        is_user        = assignment.principal_type == "USER"
-      }
-      # Only include GROUP assignments for now (users need to be created in AWS SSO first)
-      if assignment.principal_type == "GROUP"
-    ]
-  ]) : []
+  account_assignments_list = local.sso_enabled ? [
+    for assignment_key, assignment_config in local.account_assignments : {
+      key            = assignment_key
+      account_id     = assignment_config.account_id
+      ps_name        = assignment_config.permission_set
+      principal_type = assignment_config.principal_type
+      principal_name = assignment_config.principal_name
+      is_user        = assignment_config.principal_type == "USER"
+    }
+  ] : []
 }
 
 # Get current account identity
@@ -353,15 +352,9 @@ resource "aws_ssoadmin_account_assignment" "main" {
   instance_arn       = local.sso_instance_arn
   permission_set_arn = aws_ssoadmin_permission_set.main[each.value.ps_name].arn
   principal_type     = each.value.principal_type
-  principal_id = each.value.is_user ? (
-    # For users, we'll need to create them separately or use existing ones
-    # For now, this will need manual user creation in AWS SSO console
-    "USER_ID_PLACEHOLDER_${each.value.principal_name}"
-    ) : (
-    aws_identitystore_group.main[each.value.principal_name].group_id
-  )
-  target_id   = each.value.account_id
-  target_type = "AWS_ACCOUNT"
+  principal_id       = aws_identitystore_group.main[each.value.principal_name].group_id
+  target_id          = each.value.account_id
+  target_type        = "AWS_ACCOUNT"
 
   # Add dependency on groups being created first
   depends_on = [aws_identitystore_group.main]
@@ -409,9 +402,9 @@ output "account_assignments" {
     for k, v in aws_ssoadmin_account_assignment.main :
     k => {
       account_id     = v.target_id
-      permission_set = split("-", k)[1]
+      permission_set = local.account_assignments[k].permission_set
       principal_type = v.principal_type
-      principal_name = split("-", k)[3]
+      principal_name = local.account_assignments[k].principal_name
     }
   } : {}
 }
