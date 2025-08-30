@@ -22,7 +22,7 @@ module "bootstrap" {
   account_alias = var.account_alias
 
   # Customize the bucket and table names to match our convention
-  bucket_purpose       = "tf-state"
+  bucket_purpose       = "tf-state-bootstrap"
   dynamodb_table_name  = var.dynamodb_table_name
 
   # Enable additional security features
@@ -51,9 +51,6 @@ output "dynamodb_table_arn" {
   description = "ARN of the DynamoDB table"
   value       = "arn:aws:dynamodb:${var.region}:${data.aws_caller_identity.current.account_id}:table/${module.bootstrap.dynamodb_table}"
 }
-
-# Data source to get current account ID
-data "aws_caller_identity" "current" {}
 
 # Data source to get current account ID
 data "aws_caller_identity" "current" {}
