@@ -99,10 +99,32 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Get Account ID for Bootstrap
+        id: get-bootstrap-account
+        run: |
+          # For bootstrap, we need to determine which account to use
+          # If development account exists (after SSO setup), use it
+          # Otherwise, use management account as fallback
+          if [ -f "${{ env.TF_WORKING_DIR }}/terraform.tfstate" ]; then
+            # Try to get development account from existing state
+            DEV_ACCOUNT_ID=$(cd ${{ env.TF_WORKING_DIR }} && terraform output -raw development_account_id 2>/dev/null || echo "")
+            if [ -n "$DEV_ACCOUNT_ID" ] && [ "$DEV_ACCOUNT_ID" != "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
+              echo "Using development account for bootstrap: $DEV_ACCOUNT_ID"
+              echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
+            else
+              echo "Using management account for bootstrap: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+              echo "account_id=${{ vars.MANAGEMENT_ACCOUNT_ID }}" >> $GITHUB_OUTPUT
+            fi
+          else
+            # No state file exists yet, use management account
+            echo "No existing state found, using management account for bootstrap: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+            echo "account_id=${{ vars.MANAGEMENT_ACCOUNT_ID }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSESRole
+          role-to-assume: arn:aws:iam::${{ steps.get-bootstrap-account.outputs.account_id }}:role/GitHubActionsSSORole
           aws-region: ${{ env.INFRA_REGION }}
 
       - name: Bootstrap Terraform State Backend
