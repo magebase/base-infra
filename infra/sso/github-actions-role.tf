@@ -1,5 +1,12 @@
+# Check if GitHub Actions SSO role exists
+data "aws_iam_role" "github_actions_sso_existing" {
+  name = "GitHubActionsSSORole"
+}
+
 # GitHub Actions SSO Role for Infrastructure Management
 resource "aws_iam_role" "github_actions_sso" {
+  count = length(data.aws_iam_role.github_actions_sso_existing) == 0 ? 1 : 0
+
   name = "GitHubActionsSSORole"
 
   assume_role_policy = jsonencode({
@@ -32,6 +39,8 @@ resource "aws_iam_role" "github_actions_sso" {
 
 # Attach AdministratorAccess policy for full infrastructure management
 resource "aws_iam_role_policy_attachment" "github_actions_admin" {
-  role       = aws_iam_role.github_actions_sso.name
+  count = length(aws_iam_role.github_actions_sso) > 0 ? 1 : 0
+
+  role       = aws_iam_role.github_actions_sso[0].name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }

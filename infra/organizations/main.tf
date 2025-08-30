@@ -25,7 +25,7 @@ resource "aws_organizations_account" "development" {
   role_name = "OrganizationAccountAccessRole"
 
   # Optional: Add to specific OU
-  parent_id = aws_organizations_organizational_unit.development.id
+  parent_id = local.development_ou_id
 
   tags = {
     Environment = "Development"
@@ -40,7 +40,7 @@ resource "aws_organizations_account" "production" {
   role_name = "OrganizationAccountAccessRole"
 
   # Optional: Add to specific OU
-  parent_id = aws_organizations_organizational_unit.production.id
+  parent_id = local.production_ou_id
 
   tags = {
     Environment = "Production"
@@ -48,15 +48,47 @@ resource "aws_organizations_account" "production" {
   }
 }
 
-# Create Organizational Units
+# Create Organizational Units (or reference existing ones)
+data "aws_organizations_organizational_units" "existing" {
+  parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+locals {
+  existing_ou_names = toset([for ou in data.aws_organizations_organizational_units.existing.children : ou.name])
+}
+
 resource "aws_organizations_organizational_unit" "development" {
+  count = contains(local.existing_ou_names, "Development") ? 0 : 1
+
   name      = "Development"
   parent_id = data.aws_organizations_organization.main.roots[0].id
 }
 
 resource "aws_organizations_organizational_unit" "production" {
+  count = contains(local.existing_ou_names, "Production") ? 0 : 1
+
   name      = "Production"
   parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+# Data sources for existing OUs
+data "aws_organizations_organizational_unit" "development" {
+  count = contains(local.existing_ou_names, "Development") ? 1 : 0
+
+  name      = "Development"
+  parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+data "aws_organizations_organizational_unit" "production" {
+  count = contains(local.existing_ou_names, "Production") ? 1 : 0
+
+  name      = "Production"
+  parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+locals {
+  development_ou_id = contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : aws_organizations_organizational_unit.development[0].id
+  production_ou_id   = contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : aws_organizations_organizational_unit.production[0].id
 }
 
 # Reference existing organization (don't create if it exists)

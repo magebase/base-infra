@@ -673,7 +673,7 @@ module "kube-hetzner" {
   # sys_upgrade_controller_version = "v0.14.2"
 
   # The cluster name, by default "k3s"
-  # cluster_name = ""
+  cluster_name = "${var.environment}-magebase"
 
   # Whether to use the cluster name in the node name, in the form of {cluster_name}-{nodepool_name}, the default is "true".
   # use_cluster_name_in_node_name = false
@@ -853,7 +853,7 @@ module "kube-hetzner" {
   # If you want to disable the automatic use of placement group "spread". See https://docs.hetzner.com/cloud/placement-groups/overview/
   # We advise to not touch that setting, unless you have a specific purpose.
   # The default is "false", meaning it's enabled by default.
-  # placement_group_disable = true
+  placement_group_disable = true
 
   # By default, we allow ICMP ping in to the nodes, to check for liveness for instance. If you do not want to allow that, you can. Just set this flag to true (false by default).
   # block_icmp_ping_in = true

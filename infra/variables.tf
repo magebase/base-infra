@@ -119,4 +119,8 @@ variable "ssh_private_key" {
 variable "ssh_public_key" {
   description = "SSH public key for accessing k3s nodes"
   type        = string
+  validation {
+    condition = can(regex("^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521|ssh-dss|sk-ssh-ed25519@openssh.com|sk-ssh-ed25519|sk-ecdsa-sha2-nistp256|sk-ecdsa-sha2-nistp384|sk-ecdsa-sha2-nistp521)", var.ssh_public_key))
+    error_message = "SSH public key must be one of the supported types: ssh-rsa, ssh-ed25519, ecdsa-sha2-nistp256, ecdsa-sha2-nistp384, ecdsa-sha2-nistp521, ssh-dss, sk-ssh-ed25519@openssh.com, sk-ssh-ed25519, sk-ecdsa-sha2-nistp256, sk-ecdsa-sha2-nistp384, sk-ecdsa-sha2-nistp521"
+  }
 }
