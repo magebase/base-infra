@@ -143,39 +143,42 @@ jobs:
           # Initialize bootstrap with local backend
           terraform init -upgrade
 
-          # Check if bootstrap resources already exist and import them if needed
-          echo "🔍 Checking for existing bootstrap resources..."
+          # Check if bootstrap resources already exist by examining terraform state
+          echo "🔍 Checking for existing bootstrap state..."
 
-          # Check if S3 bucket exists
-          BUCKET_EXISTS=$(aws s3api head-bucket --bucket magebase-tf-state-bootstrap-ap-southeast-1 2>/dev/null && echo "true" || echo "false")
-          if [ "$BUCKET_EXISTS" = "true" ]; then
-            echo "📦 S3 bucket exists, importing..."
-            terraform import -state=terraform.tfstate module.bootstrap.module.terraform_state_bucket.aws_s3_bucket.private_bucket magebase-tf-state-bootstrap-ap-southeast-1 || echo "Import failed, will create new"
+          if [ -f "terraform.tfstate" ]; then
+            echo "📄 Terraform state file exists, checking contents..."
+
+            # Check if state contains our bootstrap resources
+            STATE_BUCKET_IN_STATE=$(terraform state list | grep "module.bootstrap.module.terraform_state_bucket.aws_s3_bucket.private_bucket" || echo "")
+            DYNAMODB_TABLE_IN_STATE=$(terraform state list | grep "module.bootstrap.aws_dynamodb_table.terraform_state_lock" || echo "")
+            LOGS_BUCKET_IN_STATE=$(terraform state list | grep "module.bootstrap.module.terraform_state_bucket_logs.aws_s3_bucket.aws_logs" || echo "")
+
+            if [ -n "$STATE_BUCKET_IN_STATE" ] && [ -n "$DYNAMODB_TABLE_IN_STATE" ] && [ -n "$LOGS_BUCKET_IN_STATE" ]; then
+              echo "✅ All bootstrap resources found in Terraform state"
+              echo "⏭️  Skipping terraform apply - resources already exist"
+
+              # Get outputs from existing state
+              STATE_BUCKET=$(terraform output -raw state_bucket)
+              DYNAMODB_TABLE=$(terraform output -raw dynamodb_table)
+            else
+              echo "⚠️  Some bootstrap resources missing from state, will apply..."
+              terraform apply -auto-approve -var-file=terraform.tfvars
+            fi
+          else
+            echo "📝 No existing terraform state found, creating bootstrap resources..."
+            terraform apply -auto-approve -var-file=terraform.tfvars
           fi
 
-          # Check if DynamoDB table exists
-          TABLE_EXISTS=$(aws dynamodb describe-table --table-name magebase-terraform-locks-bootstrap --region ap-southeast-1 2>/dev/null && echo "true" || echo "false")
-          if [ "$TABLE_EXISTS" = "true" ]; then
-            echo "🔒 DynamoDB table exists, importing..."
-            terraform import -state=terraform.tfstate module.bootstrap.aws_dynamodb_table.terraform_state_lock magebase-terraform-locks-bootstrap || echo "Import failed, will create new"
+          # Ensure we have the outputs
+          if [ -z "$STATE_BUCKET" ]; then
+            STATE_BUCKET=$(terraform output -raw state_bucket)
           fi
-
-          # Check if logs bucket exists
-          LOGS_BUCKET_EXISTS=$(aws s3api head-bucket --bucket magebase-tf-state-bootstrap-log-ap-southeast-1 2>/dev/null && echo "true" || echo "false")
-          if [ "$LOGS_BUCKET_EXISTS" = "true" ]; then
-            echo "📋 Logs bucket exists, importing..."
-            terraform import -state=terraform.tfstate module.bootstrap.module.terraform_state_bucket_logs.aws_s3_bucket.aws_logs magebase-tf-state-bootstrap-log-ap-southeast-1 || echo "Import failed, will create new"
+          if [ -z "$DYNAMODB_TABLE" ]; then
+            DYNAMODB_TABLE=$(terraform output -raw dynamodb_table)
           fi
-
-          # Apply bootstrap configuration (will create new resources or update existing)
-          echo "⚡ Applying bootstrap configuration..."
-          terraform apply -auto-approve -var-file=terraform.tfvars
 
           echo "✅ Terraform state backend bootstrapped successfully"
-
-          # Get outputs for use in subsequent jobs
-          STATE_BUCKET=$(terraform output -raw state_bucket)
-          DYNAMODB_TABLE=$(terraform output -raw dynamodb_table)
 
           echo "state_bucket=$STATE_BUCKET" >> $GITHUB_OUTPUT
           echo "dynamodb_table=$DYNAMODB_TABLE" >> $GITHUB_OUTPUT
