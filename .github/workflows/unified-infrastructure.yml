@@ -332,7 +332,7 @@ jobs:
 
           # Scan DynamoDB table for any existing locks
           LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "${{ needs.bootstrap.outputs.dynamodb_table }}" \
+            --table-name "magebase-terraform-locks-bootstrap" \
             --region ${{ env.INFRA_REGION }} \
             --query 'Items[?attribute_exists(LockID)]' \
             --output json 2>/dev/null || echo "[]")
@@ -570,7 +570,7 @@ jobs:
 
           # Scan DynamoDB table for any existing locks
           LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "${{ needs.bootstrap.outputs.dynamodb_table }}" \
+            --table-name "magebase-terraform-locks-bootstrap" \
             --region ${{ env.INFRA_REGION }} \
             --query 'Items[?attribute_exists(LockID)]' \
             --output json 2>/dev/null || echo "[]")
@@ -716,7 +716,7 @@ jobs:
 
           # Scan DynamoDB table for any existing locks
           LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "${{ needs.bootstrap.outputs.dynamodb_table }}" \
+            --table-name "magebase-terraform-locks-bootstrap" \
             --region ${{ env.INFRA_REGION }} \
             --query 'Items[?attribute_exists(LockID)]' \
             --output json 2>/dev/null || echo "[]")
