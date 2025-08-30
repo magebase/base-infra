@@ -143,7 +143,32 @@ jobs:
           # Initialize bootstrap with local backend
           terraform init -upgrade
 
-          # Apply bootstrap configuration using trussworks module
+          # Check if bootstrap resources already exist and import them if needed
+          echo "🔍 Checking for existing bootstrap resources..."
+
+          # Check if S3 bucket exists
+          BUCKET_EXISTS=$(aws s3api head-bucket --bucket magebase-tf-state-bootstrap-ap-southeast-1 2>/dev/null && echo "true" || echo "false")
+          if [ "$BUCKET_EXISTS" = "true" ]; then
+            echo "📦 S3 bucket exists, importing..."
+            terraform import -state=terraform.tfstate module.bootstrap.module.terraform_state_bucket.aws_s3_bucket.private_bucket magebase-tf-state-bootstrap-ap-southeast-1 || echo "Import failed, will create new"
+          fi
+
+          # Check if DynamoDB table exists
+          TABLE_EXISTS=$(aws dynamodb describe-table --table-name magebase-terraform-locks-bootstrap --region ap-southeast-1 2>/dev/null && echo "true" || echo "false")
+          if [ "$TABLE_EXISTS" = "true" ]; then
+            echo "🔒 DynamoDB table exists, importing..."
+            terraform import -state=terraform.tfstate module.bootstrap.aws_dynamodb_table.terraform_state_lock magebase-terraform-locks-bootstrap || echo "Import failed, will create new"
+          fi
+
+          # Check if logs bucket exists
+          LOGS_BUCKET_EXISTS=$(aws s3api head-bucket --bucket magebase-tf-state-bootstrap-log-ap-southeast-1 2>/dev/null && echo "true" || echo "false")
+          if [ "$LOGS_BUCKET_EXISTS" = "true" ]; then
+            echo "📋 Logs bucket exists, importing..."
+            terraform import -state=terraform.tfstate module.bootstrap.module.terraform_state_bucket_logs.aws_s3_bucket.aws_logs magebase-tf-state-bootstrap-log-ap-southeast-1 || echo "Import failed, will create new"
+          fi
+
+          # Apply bootstrap configuration (will create new resources or update existing)
+          echo "⚡ Applying bootstrap configuration..."
           terraform apply -auto-approve -var-file=terraform.tfvars
 
           echo "✅ Terraform state backend bootstrapped successfully"
