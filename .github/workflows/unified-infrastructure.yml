@@ -311,6 +311,9 @@ jobs:
       development_account_id: ${{ steps.get-dev-account.outputs.account_id }}
     # Skip SSO setup if explicitly requested
     if: github.event.inputs.skip_sso != true
+    defaults:
+      run:
+        working-directory: infra/pipeline/org-sso
 
     steps:
       - name: Checkout
@@ -326,7 +329,7 @@ jobs:
           if [ -z "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
             echo "❌ Error: MANAGEMENT_ACCOUNT_ID variable is not set"
             echo "📋 Please set the MANAGEMENT_ACCOUNT_ID variable in your repository settings"
-            echo "📖 See infra/sso/AWS_SETUP_GUIDE.md for detailed setup instructions"
+            echo "📖 See infra/pipeline/org-sso/sso-README.md for detailed setup instructions"
             exit 1
           fi
           echo "✅ MANAGEMENT_ACCOUNT_ID variable is configured"
@@ -375,14 +378,12 @@ jobs:
       - name: Terraform Format
         id: fmt
         run: |
-          cd infra/pipeline
           terraform fmt -check -recursive
         continue-on-error: true
 
       - name: Handle State Locks
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         run: |
-          cd infra/pipeline
           echo "🔍 Checking for existing Terraform state locks..."
 
           # Scan DynamoDB table for any existing locks
@@ -426,22 +427,19 @@ jobs:
 
       - name: Terraform Init
         run: |
-          cd infra/pipeline
           terraform init -input=false -upgrade
 
       - name: Terraform Validate
         id: validate
         run: |
-          cd infra/pipeline
           terraform validate -no-color
 
       - name: Terraform Plan
         id: plan
         if: github.event_name == 'pull_request'
         run: |
-          cd infra/pipeline
           terraform plan -no-color -input=false \
-            -var-file="dev.tfvars" \
+            -var-file="organizations-terraform.tfvars" \
             -var="hcloud_token=dummy" \
             -var="cloudflare_api_token=dummy" \
             -var="aws_ses_account_id=dummy" \
@@ -521,7 +519,6 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
           TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
         run: |
-          cd infra/pipeline
           echo "🚀 Applying AWS Organizations and SSO configuration..."
 
           # Apply with dummy values for non-AWS variables
@@ -557,7 +554,6 @@ jobs:
       - name: Force Unlock on Failure
         if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
         run: |
-          cd infra/pipeline
           echo "🔍 Attempting to force unlock Terraform state after failure..."
 
           # Try to extract lock ID from previous step's output (if available)
@@ -615,7 +611,6 @@ jobs:
       - name: Get Development Account ID
         id: get-dev-account
         run: |
-          cd infra/pipeline
           DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
           echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
           echo "Using development account ID: $DEV_ACCOUNT_ID"
@@ -650,7 +645,6 @@ jobs:
               --account-id "$PROD_ACCOUNT_ID" \
               --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} | jq -r '.PermissionSets[0]') 2>/dev/null || echo "No assignments found for production account"
           fi
-        working-directory: infra/pipeline
 
   # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON BOOTSTRAP & SSO) =====
   infrastructure-deploy:
