@@ -40,30 +40,30 @@ module "kube-hetzner" {
   hcloud_token    = var.hcloud_token
   ssh_public_key  = var.ssh_public_key
   ssh_private_key = var.ssh_private_key
-  network_region  = "eu-central"
+  network_region  = "ap-southeast"
 
   # Control plane configuration
   control_plane_nodepools = [
     {
-      name        = "control-plane-fsn",
-      server_type = "cx22",
-      location    = "fsn1",
+      name        = "control-plane-sin",
+      server_type = "cpx11",
+      location    = "sin",
       labels      = [],
       taints      = [],
       count       = 1
     },
     {
-      name        = "control-plane-fsn-ha",
-      server_type = "cx22",
-      location    = "fsn1",
+      name        = "control-plane-sin-ha",
+      server_type = "cpx11",
+      location    = "sin",
       labels      = [],
       taints      = [],
       count       = 1
     },
     {
-      name        = "control-plane-fsn-backup",
-      server_type = "cx22",
-      location    = "fsn1",
+      name        = "control-plane-sin-backup",
+      server_type = "cpx11",
+      location    = "sin",
       labels      = [],
       taints      = [],
       count       = 1
@@ -74,8 +74,8 @@ module "kube-hetzner" {
   agent_nodepools = [
     {
       name        = "agent-small",
-      server_type = "cx22",
-      location    = "fsn1",
+      server_type = "cpx11",
+      location    = "sin",
       labels      = [],
       taints      = [],
       count       = 1
