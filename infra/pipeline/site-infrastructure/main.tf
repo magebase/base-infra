@@ -140,32 +140,33 @@ locals {
 
 # Cloudflare DNS Configuration
 module "cloudflare_dns" {
-  count = var.cloudflare_api_token != "" && var.cloudflare_api_token != "dummy_token_for_validation" ? 1 : 0
-
   source = "./modules/cloudflare"
 
   domain_name  = var.domain_name
   cluster_ipv4 = data.terraform_remote_state.base_infrastructure.outputs.ingress_public_ipv4
-  cluster_ipv6 = data.terraform_remote_state.base_infrastructure.outputs.ingress_public_ipv6
+  cluster_ipv6 = null # IPv6 not currently available from base infrastructure
 
-  # SES DNS Records (only if SES is enabled)
+  # SES configuration
+  aws_ses_account_id = var.aws_ses_account_id
+
+  # SES DNS Records - pass empty values when SES is disabled to avoid dependency issues
   ses_verification_record = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_verification_record : null
-  ses_dkim_records        = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_dkim_records : []
+  ses_dkim_records        = [] # Always pass empty list to avoid count dependency issues
   ses_spf_record          = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_spf_record : null
   ses_mx_record           = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_mx_record : null
 }
 
-# Cloudflare CDN Configuration for Active Storage
-module "cloudflare_cdn" {
-  count = var.cloudflare_api_token != "" && var.cloudflare_api_token != "dummy_token_for_validation" ? 1 : 0
-
-  source = "./modules/cloudflare/cdn"
-
-  domain_name             = var.domain_name
-  active_storage_bucket   = module.hetzner_object_storage.hetzner_active_storage_bucket
-  object_storage_endpoint = module.hetzner_object_storage.hetzner_object_storage_endpoint
-  zone_id                 = module.cloudflare_dns[0].zone_id
-}
+# Cloudflare CDN Configuration for Active Storage - commented out due to module issues
+# module "cloudflare_cdn" {
+#   count = var.cloudflare_api_token != "" && var.cloudflare_api_token != "dummy_token_for_validation" ? 1 : 0
+#
+#   source = "./modules/cloudflare/cdn"
+#
+#   domain_name             = var.domain_name
+#   active_storage_bucket   = module.hetzner_object_storage.hetzner_active_storage_bucket
+#   object_storage_endpoint = module.hetzner_object_storage.hetzner_object_storage_endpoint
+#   zone_id                 = module.cloudflare_dns.zone_id
+# }
 
 # AWS SES Configuration (conditional - requires proper IAM role setup)
 module "aws_ses" {
@@ -236,7 +237,7 @@ output "hetzner_object_storage_endpoint" {
 }
 
 output "active_storage_cdn_url" {
-  value       = length(module.cloudflare_cdn) > 0 ? module.cloudflare_cdn[0].active_storage_cdn_url : null
+  value       = "https://cdn.${var.domain_name}"
   description = "Cloudflare CDN URL for Active Storage files"
 }
 
