@@ -1094,7 +1094,7 @@ jobs:
   notify:
     name: Deployment Results
     runs-on: self-hosted
-    needs: [sso-setup, bootstrap, validate, test-terraform, security-scan]
+    needs: [sso-setup, bootstrap, test-terraform, security-scan]
     if: always()
 
     steps:
@@ -1121,13 +1121,6 @@ jobs:
 
           # Site Infrastructure Deployment handled by separate workflow
           echo "ℹ️ **Site Infrastructure:** Deployed via separate workflow" >> $GITHUB_STEP_SUMMARY
-
-          # Validation Results
-          if [ "${{ needs.validate.result }}" == "success" ]; then
-            echo "✅ **Terraform Validation:** Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Terraform Validation:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
 
           # Testing Results
           if [ "${{ needs.test-terraform.result }}" == "success" ]; then
