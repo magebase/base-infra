@@ -298,6 +298,7 @@ module "kube-hetzner" {
   # egress, you should consider other configurations.
   # 
   #
+  nat_router = null
   # nat_router = {
   #   server_type = "cax21"
   #   location    = "sin"
