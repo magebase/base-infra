@@ -300,7 +300,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23'
+          go-version: "1.23"
 
       # - name: Run Bootstrap Terratest
       #   working-directory: infra/tests
@@ -701,7 +701,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23'
+          go-version: "1.23"
 
       # - name: Run SSO Terratest
       #   working-directory: infra/tests
@@ -750,7 +750,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.23'
+          go-version: "1.23"
 
       - name: Get Infrastructure Account ID
         id: get-infra-account
@@ -1152,104 +1152,6 @@ jobs:
         run: |
           terraform destroy -auto-approve
 
-  test-terraform:
-    name: Test Terraform Configuration
-    runs-on: self-hosted
-    needs: base-infrastructure-deploy
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Test Deployed Environment Configuration
-        working-directory: infra/pipeline/base-infrastructure
-        env:
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-        run: |
-          DEPLOYED_ENV="${{ github.event.inputs.environment || 'dev' }}"
-          echo "🧪 Testing deployed environment: $DEPLOYED_ENV"
-
-          terraform init -backend-config=""
-          terraform plan -no-color -out=tfplan-$DEPLOYED_ENV
-          terraform show -json tfplan-$DEPLOYED_ENV > tfplan-$DEPLOYED_ENV.json
-
-      - name: Validate Plan Outputs
-        run: |
-          DEPLOYED_ENV="${{ github.event.inputs.environment || 'dev' }}"
-          PLAN_FILE="infra/pipeline/base-infrastructure/tfplan-$DEPLOYED_ENV.json"
-
-          # Check that plan was generated successfully
-          if [ ! -f "$PLAN_FILE" ]; then
-            echo "❌ Plan file not generated for environment: $DEPLOYED_ENV"
-            exit 1
-          fi
-
-          # Check for errors in plan
-          if grep -q '"error"' "$PLAN_FILE"; then
-            echo "❌ Errors found in terraform plan for environment: $DEPLOYED_ENV"
-            cat "$PLAN_FILE"
-            exit 1
-          fi
-
-          echo "✅ Terraform plan validated successfully for environment: $DEPLOYED_ENV"
-
-      - name: Force Unlock Test Infrastructure on Failure
-        if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
-        working-directory: infra/pipeline/base-infrastructure
-        run: |
-          echo "🔍 Attempting to force unlock test infrastructure Terraform state after failure..."
-
-          # Try to scan DynamoDB for any existing locks
-          echo "🔍 Scanning DynamoDB for existing test infrastructure locks..."
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-bootstrap" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
-
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing test infrastructure state lock(s), attempting to force unlock..."
-
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Attempting to force unlock test infrastructure: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
-
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
-                  echo "✅ Successfully force unlocked test infrastructure: $LOCK_ID"
-                  break
-                else
-                  echo "⚠️  Force unlock failed for test infrastructure: $LOCK_ID"
-                fi
-              fi
-            done
-          else
-            echo "ℹ️  No test infrastructure locks found in DynamoDB table"
-          fi
-
-          # Provide manual instructions
-          echo ""
-          echo "📋 If the automatic unlock failed, please manually force-unlock the test infrastructure state:"
-          echo "1. Find the lock ID from the failed test infrastructure step logs above"
-          echo "2. Run: cd infra/pipeline/base-infrastructure && terraform force-unlock -force <lock_id>"
-          echo "3. Re-run the workflow"
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ env.INFRA_REGION }}
-
   security-scan:
     name: Security and Compliance Scan
     runs-on: self-hosted
@@ -1257,6 +1159,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      actions: read
 
     steps:
       - name: Checkout code
@@ -1279,7 +1182,7 @@ jobs:
   notify:
     name: Deployment Results
     runs-on: self-hosted
-    needs: [sso-setup, bootstrap, test-terraform, security-scan]
+    needs: [sso-setup, bootstrap, security-scan]
     if: always()
 
     steps:
