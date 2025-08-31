@@ -310,6 +310,7 @@ jobs:
       pull-requests: write
     outputs:
       development_account_id: ${{ steps.get-dev-account.outputs.account_id }}
+      production_account_id: ${{ steps.get-prod-account.outputs.account_id }}
     # Skip SSO setup if explicitly requested
     if: github.event.inputs.skip_sso != true
     defaults:
@@ -619,6 +620,14 @@ jobs:
           echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
           echo "Using development account ID: $DEV_ACCOUNT_ID"
 
+      - name: Get Production Account ID
+        id: get-prod-account
+        working-directory: infra/pipeline/org-sso
+        run: |
+          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
+          echo "account_id=$PROD_ACCOUNT_ID" >> $GITHUB_OUTPUT
+          echo "Using production account ID: $PROD_ACCOUNT_ID"
+
       - name: Verify SSO Configuration
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         working-directory: infra/pipeline/org-sso
@@ -686,17 +695,22 @@ jobs:
       - name: Get Infrastructure Account ID
         id: get-infra-account
         run: |
-          # Use development account if SSO setup succeeded, otherwise use management account
-          if [ "${{ needs.sso-setup.result }}" == "success" ] && [ -n "${{ needs.sso-setup.outputs.development_account_id }}" ]; then
-            ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
-            echo "Using development account for infrastructure: $ACCOUNT_ID"
+          # Determine which SES account to use based on environment
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+
+          if [ "${{ needs.sso-setup.result }}" == "success" ]; then
+            if [ "$ENVIRONMENT" == "prod" ] || [ "$ENVIRONMENT" == "uat" ]; then
+              ACCOUNT_ID="${{ needs.sso-setup.outputs.production_account_id }}"
+              echo "Using production account for infrastructure (environment: $ENVIRONMENT): $ACCOUNT_ID"
+            else
+              ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
+              echo "Using development account for infrastructure (environment: $ENVIRONMENT): $ACCOUNT_ID"
+            fi
           else
             ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-            echo "Using management account for infrastructure: $ACCOUNT_ID"
+            echo "Using management account for infrastructure (SSO failed): $ACCOUNT_ID"
           fi
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-          echo "ses_access_key_id=${{ secrets.AWS_SES_ACCESS_KEY_ID }}" >> $GITHUB_OUTPUT
-          echo "ses_secret_access_key=${{ secrets.AWS_SES_SECRET_ACCESS_KEY }}" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials via OIDC
         id: oidc-auth
@@ -791,8 +805,6 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
-          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
-          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
         run: |
           terraform plan -no-color -out=tfplan
         continue-on-error: true
@@ -807,8 +819,6 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
-          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
-          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
         run: |
           echo "🚀 Running Terraform plan for infrastructure deployment..."
 
@@ -872,8 +882,6 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
-          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
-          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
         run: |
           echo "🚀 Applying infrastructure changes..."
 
