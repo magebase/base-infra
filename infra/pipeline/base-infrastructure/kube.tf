@@ -46,15 +46,14 @@ module "kube-hetzner" {
 
   # * source can be specified in multiple ways:
   # 1. For normal use, (the official version published on the Terraform Registry), use
-  # source = "kube-hetzner/kube-hetzner/hcloud"
+  source = "kube-hetzner/kube-hetzner/hcloud"
   #    When using the terraform registry as source, you can optionally specify a version number.
   #    See https://registry.terraform.io/modules/kube-hetzner/kube-hetzner/hcloud for the available versions
-  # version = "2.18.0"
+  version = "2.17.0"
   # 2. For local dev, path to the git repo
   # source = "../../kube-hetzner/"
   # 3. If you want to use the latest master branch (see https://developer.hashicorp.com/terraform/language/modules/sources#github), use
-  source = "github.com/kube-hetzner/terraform-hcloud-kube-hetzner"
-  version = "2.18.0"
+  # source = "github.com/kube-hetzner/terraform-hcloud-kube-hetzner"
 
   # Note that some values, notably "location" and "public_key" have no effect after initializing the cluster.
   # This is to keep Terraform from re-provisioning all nodes at once, which would lose data. If you want to update
@@ -299,7 +298,7 @@ module "kube-hetzner" {
   # egress, you should consider other configurations.
   # 
   #
-  nat_router = null
+  # nat_router = null
   # nat_router = {
   #   server_type = "cax21"
   #   location    = "sin"
@@ -830,7 +829,7 @@ module "kube-hetzner" {
 
   # When this is enabled, rather than the first node, all external traffic will be routed via a control-plane loadbalancer, allowing for high availability.
   # The default is false.
-  use_control_plane_lb = false
+  # use_control_plane_lb = true
 
   # When the above use_control_plane_lb is enabled, you can change the lb type for it, the default is "lb11".
   # control_plane_lb_type = "lb21"
