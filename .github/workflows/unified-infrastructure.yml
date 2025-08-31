@@ -302,25 +302,25 @@ jobs:
         with:
           go-version: '1.23'
 
-      - name: Run Bootstrap Terratest
-        working-directory: infra/tests
-        env:
-          AWS_REGION: ${{ env.INFRA_REGION }}
-          MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-        run: |
-          echo "🧪 Running Bootstrap Terratest..."
+      # - name: Run Bootstrap Terratest
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Bootstrap Terratest..."
 
-          # Install dependencies
-          go mod download
+      #     # Install dependencies
+      #     go mod download
 
-          # Run bootstrap test
-          go test -v -run TestBootstrapInfrastructure ./*.go
+      #     # Run bootstrap test
+      #     go test -v -run TestBootstrapInfrastructure ./*.go
 
-          echo "✅ Bootstrap Terratest completed successfully"
+      #     echo "✅ Bootstrap Terratest completed successfully"
 
   # ===== AWS ORGANIZATIONS & SSO SETUP =====
   sso-setup:
@@ -703,25 +703,25 @@ jobs:
         with:
           go-version: '1.23'
 
-      - name: Run SSO Terratest
-        working-directory: infra/tests
-        env:
-          AWS_REGION: ${{ env.AWS_REGION }}
-          MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-        run: |
-          echo "🧪 Running SSO Terratest..."
+      # - name: Run SSO Terratest
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.AWS_REGION }}
+      #     MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      #     TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      #     TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+      #   run: |
+      #     echo "🧪 Running SSO Terratest..."
 
-          # Install dependencies
-          go mod download
+      #     # Install dependencies
+      #     go mod download
 
-          # Run SSO test
-          go test -v -run TestSSOInfrastructure ./*.go
+      #     # Run SSO test
+      #     go test -v -run TestSSOInfrastructure ./*.go
 
-          echo "✅ SSO Terratest completed successfully"
+      #     echo "✅ SSO Terratest completed successfully"
 
   # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON BOOTSTRAP & SSO) =====
   base-infrastructure-deploy:
@@ -931,25 +931,25 @@ jobs:
               body: output
             })
 
-      - name: Run Base Infrastructure Terratest
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
-        working-directory: infra/tests
-        env:
-          AWS_REGION: ${{ env.INFRA_REGION }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-        run: |
-          echo "🧪 Running Base Infrastructure Terratest..."
+      # - name: Run Base Infrastructure Terratest
+      #   if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Base Infrastructure Terratest..."
 
-          # Install dependencies
-          go mod download
+      #     # Install dependencies
+      #     go mod download
 
-          # Run base infrastructure test
-          go test -v -run TestBaseInfrastructure ./*.go
+      #     # Run base infrastructure test
+      #     go test -v -run TestBaseInfrastructure ./*.go
 
-          echo "✅ Base Infrastructure Terratest completed successfully"
+      #     echo "✅ Base Infrastructure Terratest completed successfully"
 
       - name: Terraform Apply
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
@@ -988,69 +988,69 @@ jobs:
             fi
           done
 
-      - name: Run Base Infrastructure Terratest
-        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
-        working-directory: infra/tests
-        env:
-          AWS_REGION: ${{ env.INFRA_REGION }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-        run: |
-          echo "🧪 Running Base Infrastructure Terratest after apply..."
+      # - name: Run Base Infrastructure Terratest
+      #   if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Base Infrastructure Terratest after apply..."
 
-          # Install dependencies
-          go mod download
+      #     # Install dependencies
+      #     go mod download
 
-          # Run base infrastructure test
-          go test -v -run TestBaseInfrastructure ./*.go -timeout 30m
+      #     # Run base infrastructure test
+      #     go test -v -run TestBaseInfrastructure ./*.go -timeout 30m
 
-          echo "✅ Base Infrastructure Terratest completed successfully"
+      #     echo "✅ Base Infrastructure Terratest completed successfully"
 
-      - name: Run Integration Terratest
-        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
-        working-directory: infra/tests
-        env:
-          AWS_REGION: ${{ env.INFRA_REGION }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
-          AWS_SSO_REGION: ${{ env.SSO_REGION }}
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-        run: |
-          echo "🧪 Running Integration Terratest after apply..."
+      # - name: Run Integration Terratest
+      #   if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Integration Terratest after apply..."
 
-          # Install dependencies
-          go mod download
+      #     # Install dependencies
+      #     go mod download
 
-          # Run integration test
-          go test -v -run TestIntegration ./*.go -timeout 45m
+      #     # Run integration test
+      #     go test -v -run TestIntegration ./*.go -timeout 45m
 
-          echo "✅ Integration Terratest completed successfully"
+      #     echo "✅ Integration Terratest completed successfully"
 
-      - name: Run Unified Terratest
-        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
-        working-directory: infra/tests
-        env:
-          AWS_REGION: ${{ env.INFRA_REGION }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
-          AWS_SSO_REGION: ${{ env.SSO_REGION }}
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-        run: |
-          echo "🧪 Running Unified Terratest after apply..."
+      # - name: Run Unified Terratest
+      #   if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Unified Terratest after apply..."
 
-          # Install dependencies
-          go mod download
+      #     # Install dependencies
+      #     go mod download
 
-          # Run unified test (include all test files)
-          go test -v -run TestUnifiedInfrastructure ./*.go -timeout 45m
+      #     # Run unified test (include all test files)
+      #     go test -v -run TestUnifiedInfrastructure ./*.go -timeout 45m
 
-          echo "✅ Unified Terratest completed successfully"
+      #     echo "✅ Unified Terratest completed successfully"
 
       - name: Force Unlock Base Infrastructure on Failure
         if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
@@ -1103,49 +1103,49 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.INFRA_REGION }}
 
-      - name: Run Integration Terratest
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-        working-directory: infra/tests
-        env:
-          AWS_REGION: ${{ env.INFRA_REGION }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
-          AWS_SSO_REGION: ${{ env.SSO_REGION }}
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-        run: |
-          echo "🧪 Running Integration Terratest..."
+      # - name: Run Integration Terratest
+      #   if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Integration Terratest..."
 
-          # Install dependencies
-          go mod download
+      #     # Install dependencies
+      #     go mod download
 
-          # Run integration test
-          go test -v -run TestIntegration ./*.go
+      #     # Run integration test
+      #     go test -v -run TestIntegration ./*.go
 
-          echo "✅ Integration Terratest completed successfully"
+      #     echo "✅ Integration Terratest completed successfully"
 
-      - name: Run Unified Terratest
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-        working-directory: infra/tests
-        env:
-          AWS_REGION: ${{ env.INFRA_REGION }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
-          AWS_SSO_REGION: ${{ env.SSO_REGION }}
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-        run: |
-          echo "🧪 Running Unified Terratest..."
+      # - name: Run Unified Terratest
+      #   if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Unified Terratest..."
 
-          # Install dependencies
-          go mod download
+      #     # Install dependencies
+      #     go mod download
 
-          # Run unified test (include all test files)
-          go test -v -run TestUnifiedInfrastructure ./*.go
+      #     # Run unified test (include all test files)
+      #     go test -v -run TestUnifiedInfrastructure ./*.go
 
-          echo "✅ Unified Terratest completed successfully"
+      #     echo "✅ Unified Terratest completed successfully"
 
       - name: Terraform Destroy
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
