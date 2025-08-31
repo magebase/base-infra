@@ -651,6 +651,9 @@ jobs:
     needs: [sso-setup, bootstrap]
     # Skip if SSO was skipped and we're not doing a full deployment
     if: (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped') && (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
+    defaults:
+      run:
+        working-directory: infra/pipeline/main-infrastructure
 
     steps:
       - name: Checkout code
@@ -664,13 +667,12 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.DEVELOPMENT_ACCOUNT_ID }}:role/GitHubActionsSESRole
+          role-to-assume: arn:aws:iam::${{ needs.sso-setup.outputs.development_account_id }}:role/GitHubActionsSESRole
           aws-region: ${{ env.INFRA_REGION }}
 
       - name: Handle State Locks
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         run: |
-          cd infra/pipeline/main-infrastructure
           echo "🔍 Checking for existing Terraform state locks..."
 
           echo "🔄 Proceeding with Terraform operations..."
@@ -678,19 +680,16 @@ jobs:
       - name: Terraform Init
         id: init
         run: |
-          cd infra/pipeline/main-infrastructure
           terraform init -upgrade
 
       - name: Terraform Validate
         id: validate
         run: |
-          cd infra/pipeline/main-infrastructure
           terraform validate
 
       - name: Terraform Format Check
         id: fmt
         run: |
-          cd infra/pipeline/main-infrastructure
           terraform fmt -check -recursive
 
       - name: Terraform Plan
@@ -703,7 +702,6 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
           TF_VAR_aws_ses_account_id: ${{ needs.sso-setup.outputs.development_account_id }}
         run: |
-          cd infra/pipeline/main-infrastructure
           terraform plan -no-color -out=tfplan
         continue-on-error: true
 
@@ -745,13 +743,11 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
           TF_VAR_aws_ses_account_id: ${{ needs.sso-setup.outputs.development_account_id }}
         run: |
-          cd infra/pipeline/main-infrastructure
           terraform apply -auto-approve tfplan
 
       - name: Force Unlock Infrastructure on Failure
         if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
         run: |
-          cd infra/pipeline/main-infrastructure
           echo "🔍 Attempting to force unlock infrastructure Terraform state after failure..."
 
           # Try to scan DynamoDB for any existing locks
@@ -803,16 +799,18 @@ jobs:
       - name: Terraform Destroy
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
         run: |
-          cd infra/pipeline/main-infrastructure
           terraform destroy -auto-approve
 
   # ===== VALIDATION & TESTING =====
   validate:
     name: Validate Infrastructure
     runs-on: ubuntu-latest
-    needs: [infrastructure-deploy, bootstrap]
+    needs: [infrastructure-deploy, bootstrap, sso-setup]
     outputs:
       tf_plan_exitcode: ${{ steps.tf-plan.outputs.exitcode }}
+    defaults:
+      run:
+        working-directory: infra/pipeline/main-infrastructure
 
     steps:
       - name: Checkout code
@@ -826,12 +824,11 @@ jobs:
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.DEVELOPMENT_ACCOUNT_ID }}:role/GitHubActionsSESRole
+          role-to-assume: arn:aws:iam::${{ needs.sso-setup.outputs.development_account_id }}:role/GitHubActionsSESRole
           aws-region: ${{ env.INFRA_REGION }}
 
       - name: Handle State Locks
         run: |
-          cd infra/pipeline/main-infrastructure
           echo "🔍 Checking for existing Terraform state locks..."
 
           # Scan DynamoDB table for any existing locks
@@ -876,26 +873,22 @@ jobs:
       - name: Terraform Init
         id: init
         run: |
-          cd infra/pipeline/main-infrastructure
           terraform init -upgrade
 
       - name: Terraform Validate
         id: validate
         run: |
-          cd infra/pipeline/main-infrastructure
           terraform validate
 
       - name: Terraform Format Check
         id: fmt
         run: |
-          cd infra/pipeline/main-infrastructure
           terraform fmt -check -recursive
 
       - name: Terraform Plan
         id: tf-plan
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         run: |
-          cd infra/pipeline/main-infrastructure
           terraform plan -no-color -out=tfplan
         continue-on-error: true
 
