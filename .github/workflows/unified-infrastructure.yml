@@ -695,6 +695,8 @@ jobs:
             echo "Using management account for infrastructure: $ACCOUNT_ID"
           fi
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+          echo "ses_access_key_id=${{ secrets.AWS_SES_ACCESS_KEY_ID }}" >> $GITHUB_OUTPUT
+          echo "ses_secret_access_key=${{ secrets.AWS_SES_SECRET_ACCESS_KEY }}" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials via OIDC
         id: oidc-auth
@@ -789,6 +791,8 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
+          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
         run: |
           terraform plan -no-color -out=tfplan
         continue-on-error: true
@@ -803,6 +807,8 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
+          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
         run: |
           echo "🚀 Running Terraform plan for infrastructure deployment..."
 
@@ -866,6 +872,8 @@ jobs:
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
+          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
         run: |
           echo "🚀 Applying infrastructure changes..."
 
