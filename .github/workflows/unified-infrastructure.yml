@@ -443,11 +443,13 @@ jobs:
         id: plan
         if: github.event_name == 'pull_request'
         working-directory: infra/pipeline/org-sso
+        env:
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || 'dummy' }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID || 'dummy' }}
         run: |
           terraform plan -no-color -input=false \
             -var-file="terraform.tfvars" \
             -var="hcloud_token=dummy" \
-            -var="cloudflare_api_token=dummy" \
             -var="aws_ses_account_id=dummy" \
             -var="database_url=dummy" \
             -var="cache_database_url=dummy" \
@@ -524,6 +526,7 @@ jobs:
         env:
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID || '' }}
           TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
         run: |
           echo "🚀 Applying AWS Organizations and SSO configuration..."
@@ -700,6 +703,7 @@ jobs:
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID || '' }}
           TF_VAR_aws_ses_account_id: ${{ needs.sso-setup.outputs.development_account_id }}
         run: |
           terraform plan -no-color -out=tfplan
@@ -741,6 +745,7 @@ jobs:
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID || '' }}
           TF_VAR_aws_ses_account_id: ${{ needs.sso-setup.outputs.development_account_id }}
         run: |
           terraform apply -auto-approve tfplan

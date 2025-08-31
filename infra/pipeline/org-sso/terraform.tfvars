@@ -13,7 +13,6 @@ development_account_id = "308488080915"
 production_account_id  = ""
 
 # Cloudflare Configuration
-# IMPORTANT: Replace the placeholder below with your actual Cloudflare API token
-# Get this from: https://dash.cloudflare.com/profile/api-tokens
-cloudflare_api_token = "your_cloudflare_api_token_here"  # Must be 40 characters, alphanumeric + hyphens/underscores
-cloudflare_zone_id = ""  # Add your Cloudflare zone ID for magebase.dev
+# These values are now passed via GitHub secrets as environment variables
+# TF_VAR_cloudflare_api_token and TF_VAR_cloudflare_zone_id
+# No need to set them here as they will be overridden by environment variables
