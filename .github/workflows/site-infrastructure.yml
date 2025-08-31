@@ -223,6 +223,8 @@ jobs:
           TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
           TF_VAR_hetzner_object_storage_access_key: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY || '' }}
           TF_VAR_hetzner_object_storage_secret_key: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY || '' }}
+          TF_VAR_stripe_api_key: ${{ secrets.STRIPE_API_KEY || '' }}
+          TF_VAR_stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET || '' }}
         run: |
           terraform plan -no-color -out=tfplan
         continue-on-error: true
@@ -242,8 +244,18 @@ jobs:
           TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
           TF_VAR_hetzner_object_storage_access_key: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY || '' }}
           TF_VAR_hetzner_object_storage_secret_key: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY || '' }}
+          TF_VAR_stripe_api_key: ${{ secrets.STRIPE_API_KEY || '' }}
+          TF_VAR_stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET || '' }}
         run: |
           echo "🚀 Running Terraform plan for site infrastructure deployment..."
+
+          # Debug: Check if secrets are being passed
+          echo "🔍 Debug: Checking environment variables..."
+          if [ -z "$TF_VAR_stripe_api_key" ]; then
+            echo "⚠️  TF_VAR_stripe_api_key is empty or not set"
+          else
+            echo "✅ TF_VAR_stripe_api_key is set (length: ${#TF_VAR_stripe_api_key})"
+          fi
 
           # Retry logic for state lock conflicts
           MAX_RETRIES=3
@@ -318,6 +330,8 @@ jobs:
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
           TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
           TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
+          TF_VAR_stripe_api_key: ${{ secrets.STRIPE_API_KEY || '' }}
+          TF_VAR_stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET || '' }}
         run: |
           echo "🚀 Applying site infrastructure changes..."
 

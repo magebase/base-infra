@@ -80,12 +80,14 @@ variable "stripe_api_key" {
   description = "Stripe API key for managing billing infrastructure"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "stripe_webhook_secret" {
   description = "Stripe webhook secret for validating webhook signatures"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "company_name" {
