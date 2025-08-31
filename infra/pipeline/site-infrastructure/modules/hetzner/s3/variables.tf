@@ -20,3 +20,9 @@ variable "hetzner_object_storage_secret_key" {
   type        = string
   sensitive   = true
 }
+
+variable "location" {
+  description = "Hetzner location for object storage (e.g., fsn1, sin)"
+  type        = string
+  default     = "fsn1"
+}

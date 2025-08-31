@@ -116,7 +116,7 @@ provider "aws" {
   region = "ap-southeast-1" # Singapore region for SES
 
   dynamic "assume_role" {
-    for_each = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? [1] : []
+    for_each = local.use_ses ? [1] : []
     content {
       role_arn = aws_iam_role.ses_manager[0].arn
     }
@@ -140,6 +140,7 @@ locals {
   cluster_name        = "${var.environment}-magebase"
   singapore_locations = ["sin"] # Singapore location
   location            = "fsn1"  # Falkenstein for all environments
+  use_ses             = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy"
 }
 
 # Cloudflare DNS Configuration
@@ -147,17 +148,17 @@ module "cloudflare_dns" {
   source = "./modules/cloudflare"
 
   domain_name  = var.domain_name
-  cluster_ipv4 = data.terraform_remote_state.base_infrastructure.outputs.lb_ipv4
+  cluster_ipv4 = try(data.terraform_remote_state.base_infrastructure.outputs.lb_ipv4, "127.0.0.1")
   cluster_ipv6 = null # IPv6 not currently available from base infrastructure
 
   # SES configuration
   aws_ses_account_id = var.aws_ses_account_id
 
   # SES DNS Records - pass empty values when SES is disabled to avoid dependency issues
-  ses_verification_record = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_verification_record : null
+  ses_verification_record = local.use_ses ? module.aws_ses[0].ses_verification_record : null
   ses_dkim_records        = [] # Always pass empty list to avoid count dependency issues
-  ses_spf_record          = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_spf_record : null
-  ses_mx_record           = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_mx_record : null
+  ses_spf_record          = local.use_ses ? module.aws_ses[0].ses_spf_record : null
+  ses_mx_record           = local.use_ses ? module.aws_ses[0].ses_mx_record : null
 }
 
 # Cloudflare CDN Configuration for Active Storage - commented out due to module issues
@@ -174,7 +175,7 @@ module "cloudflare_dns" {
 
 # AWS SES Configuration (conditional - requires proper IAM role setup)
 module "aws_ses" {
-  count = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? 1 : 0
+  count = local.use_ses ? 1 : 0
 
   source = "./modules/aws-ses"
   providers = {
@@ -221,6 +222,7 @@ module "hetzner_object_storage" {
 
   cluster_name                      = local.cluster_name
   domain_name                       = var.domain_name
+  location                          = local.location
   hetzner_object_storage_access_key = var.hetzner_object_storage_access_key
   hetzner_object_storage_secret_key = var.hetzner_object_storage_secret_key
 }
