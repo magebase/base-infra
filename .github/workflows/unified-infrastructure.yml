@@ -683,6 +683,19 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Get Infrastructure Account ID
+        id: get-infra-account
+        run: |
+          # Use development account if SSO setup succeeded, otherwise use management account
+          if [ "${{ needs.sso-setup.result }}" == "success" ] && [ -n "${{ needs.sso-setup.outputs.development_account_id }}" ]; then
+            ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
+            echo "Using development account for infrastructure: $ACCOUNT_ID"
+          else
+            ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+            echo "Using management account for infrastructure: $ACCOUNT_ID"
+          fi
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
       - name: Configure AWS credentials via OIDC
         id: oidc-auth
         uses: aws-actions/configure-aws-credentials@v4
@@ -692,9 +705,62 @@ jobs:
         continue-on-error: true
 
       - name: Handle State Locks
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         run: |
           echo "🔍 Checking for existing Terraform state locks..."
+
+          # Wait for any existing locks to be released (with timeout)
+          MAX_WAIT=300  # 5 minutes
+          WAIT_COUNT=0
+
+          while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+            LOCK_ITEMS=$(aws dynamodb scan \
+              --table-name "magebase-terraform-locks-bootstrap" \
+              --region ${{ env.INFRA_REGION }} \
+              --query 'Items[?attribute_exists(LockID)]' \
+              --output json 2>/dev/null || echo "[]")
+
+            LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+
+            if [ "$LOCK_COUNT" -eq 0 ]; then
+              echo "✅ No state locks found - proceeding with Terraform operations"
+              break
+            else
+              echo "🔒 Found $LOCK_COUNT existing state lock(s), waiting..."
+              for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+                LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+                LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+                if [ -n "$LOCK_ID" ]; then
+                  echo "  Lock ID: $LOCK_ID"
+                  echo "  Info: $LOCK_INFO"
+                fi
+              done
+
+              WAIT_COUNT=$((WAIT_COUNT + 30))
+              if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
+                echo "⏳ Waiting 30 seconds before checking again... ($WAIT_COUNT/$MAX_WAIT seconds)"
+                sleep 30
+              fi
+            fi
+          done
+
+          if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+            echo "❌ Timeout waiting for state locks to be released"
+            echo "🔓 Attempting to force unlock existing locks..."
+
+            # Force unlock any remaining locks
+            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+              if [ -n "$LOCK_ID" ]; then
+                echo "🔓 Force unlocking: $LOCK_ID"
+                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+                  echo "✅ Successfully force unlocked: $LOCK_ID"
+                else
+                  echo "⚠️  Force unlock failed for: $LOCK_ID"
+                fi
+              fi
+            done
+          fi
 
           echo "🔄 Proceeding with Terraform operations..."
 
@@ -738,7 +804,29 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
         run: |
-          terraform plan -no-color -out=tfplan
+          echo "🚀 Running Terraform plan for infrastructure deployment..."
+
+          # Retry logic for state lock conflicts
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "📋 Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+
+            if terraform plan -no-color -out=tfplan; then
+              echo "✅ Terraform plan completed successfully"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️  Terraform plan failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Terraform plan failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
       - name: Update Pull Request
         uses: actions/github-script@v7
         if: github.event_name == 'pull_request' && (steps.tf-plan.outcome == 'success' || steps.tf-plan-main.outcome == 'success')
@@ -779,7 +867,29 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
         run: |
-          terraform apply -auto-approve tfplan
+          echo "🚀 Applying infrastructure changes..."
+
+          # Retry logic for state lock conflicts
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "📋 Apply attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+
+            if terraform apply -auto-approve tfplan; then
+              echo "✅ Terraform apply completed successfully"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️  Terraform apply failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Terraform apply failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
 
       - name: Force Unlock Infrastructure on Failure
         if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
@@ -845,6 +955,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    # Only run validation if infrastructure deployment was successful
+    if: needs.infrastructure-deploy.result == 'success' && (needs.bootstrap.result == 'success') && (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped')
     outputs:
       tf_plan_exitcode: ${{ steps.tf-plan.outputs.exitcode }}
     defaults:
@@ -894,46 +1006,49 @@ jobs:
 
       - name: Handle State Locks
         run: |
-          echo "🔍 Checking for existing Terraform state locks..."
+          echo "🔍 Checking for existing Terraform state locks in validation..."
 
-          # Scan DynamoDB table for any existing locks
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-bootstrap" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
+          # Wait for any existing locks to be released (with timeout)
+          MAX_WAIT=180  # 3 minutes (shorter than infrastructure-deploy since it should be quick)
+          WAIT_COUNT=0
 
-          # Check if we found any lock items
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+          while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+            LOCK_ITEMS=$(aws dynamodb scan \
+              --table-name "magebase-terraform-locks-bootstrap" \
+              --region ${{ env.INFRA_REGION }} \
+              --query 'Items[?attribute_exists(LockID)]' \
+              --output json 2>/dev/null || echo "[]")
 
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
+            LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
 
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Force unlocking state with ID: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
-
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID"; then
-                  echo "✅ Successfully unlocked: $LOCK_ID"
-                else
-                  echo "⚠️  Force unlock failed for: $LOCK_ID"
-                  # Continue anyway - sometimes locks are stale and will be overwritten
+            if [ "$LOCK_COUNT" -eq 0 ]; then
+              echo "✅ No state locks found - proceeding with validation"
+              break
+            else
+              echo "🔒 Found $LOCK_COUNT existing state lock(s) during validation, waiting..."
+              for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+                LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+                LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+                if [ -n "$LOCK_ID" ]; then
+                  echo "  Lock ID: $LOCK_ID"
+                  echo "  Info: $LOCK_INFO"
                 fi
-              else
-                echo "⚠️  Could not extract lock ID from item $i"
+              done
+
+              WAIT_COUNT=$((WAIT_COUNT + 15))
+              if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
+                echo "⏳ Waiting 15 seconds before checking again... ($WAIT_COUNT/$MAX_WAIT seconds)"
+                sleep 15
               fi
-            done
-          else
-            echo "✅ No state locks found"
+            fi
+          done
+
+          if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+            echo "❌ Timeout waiting for state locks to be released during validation"
+            echo "⚠️  Validation may fail due to concurrent access"
           fi
 
-          echo "🔄 Proceeding with Terraform operations..."
+          echo "🔄 Proceeding with validation operations..."
 
       - name: Terraform Init
         id: init
