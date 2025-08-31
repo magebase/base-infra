@@ -443,7 +443,7 @@ jobs:
           terraform validate -no-color
 
       - name: Terraform Plan
-        id: plan
+        id: sso-tf-plan
         if: github.event_name == 'pull_request'
         working-directory: infra/pipeline/org-sso
         env:
@@ -470,13 +470,13 @@ jobs:
         uses: actions/github-script@v7
         if: github.event_name == 'pull_request'
         env:
-          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+          PLAN: "terraform\n${{ steps.sso-tf-plan.outputs.stdout }}"
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const output = `#### AWS Organizations & SSO Setup 🏗️
             #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.sso-tf-plan.outcome }}\`
 
             <details><summary>Show Plan</summary>
 
@@ -501,20 +501,20 @@ jobs:
           echo "🔍 Validating Terraform plan for account creation and SSO assignments..."
 
           # Check if plan contains expected resources
-          if echo "${{ steps.plan.outputs.stdout }}" | grep -q "aws_organizations_account"; then
+          if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q "aws_organizations_account"; then
             echo "✅ Plan contains AWS account creation"
           else
             echo "⚠️  No AWS account creation found in plan"
           fi
 
-          if echo "${{ steps.plan.outputs.stdout }}" | grep -q "aws_ssoadmin_account_assignment"; then
+          if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q "aws_ssoadmin_account_assignment"; then
             echo "✅ Plan contains SSO account assignments"
           else
             echo "⚠️  No SSO account assignments found in plan"
           fi
 
           # Check for empty account IDs (the original error)
-          if echo "${{ steps.plan.outputs.stdout }}" | grep -q 'target_id.*""'; then
+          if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q 'target_id.*""'; then
             echo "❌ ERROR: Found empty account IDs in plan - this will cause SSO assignment failures"
             exit 1
           else
@@ -803,7 +803,7 @@ jobs:
           terraform fmt -check -recursive
 
       - name: Terraform Plan
-        id: tf-plan
+        id: base-tf-plan
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -815,7 +815,7 @@ jobs:
         continue-on-error: true
 
       - name: Terraform Plan (Push to Main)
-        id: tf-plan-main
+        id: base-tf-plan-main
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -975,7 +975,7 @@ jobs:
     # Only run validation if bootstrap and sso-setup were successful
     if: (needs.bootstrap.result == 'success') && (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped')
     outputs:
-      tf_plan_exitcode: ${{ steps.tf-plan.outputs.exitcode }}
+      tf_plan_exitcode: ${{ steps.validate-tf-plan.outputs.exitcode }}
     defaults:
       run:
         working-directory: infra/pipeline/main-infrastructure
@@ -1065,7 +1065,7 @@ jobs:
           terraform fmt -check -recursive
 
       - name: Terraform Plan
-        id: tf-plan
+        id: validate-tf-plan
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         env:
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -1083,7 +1083,7 @@ jobs:
         continue-on-error: true
 
       - name: Terraform Plan (Push to Main)
-        id: tf-plan-main
+        id: validate-tf-plan-main
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -1123,13 +1123,13 @@ jobs:
 
       - name: Update Pull Request
         uses: actions/github-script@v7
-        if: github.event_name == 'pull_request' && (steps.tf-plan.outcome == 'success' || steps.tf-plan-main.outcome == 'success')
+        if: github.event_name == 'pull_request' && (steps.validate-tf-plan.outcome == 'success' || steps.validate-tf-plan-main.outcome == 'success')
         env:
-          PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout || steps.tf-plan-main.outputs.stdout }}"
+          PLAN: "terraform\n${{ steps.validate-tf-plan.outputs.stdout || steps.validate-tf-plan-main.outputs.stdout }}"
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const planOutcome = '${{ steps.tf-plan.outcome }}' === 'success' ? '${{ steps.tf-plan.outcome }}' : '${{ steps.tf-plan-main.outcome }}';
+            const planOutcome = '${{ steps.validate-tf-plan.outcome }}' === 'success' ? '${{ steps.validate-tf-plan.outcome }}' : '${{ steps.validate-tf-plan-main.outcome }}';
             const output = `#### Base Infrastructure Deployment 🏗️ (k3s Cluster)
             #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
             #### Terraform Plan 📖\`${planOutcome}\`
@@ -1355,7 +1355,7 @@ jobs:
           terraform fmt -check -recursive
 
       - name: Terraform Plan
-        id: tf-plan
+        id: validate-main-tf-plan
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         env:
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -1371,7 +1371,7 @@ jobs:
         continue-on-error: true
 
       - name: Terraform Plan (Push to Main)
-        id: tf-plan-main
+        id: validate-main-tf-plan-main
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -1408,13 +1408,13 @@ jobs:
           done
       - name: Update Pull Request
         uses: actions/github-script@v7
-        if: github.event_name == 'pull_request' && (steps.tf-plan.outcome == 'success' || steps.tf-plan-main.outcome == 'success')
+        if: github.event_name == 'pull_request' && (steps.validate-main-tf-plan.outcome == 'success' || steps.validate-main-tf-plan-main.outcome == 'success')
         env:
-          PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout || steps.tf-plan-main.outputs.stdout }}"
+          PLAN: "terraform\n${{ steps.validate-main-tf-plan.outputs.stdout || steps.validate-main-tf-plan-main.outputs.stdout }}"
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const planOutcome = '${{ steps.tf-plan.outcome }}' === 'success' ? '${{ steps.tf-plan.outcome }}' : '${{ steps.tf-plan-main.outcome }}';
+            const planOutcome = '${{ steps.validate-main-tf-plan.outcome }}' === 'success' ? '${{ steps.validate-main-tf-plan.outcome }}' : '${{ steps.validate-main-tf-plan-main.outcome }}';
             const output = `#### Infrastructure Deployment 🏗️
             #### Terraform Format and Validate 🖌\`${{ steps.fmt-site.outcome }}\`
             #### Terraform Plan 📖\`${planOutcome}\`
