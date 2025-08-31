@@ -1,6 +1,6 @@
 # Terraform configuration for Magebase base infrastructure (k3s cluster)
 terraform {
-  required_version = ">= 1.9.0"
+  required_version = ">= 1.8.0"
 
   # Backend configuration using S3 bucket created by bootstrap
   backend "s3" {
@@ -49,7 +49,7 @@ module "kube-hetzner" {
   source = "kube-hetzner/kube-hetzner/hcloud"
   #    When using the terraform registry as source, you can optionally specify a version number.
   #    See https://registry.terraform.io/modules/kube-hetzner/kube-hetzner/hcloud for the available versions
-  version = "v2.18.1"
+  version = "2.15.4"
   # 2. For local dev, path to the git repo
   # source = "../../kube-hetzner/"
   # 3. If you want to use the latest master branch (see https://developer.hashicorp.com/terraform/language/modules/sources#github), use
