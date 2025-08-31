@@ -123,7 +123,7 @@ jobs:
         id: oidc-auth
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ steps.get-bootstrap-account.outputs.account_id }}:role/GitHubActionsSSORole
+          role-to-assume: arn:aws:iam::${{ steps.get-bootstrap-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.INFRA_REGION }}
         continue-on-error: true
 
@@ -339,14 +339,14 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSSORole
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
         timeout-minutes: 5
 
       - name: Configure AWS Credentials for SSO Region
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSSORole
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.SSO_REGION }}
           role-session-name: SSOConfig
         timeout-minutes: 5
@@ -674,7 +674,7 @@ jobs:
         id: oidc-auth
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GithubActionsSSORole
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.INFRA_REGION }}
         continue-on-error: true
 
@@ -844,7 +844,7 @@ jobs:
             echo "Using development account for validation: $ACCOUNT_ID"
           else
             ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-            ROLE_NAME="GitHubActionsSSORole"
+            ROLE_NAME="${{ vars.AWS_PIPELINE_ROLE }}"
             echo "Using management account for validation: $ACCOUNT_ID"
           fi
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
