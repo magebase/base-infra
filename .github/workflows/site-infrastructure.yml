@@ -195,7 +195,8 @@ jobs:
       - name: Terraform Init
         id: init
         run: |
-          terraform init -upgrade
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+          terraform init -upgrade -backend-config="key=magebase/site-infrastructure/${ENVIRONMENT}/terraform.tfstate"
 
       - name: Terraform Validate
         id: validate

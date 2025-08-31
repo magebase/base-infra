@@ -790,7 +790,8 @@ jobs:
       - name: Terraform Init
         id: init
         run: |
-          terraform init -upgrade
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+          terraform init -upgrade -backend-config="key=magebase/base-infrastructure/${ENVIRONMENT}/terraform.tfstate"
 
       - name: Terraform Validate
         id: validate
@@ -968,12 +969,12 @@ jobs:
   validate:
     name: Validate Infrastructure
     runs-on: ubuntu-latest
-    needs: [bootstrap, sso-setup]
+    needs: [bootstrap, sso-setup, base-infrastructure-deploy]
     permissions:
       id-token: write
       contents: read
-    # Only run validation if bootstrap and sso-setup were successful
-    if: (needs.bootstrap.result == 'success') && (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped')
+    # Only run validation if bootstrap, sso-setup, and base-infrastructure-deploy were successful
+    if: (needs.bootstrap.result == 'success') && (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped') && (needs.base-infrastructure-deploy.result == 'success')
     outputs:
       tf_plan_exitcode: ${{ steps.validate-tf-plan.outputs.exitcode }}
     defaults:
