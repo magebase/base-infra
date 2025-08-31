@@ -24,7 +24,6 @@ configMapGenerator:
 secretGenerator:
   - name: magebase-secrets
     literals:
-      - database-url=${DATABASE_URL}
       - secret-key-base=${SECRET_KEY_BASE}
       - ruby-llm-api-key=${RUBY_LLM_API_KEY}
       - aws-ses-access-key-id=${AWS_SES_ACCESS_KEY_ID}

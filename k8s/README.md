@@ -31,8 +31,9 @@ IMAGE_TAG=latest
 DOMAIN=your-domain.com
 
 # Database
-DATABASE_URL=postgresql://user:password@magebase-db-rw:5432/magebase
-# Cache uses the same database as DATABASE_URL (SolidCache with PostgreSQL)
+# NOTE: With CloudNativePG, DATABASE_URL is automatically generated
+# by the operator and stored in the 'magebase-db-creds' Kubernetes Secret
+# Cache uses the same database as the application (SolidCache with PostgreSQL)
 
 # Secrets (base64 encoded)
 SECRET_KEY_BASE_B64=base64-encoded-secret-key

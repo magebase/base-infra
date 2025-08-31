@@ -5,7 +5,7 @@ terraform {
   # Backend configuration using S3 bucket created by bootstrap
   backend "s3" {
     bucket         = "magebase-tf-state-bootstrap-ap-southeast-1"
-    key            = "magebase/infrastructure/terraform.tfstate"
+    key            = "magebase/site-infrastructure/${var.environment}/terraform.tfstate"
     region         = "ap-southeast-1"
     dynamodb_table = "magebase-terraform-locks-bootstrap"
     encrypt        = true
@@ -120,6 +120,18 @@ provider "aws" {
   }
 }
 
+# Data source for base infrastructure remote state
+data "terraform_remote_state" "base_infrastructure" {
+  backend = "s3"
+  config = {
+    bucket         = "magebase-tf-state-bootstrap-ap-southeast-1"
+    key            = "magebase/base-infrastructure/${var.environment}/terraform.tfstate"
+    region         = "ap-southeast-1"
+    dynamodb_table = "magebase-terraform-locks-bootstrap"
+    encrypt        = true
+  }
+}
+
 # Local values
 locals {
   cluster_name        = "${var.environment}-magebase"
@@ -134,8 +146,8 @@ module "cloudflare_dns" {
   source = "./modules/cloudflare"
 
   domain_name  = var.domain_name
-  cluster_ipv4 = module.kube-hetzner.ingress_public_ipv4
-  cluster_ipv6 = module.kube-hetzner.ingress_public_ipv6
+  cluster_ipv4 = data.terraform_remote_state.base_infrastructure.outputs.ingress_public_ipv4
+  cluster_ipv6 = data.terraform_remote_state.base_infrastructure.outputs.ingress_public_ipv6
 
   # SES DNS Records (only if SES is enabled)
   ses_verification_record = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? module.aws_ses[0].ses_verification_record : null

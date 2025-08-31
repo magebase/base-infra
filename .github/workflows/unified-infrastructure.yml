@@ -454,7 +454,6 @@ jobs:
             -var-file="terraform.tfvars" \
             -var="hcloud_token=dummy" \
             -var="aws_ses_account_id=dummy" \
-            -var="database_url=dummy" \
             -var="secret_key_base=dummy" \
             -var="ruby_llm_api_key=dummy" \
             -var="aws_ses_access_key_id=dummy" \
@@ -677,8 +676,8 @@ jobs:
           fi
 
   # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON BOOTSTRAP & SSO) =====
-  infrastructure-deploy:
-    name: "Infrastructure Deployment"
+  base-infrastructure-deploy:
+    name: "Base Infrastructure Deployment (k3s Cluster)"
     runs-on: ubuntu-latest
     needs: [sso-setup, bootstrap]
     permissions:
@@ -688,7 +687,7 @@ jobs:
     if: (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped') && (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
     defaults:
       run:
-        working-directory: infra/pipeline/main-infrastructure
+        working-directory: infra/pipeline/base-infrastructure
 
     steps:
       - name: Checkout code
@@ -702,17 +701,564 @@ jobs:
       - name: Get Infrastructure Account ID
         id: get-infra-account
         run: |
-          # Determine which SES account to use based on environment
+          # Determine which account to use based on environment
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
 
           if [ "${{ needs.sso-setup.result }}" == "success" ]; then
             if [ "$ENVIRONMENT" == "prod" ] || [ "$ENVIRONMENT" == "uat" ]; then
               ACCOUNT_ID="${{ needs.sso-setup.outputs.production_account_id }}"
-              echo "Using production account for infrastructure (environment: $ENVIRONMENT): $ACCOUNT_ID"
+              echo "Using production account for base infrastructure (environment: $ENVIRONMENT): $ACCOUNT_ID"
             else
               ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
-              echo "Using development account for infrastructure (environment: $ENVIRONMENT): $ACCOUNT_ID"
+              echo "Using development account for base infrastructure (environment: $ENVIRONMENT): $ACCOUNT_ID"
             fi
+          else
+            ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+            echo "Using management account for base infrastructure (SSO failed): $ACCOUNT_ID"
+          fi
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials via OIDC
+        id: oidc-auth
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          aws-region: ${{ env.INFRA_REGION }}
+        continue-on-error: true
+
+      - name: Handle State Locks
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        run: |
+          echo "🔍 Checking for existing Terraform state locks..."
+
+          # Wait for any existing locks to be released (with timeout)
+          MAX_WAIT=300  # 5 minutes
+          WAIT_COUNT=0
+
+          while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+            LOCK_ITEMS=$(aws dynamodb scan \
+              --table-name "magebase-terraform-locks-bootstrap" \
+              --region ${{ env.INFRA_REGION }} \
+              --query 'Items[?attribute_exists(LockID)]' \
+              --output json 2>/dev/null || echo "[]")
+
+            LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+
+            if [ "$LOCK_COUNT" -eq 0 ]; then
+              echo "✅ No state locks found - proceeding with Terraform operations"
+              break
+            else
+              echo "🔒 Found $LOCK_COUNT existing state lock(s), waiting..."
+              for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+                LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+                LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+                if [ -n "$LOCK_ID" ]; then
+                  echo "  Lock ID: $LOCK_ID"
+                  echo "  Info: $LOCK_INFO"
+                fi
+              done
+
+              WAIT_COUNT=$((WAIT_COUNT + 30))
+              if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
+                echo "⏳ Waiting 30 seconds before checking again... ($WAIT_COUNT/$MAX_WAIT seconds)"
+                sleep 30
+              fi
+            fi
+          done
+
+          if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+            echo "❌ Timeout waiting for state locks to be released"
+            echo "🔓 Attempting to force unlock existing locks..."
+
+            # Force unlock any remaining locks
+            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+              if [ -n "$LOCK_ID" ]; then
+                echo "🔓 Force unlocking: $LOCK_ID"
+                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+                  echo "✅ Successfully force unlocked: $LOCK_ID"
+                  break
+                else
+                  echo "⚠️  Force unlock failed for: $LOCK_ID"
+                fi
+              fi
+            done
+          fi
+
+          echo "🔄 Proceeding with Terraform operations..."
+
+      - name: Terraform Init
+        id: init
+        run: |
+          terraform init -upgrade
+
+      - name: Terraform Validate
+        id: validate
+        run: |
+          terraform validate
+
+      - name: Terraform Format Check
+        id: fmt
+        run: |
+          terraform fmt -check -recursive
+
+      - name: Terraform Plan
+        id: tf-plan
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+        run: |
+          terraform plan -no-color -out=tfplan
+        continue-on-error: true
+
+      - name: Terraform Plan (Push to Main)
+        id: tf-plan-main
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+        run: |
+          echo "🚀 Running Terraform plan for base infrastructure deployment..."
+
+          # Retry logic for state lock conflicts
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "📋 Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+
+            if terraform plan -no-color -out=tfplan; then
+              echo "✅ Terraform plan completed successfully"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️  Terraform plan failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Terraform plan failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Update Pull Request
+        uses: github/codeql-action/upload-sarif@v3
+        if: github.event_name == 'pull_request' && (steps.tf-plan.outcome == 'success' || steps.tf-plan-main.outcome == 'success')
+        env:
+          PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout || steps.tf-plan-main.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const planOutcome = '${{ steps.tf-plan.outcome }}' === 'success' ? '${{ steps.tf-plan.outcome }}' : '${{ steps.tf-plan-main.outcome }}';
+            const output = `#### Base Infrastructure Deployment 🏗️ (k3s Cluster)
+            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Plan 📖\`${planOutcome}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Terraform Apply
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        env:
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+        run: |
+          echo "🚀 Applying base infrastructure changes..."
+
+          # Retry logic for state lock conflicts
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "📋 Apply attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+
+            if terraform apply -auto-approve tfplan; then
+              echo "✅ Base infrastructure apply completed successfully"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️  Base infrastructure apply failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Base infrastructure apply failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Force Unlock Base Infrastructure on Failure
+        if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        run: |
+          echo "🔍 Attempting to force unlock base infrastructure Terraform state after failure..."
+
+          # Try to scan DynamoDB for any existing locks
+          echo "🔍 Scanning DynamoDB for existing base infrastructure locks..."
+          LOCK_ITEMS=$(aws dynamodb scan \
+            --table-name "magebase-terraform-locks-bootstrap" \
+            --region ${{ env.INFRA_REGION }} \
+            --query 'Items[?attribute_exists(LockID)]' \
+            --output json 2>/dev/null || echo "[]")
+
+          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+
+          if [ "$LOCK_COUNT" -gt 0 ]; then
+            echo "🔒 Found $LOCK_COUNT existing base infrastructure state lock(s), attempting to force unlock..."
+
+            # Process each lock item
+            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+
+              if [ -n "$LOCK_ID" ]; then
+                echo "🔓 Attempting to force unlock base infrastructure: $LOCK_ID"
+                echo "Lock info: $LOCK_INFO"
+
+                # Attempt force unlock
+                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+                  echo "✅ Successfully force unlocked base infrastructure: $LOCK_ID"
+                  break
+                else
+                  echo "⚠️  Force unlock failed for base infrastructure: $LOCK_ID"
+                fi
+              fi
+            done
+          else
+            echo "ℹ️  No base infrastructure locks found in DynamoDB table"
+          fi
+
+          # Provide manual instructions
+          echo ""
+          echo "📋 If the automatic unlock failed, please manually force-unlock the base infrastructure state:"
+          echo "1. Find the lock ID from the failed base infrastructure deployment step logs above"
+          echo "2. Run: cd infra/pipeline/base-infrastructure && terraform force-unlock -force <lock_id>"
+          echo "3. Re-run the workflow"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+
+      - name: Terraform Destroy
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+        run: |
+          terraform destroy -auto-approve
+
+  # ===== VALIDATION & TESTING =====
+  validate:
+    name: Validate Infrastructure
+    runs-on: ubuntu-latest
+    needs: [bootstrap, sso-setup]
+    permissions:
+      id-token: write
+      contents: read
+    # Only run validation if bootstrap and sso-setup were successful
+    if: (needs.bootstrap.result == 'success') && (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped')
+    outputs:
+      tf_plan_exitcode: ${{ steps.tf-plan.outputs.exitcode }}
+    defaults:
+      run:
+        working-directory: infra/pipeline/main-infrastructure
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Handle State Locks
+        run: |
+          echo "🔍 Checking for existing Terraform state locks..."
+
+          # Wait for any existing locks to be released (with timeout)
+          MAX_WAIT=300  # 5 minutes
+          WAIT_COUNT=0
+
+          while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+            LOCK_ITEMS=$(aws dynamodb scan \
+              --table-name "magebase-terraform-locks-bootstrap" \
+              --region ${{ env.INFRA_REGION }} \
+              --query 'Items[?attribute_exists(LockID)]' \
+              --output json 2>/dev/null || echo "[]")
+
+            LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+
+            if [ "$LOCK_COUNT" -eq 0 ]; then
+              echo "✅ No state locks found - proceeding with Terraform operations"
+              break
+            else
+              echo "🔒 Found $LOCK_COUNT existing state lock(s), waiting..."
+              for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+                LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+                LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+                if [ -n "$LOCK_ID" ]; then
+                  echo "  Lock ID: $LOCK_ID"
+                  echo "  Info: $LOCK_INFO"
+                fi
+              done
+
+              WAIT_COUNT=$((WAIT_COUNT + 30))
+              if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
+                echo "⏳ Waiting 30 seconds before checking again... ($WAIT_COUNT/$MAX_WAIT seconds)"
+                sleep 30
+              fi
+            fi
+          done
+
+          if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+            echo "❌ Timeout waiting for state locks to be released"
+            echo "🔓 Attempting to force unlock existing locks..."
+
+            # Force unlock any remaining locks
+            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+              if [ -n "$LOCK_ID" ]; then
+                echo "🔓 Force unlocking: $LOCK_ID"
+                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+                  echo "✅ Successfully force unlocked: $LOCK_ID"
+                  break
+                else
+                  echo "⚠️  Force unlock failed for: $LOCK_ID"
+                fi
+              fi
+            done
+          fi
+
+          echo "🔄 Proceeding with Terraform operations..."
+
+      - name: Terraform Init
+        id: init-site
+        run: |
+          terraform init -upgrade
+
+      - name: Terraform Validate
+        id: validate-site
+        run: |
+          terraform validate
+
+      - name: Terraform Format Check
+        id: fmt-site
+        run: |
+          terraform fmt -check -recursive
+
+      - name: Terraform Plan
+        id: tf-plan
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        env:
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
+          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
+          TF_VAR_hetzner_object_storage_access_key: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}
+          TF_VAR_hetzner_object_storage_secret_key: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}
+        run: |
+          terraform plan -no-color -out=tfplan
+        continue-on-error: true
+
+      - name: Terraform Plan (Push to Main)
+        id: tf-plan-main
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
+          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
+          TF_VAR_hetzner_object_storage_access_key: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}
+          TF_VAR_hetzner_object_storage_secret_key: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}
+        run: |
+          echo "🚀 Running Terraform plan for site infrastructure deployment..."
+
+          # Retry logic for state lock conflicts
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "📋 Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+
+            if terraform plan -no-color -out=tfplan; then
+              echo "✅ Terraform plan completed successfully"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️  Terraform plan failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Terraform plan failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Update Pull Request
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' && (steps.tf-plan.outcome == 'success' || steps.tf-plan-main.outcome == 'success')
+        env:
+          PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout || steps.tf-plan-main.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const planOutcome = '${{ steps.tf-plan.outcome }}' === 'success' ? '${{ steps.tf-plan.outcome }}' : '${{ steps.tf-plan-main.outcome }}';
+            const output = `#### Base Infrastructure Deployment 🏗️ (k3s Cluster)
+            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Plan 📖\`${planOutcome}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Terraform Apply
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+        run: |
+          echo "🚀 Applying base infrastructure changes..."
+
+          # Retry logic for state lock conflicts
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "📋 Apply attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+
+            if terraform apply -auto-approve tfplan; then
+              echo "✅ Base infrastructure apply completed successfully"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️  Base infrastructure apply failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Base infrastructure apply failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Output Database Connection Information
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        run: |
+          echo "🗄️ **Database Connection Information**"
+          echo ""
+          echo "The database URL is dynamically generated by CloudNativePG and stored in a Kubernetes Secret."
+          echo ""
+          echo "To retrieve the database connection string after deployment:"
+          echo ""
+          echo "1. **Get kubeconfig from workflow artifacts** (download from this run)"
+          echo "2. **Set up kubectl access**:"
+          echo "   export KUBECONFIG=/path/to/downloaded/kubeconfig"
+          echo ""
+          echo "3. **Retrieve the database URL**:"
+          echo "   kubectl get secret magebase-db-creds -n magebase -o jsonpath='{.data.connection_string}' | base64 -d"
+          echo ""
+          echo "4. **View all database connection details**:"
+          echo "   kubectl get secret magebase-db-creds -n magebase -o yaml"
+          echo ""
+          echo "The application deployment automatically uses this Secret for DATABASE_URL."
+
+      - name: Force Unlock Site Infrastructure on Failure
+        if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        run: |
+          echo "🔍 Attempting to force unlock site infrastructure Terraform state after failure..."
+
+          # Try to scan DynamoDB for any existing locks
+          echo "🔍 Scanning DynamoDB for existing site infrastructure locks..."
+          LOCK_ITEMS=$(aws dynamodb scan \
+            --table-name "magebase-terraform-locks-bootstrap" \
+            --region ${{ env.INFRA_REGION }} \
+            --query 'Items[?attribute_exists(LockID)]' \
+            --output json 2>/dev/null || echo "[]")
+
+          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+
+          if [ "$LOCK_COUNT" -gt 0 ]; then
+            echo "🔒 Found $LOCK_COUNT existing site infrastructure state lock(s), attempting to force unlock..."
+
+            # Process each lock item
+            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+
+              if [ -n "$LOCK_ID" ]; then
+                echo "🔓 Attempting to force unlock site infrastructure: $LOCK_ID"
+                echo "Lock info: $LOCK_INFO"
+
+                # Attempt force unlock
+                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+                  echo "✅ Successfully force unlocked site infrastructure: $LOCK_ID"
+                  break
+                else
+                  echo "⚠️  Force unlock failed for site infrastructure: $LOCK_ID"
+                fi
+              fi
+            done
+          else
+            echo "ℹ️  No site infrastructure locks found in DynamoDB table"
+          fi
+
+          # Provide manual instructions
+          echo ""
+          echo "📋 If the automatic unlock failed, please manually force-unlock the site infrastructure state:"
+          echo "1. Find the lock ID from the failed site infrastructure deployment step logs above"
+          echo "2. Run: cd infra/pipeline/site-infrastructure && terraform force-unlock -force <lock_id>"
+          echo "3. Re-run the workflow"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+
+      - name: Terraform Destroy
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+        run: |
+          terraform destroy -auto-approve
             # SES credentials are not provided by sso-setup - using role assumption instead
             echo "ses_access_key_id=" >> $GITHUB_OUTPUT
             echo "ses_secret_access_key=" >> $GITHUB_OUTPUT
@@ -870,7 +1416,7 @@ jobs:
           script: |
             const planOutcome = '${{ steps.tf-plan.outcome }}' === 'success' ? '${{ steps.tf-plan.outcome }}' : '${{ steps.tf-plan-main.outcome }}';
             const output = `#### Infrastructure Deployment 🏗️
-            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Format and Validate 🖌\`${{ steps.fmt-site.outcome }}\`
             #### Terraform Plan 📖\`${planOutcome}\`
 
             <details><summary>Show Plan</summary>
@@ -925,6 +1471,27 @@ jobs:
               fi
             fi
           done
+
+      - name: Output Database Connection Information
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        run: |
+          echo "🗄️ **Database Connection Information**"
+          echo ""
+          echo "The database URL is dynamically generated by CloudNativePG and stored in a Kubernetes Secret."
+          echo ""
+          echo "To retrieve the database connection string after deployment:"
+          echo ""
+          echo "1. **Get kubeconfig from workflow artifacts** (download from this run)"
+          echo "2. **Set up kubectl access**:"
+          echo "   export KUBECONFIG=/path/to/downloaded/kubeconfig"
+          echo ""
+          echo "3. **Retrieve the database URL**:"
+          echo "   kubectl get secret magebase-db-creds -n magebase -o jsonpath='{.data.connection_string}' | base64 -d"
+          echo ""
+          echo "4. **View all database connection details**:"
+          echo "   kubectl get secret magebase-db-creds -n magebase -o yaml"
+          echo ""
+          echo "The application deployment automatically uses this Secret for DATABASE_URL."
 
       - name: Force Unlock Infrastructure on Failure
         if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
@@ -981,159 +1548,6 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
         run: |
           terraform destroy -auto-approve
-
-  # ===== VALIDATION & TESTING =====
-  validate:
-    name: Validate Infrastructure
-    runs-on: ubuntu-latest
-    needs: [infrastructure-deploy, bootstrap, sso-setup]
-    permissions:
-      id-token: write
-      contents: read
-    # Only run validation if infrastructure deployment was successful
-    if: needs.infrastructure-deploy.result == 'success' && (needs.bootstrap.result == 'success') && (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped')
-    outputs:
-      tf_plan_exitcode: ${{ steps.tf-plan.outputs.exitcode }}
-    defaults:
-      run:
-        working-directory: infra/pipeline/main-infrastructure
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Get Validation Account ID
-        id: get-validation-account
-        run: |
-          # Use development account if SSO setup succeeded, otherwise use management account
-          if [ "${{ needs.sso-setup.result }}" == "success" ] && [ -n "${{ needs.sso-setup.outputs.development_account_id }}" ]; then
-            ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
-            ROLE_NAME="GitHubActionsSESRole"
-            echo "Using development account for validation: $ACCOUNT_ID"
-          else
-            ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-            ROLE_NAME="${{ vars.AWS_PIPELINE_ROLE }}"
-            echo "Using management account for validation: $ACCOUNT_ID"
-          fi
-          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-          echo "role_name=$ROLE_NAME" >> $GITHUB_OUTPUT
-
-      - name: Configure AWS credentials via OIDC
-        id: oidc-auth
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ steps.get-validation-account.outputs.account_id }}:role/${{ steps.get-validation-account.outputs.role_name }}
-          aws-region: ${{ env.INFRA_REGION }}
-        continue-on-error: true
-
-      - name: Configure AWS credentials via static credentials (fallback)
-        if: steps.oidc-auth.outcome == 'failure'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.INFRA_REGION }}
-
-      - name: Handle State Locks
-        run: |
-          echo "🔍 Checking for existing Terraform state locks in validation..."
-
-          # Wait for any existing locks to be released (with timeout)
-          MAX_WAIT=180  # 3 minutes (shorter than infrastructure-deploy since it should be quick)
-          WAIT_COUNT=0
-
-          while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-            LOCK_ITEMS=$(aws dynamodb scan \
-              --table-name "magebase-terraform-locks-bootstrap" \
-              --region ${{ env.INFRA_REGION }} \
-              --query 'Items[?attribute_exists(LockID)]' \
-              --output json 2>/dev/null || echo "[]")
-
-            LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-            if [ "$LOCK_COUNT" -eq 0 ]; then
-              echo "✅ No state locks found - proceeding with validation"
-              break
-            else
-              echo "🔒 Found $LOCK_COUNT existing state lock(s) during validation, waiting..."
-              for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-                LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-                LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-                if [ -n "$LOCK_ID" ]; then
-                  echo "  Lock ID: $LOCK_ID"
-                  echo "  Info: $LOCK_INFO"
-                fi
-              done
-
-              WAIT_COUNT=$((WAIT_COUNT + 15))
-              if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
-                echo "⏳ Waiting 15 seconds before checking again... ($WAIT_COUNT/$MAX_WAIT seconds)"
-                sleep 15
-              fi
-            fi
-          done
-
-          if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
-            echo "❌ Timeout waiting for state locks to be released during validation"
-            echo "⚠️  Validation may fail due to concurrent access"
-          fi
-
-          echo "🔄 Proceeding with validation operations..."
-
-      - name: Terraform Init
-        id: init
-        run: |
-          terraform init -upgrade
-
-      - name: Terraform Validate
-        id: validate
-        run: |
-          terraform validate
-
-      - name: Terraform Format Check
-        id: fmt
-        run: |
-          terraform fmt -check -recursive
-
-      - name: Terraform Plan
-        id: tf-plan
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
-        run: |
-          terraform plan -no-color -out=tfplan
-        continue-on-error: true
-
-      - name: Update Pull Request
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request' && steps.tf-plan.outcome == 'success'
-        env:
-          PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.tf-plan.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
 
   test-terraform:
     name: Test Terraform Configuration
@@ -1210,7 +1624,6 @@ jobs:
       [
         sso-setup,
         bootstrap,
-        infrastructure-deploy,
         validate,
         test-terraform,
         security-scan,
@@ -1239,12 +1652,8 @@ jobs:
             echo "❌ **Terraform State Backend:** Failed" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Infrastructure Deployment Results
-          if [ "${{ needs.infrastructure-deploy.result }}" == "success" ]; then
-            echo "✅ **Infrastructure Deployment:** Deployed successfully" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Infrastructure Deployment:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
+          # Site Infrastructure Deployment handled by separate workflow
+          echo "ℹ️ **Site Infrastructure:** Deployed via separate workflow" >> $GITHUB_STEP_SUMMARY
 
           # Validation Results
           if [ "${{ needs.validate.result }}" == "success" ]; then
@@ -1271,6 +1680,7 @@ jobs:
           echo "### 📋 Architecture:" >> $GITHUB_STEP_SUMMARY
           echo "- **Cloud Provider:** Hetzner Cloud (k3s)" >> $GITHUB_STEP_SUMMARY
           echo "- **Region:** Singapore (ap-southeast-1)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Database:** PostgreSQL (CloudNativePG operator)" >> $GITHUB_STEP_SUMMARY
           echo "- **AWS Organizations:** Multi-account setup" >> $GITHUB_STEP_SUMMARY
           echo "- **AWS SSO:** Centralized identity management" >> $GITHUB_STEP_SUMMARY
           echo "- **Terraform State:** S3 + DynamoDB backend" >> $GITHUB_STEP_SUMMARY
