@@ -7,6 +7,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestBootstrapInfrastructure runs the bootstrap infrastructure tests
+func TestBootstrapInfrastructure(t *testing.T) {
+	t.Parallel()
+
+	// Get test configuration
+	testConfig := getTestConfig()
+
+	// Run the bootstrap test
+	testBootstrapInfrastructure(t, testConfig)
+}
+
 // testBootstrapInfrastructure tests the Terraform state backend bootstrap
 func testBootstrapInfrastructure(t *testing.T, config *TestConfig) {
 	t.Log("🧪 Testing Terraform State Backend Bootstrap")

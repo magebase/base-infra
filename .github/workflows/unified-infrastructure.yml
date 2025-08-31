@@ -316,7 +316,7 @@ jobs:
           go mod download
 
           # Run bootstrap test
-          go test -v -run testBootstrapInfrastructure ./bootstrap_test.go ./common.go
+          go test -v -run TestBootstrapInfrastructure ./*.go
 
           echo "✅ Bootstrap Terratest completed successfully"
 
@@ -715,7 +715,7 @@ jobs:
           go mod download
 
           # Run SSO test
-          go test -v -run testSSOInfrastructure ./sso_test.go ./common.go
+          go test -v -run TestSSOInfrastructure ./*.go
 
           echo "✅ SSO Terratest completed successfully"
 
@@ -945,7 +945,7 @@ jobs:
           go mod download
 
           # Run base infrastructure test
-          go test -v -run testBaseInfrastructure ./base_infrastructure_test.go ./common.go
+          go test -v -run TestBaseInfrastructure ./*.go
 
           echo "✅ Base Infrastructure Terratest completed successfully"
 
@@ -1004,7 +1004,7 @@ jobs:
           go mod download
 
           # Run base infrastructure test
-          go test -v -run testBaseInfrastructure ./base_infrastructure_test.go ./common.go -timeout 30m
+          go test -v -run TestBaseInfrastructure ./*.go -timeout 30m
 
           echo "✅ Base Infrastructure Terratest completed successfully"
 
@@ -1028,7 +1028,7 @@ jobs:
           go mod download
 
           # Run integration test
-          go test -v -run testIntegration ./integration_test.go ./common.go -timeout 45m
+          go test -v -run TestIntegration ./*.go -timeout 45m
 
           echo "✅ Integration Terratest completed successfully"
 
@@ -1051,8 +1051,8 @@ jobs:
           # Install dependencies
           go mod download
 
-          # Run unified test
-          go test -v -run testUnifiedInfrastructure ./unified_test.go ./common.go -timeout 45m
+          # Run unified test (include all test files)
+          go test -v -run TestUnifiedInfrastructure ./*.go -timeout 45m
 
           echo "✅ Unified Terratest completed successfully"
 
@@ -1125,7 +1125,7 @@ jobs:
           go mod download
 
           # Run integration test
-          go test -v -run testIntegration ./integration_test.go ./common.go
+          go test -v -run TestIntegration ./*.go
 
           echo "✅ Integration Terratest completed successfully"
 
@@ -1146,8 +1146,8 @@ jobs:
           # Install dependencies
           go mod download
 
-          # Run unified test
-          go test -v -run testUnifiedInfrastructure ./unified_test.go ./common.go
+          # Run unified test (include all test files)
+          go test -v -run TestUnifiedInfrastructure ./*.go
 
           echo "✅ Unified Terratest completed successfully"
 

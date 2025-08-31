@@ -7,6 +7,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestSSOInfrastructure runs the SSO infrastructure tests
+func TestSSOInfrastructure(t *testing.T) {
+	t.Parallel()
+
+	// Get test configuration
+	testConfig := getTestConfig()
+
+	// Run the SSO setup test
+	testSSOSetup(t, testConfig)
+}
+
 // testSSOSetup tests AWS Organizations and SSO setup
 func testSSOSetup(t *testing.T, config *TestConfig) {
 	t.Log("🔐 Testing AWS Organizations & SSO Setup")

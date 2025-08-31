@@ -10,6 +10,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestBaseInfrastructure runs the base infrastructure tests
+func TestBaseInfrastructure(t *testing.T) {
+	t.Parallel()
+
+	// Get test configuration
+	testConfig := getTestConfig()
+
+	// Run the base infrastructure test
+	testBaseInfrastructure(t, testConfig)
+}
+
 // testBaseInfrastructure tests the base infrastructure (Hetzner k3s cluster)
 func testBaseInfrastructure(t *testing.T, config *TestConfig) {
 	t.Log("🏗️ Testing Base Infrastructure (k3s Cluster)")

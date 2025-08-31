@@ -4,6 +4,17 @@ import (
 	"testing"
 )
 
+// TestIntegration runs the integration tests
+func TestIntegration(t *testing.T) {
+	t.Parallel()
+
+	// Get test configuration
+	testConfig := getTestConfig()
+
+	// Run the integration test
+	testIntegration(t, testConfig)
+}
+
 // testIntegration tests the complete infrastructure integration
 func testIntegration(t *testing.T, config *TestConfig) {
 	t.Log("🔗 Testing Complete Infrastructure Integration")
