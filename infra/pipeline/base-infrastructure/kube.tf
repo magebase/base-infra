@@ -1,6 +1,6 @@
 # Terraform configuration for Magebase base infrastructure (k3s cluster)
 terraform {
-  required_version = ">= 1.8.0"
+  required_version = ">= 1.9.0"
 
   # Backend configuration using S3 bucket created by bootstrap
   backend "s3" {
