@@ -297,6 +297,29 @@ jobs:
             echo "ℹ️  No bootstrap state file found to commit"
           fi
 
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Run Bootstrap Terratest
+        working-directory: infra/tests
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+          MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+        run: |
+          echo "🧪 Running Bootstrap Terratest..."
+
+          # Install dependencies
+          go mod download
+
+          # Run bootstrap test
+          go test -v -run testBootstrapInfrastructure ./bootstrap_test.go ./common.go
+
+          echo "✅ Bootstrap Terratest completed successfully"
+
   # ===== AWS ORGANIZATIONS & SSO SETUP =====
   sso-setup:
     name: "AWS Organizations & SSO Setup"
@@ -673,6 +696,29 @@ jobs:
             echo "Missing PROD_ACCOUNT_ID or SSO_INSTANCE_ARN for production account check"
           fi
 
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Run SSO Terratest
+        working-directory: infra/tests
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+        run: |
+          echo "🧪 Running SSO Terratest..."
+
+          # Install dependencies
+          go mod download
+
+          # Run SSO test
+          go test -v -run testSSOInfrastructure ./sso_test.go ./common.go
+
+          echo "✅ SSO Terratest completed successfully"
+
   # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON BOOTSTRAP & SSO) =====
   base-infrastructure-deploy:
     name: "Base Infrastructure Deployment (k3s Cluster)"
@@ -696,6 +742,11 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
 
       - name: Get Infrastructure Account ID
         id: get-infra-account
@@ -876,6 +927,28 @@ jobs:
               body: output
             })
 
+      - name: Run Base Infrastructure Terratest
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        working-directory: infra/tests
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          echo "🧪 Running Base Infrastructure Terratest..."
+
+          # Install dependencies
+          go mod download
+
+          # Run base infrastructure test
+          go test -v -run testBaseInfrastructure ./base_infrastructure_test.go ./common.go
+
+          echo "✅ Base Infrastructure Terratest completed successfully"
+
       - name: Terraform Apply
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         env:
@@ -912,6 +985,76 @@ jobs:
               fi
             fi
           done
+
+      - name: Run Base Infrastructure Terratest
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        working-directory: infra/tests
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          echo "🧪 Running Base Infrastructure Terratest after apply..."
+
+          # Install dependencies
+          go mod download
+
+          # Run base infrastructure test
+          go test -v -run testBaseInfrastructure ./base_infrastructure_test.go ./common.go -timeout 30m
+
+          echo "✅ Base Infrastructure Terratest completed successfully"
+
+      - name: Run Integration Terratest
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        working-directory: infra/tests
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+          AWS_SSO_REGION: ${{ env.SSO_REGION }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          echo "🧪 Running Integration Terratest after apply..."
+
+          # Install dependencies
+          go mod download
+
+          # Run integration test
+          go test -v -run testIntegration ./integration_test.go ./common.go -timeout 45m
+
+          echo "✅ Integration Terratest completed successfully"
+
+      - name: Run Unified Terratest
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        working-directory: infra/tests
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+          AWS_SSO_REGION: ${{ env.SSO_REGION }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          echo "🧪 Running Unified Terratest after apply..."
+
+          # Install dependencies
+          go mod download
+
+          # Run unified test
+          go test -v -run testUnifiedInfrastructure ./unified_test.go ./common.go -timeout 45m
+
+          echo "✅ Unified Terratest completed successfully"
 
       - name: Force Unlock Base Infrastructure on Failure
         if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
@@ -964,6 +1107,50 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.INFRA_REGION }}
 
+      - name: Run Integration Terratest
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        working-directory: infra/tests
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          echo "🧪 Running Integration Terratest..."
+
+          # Install dependencies
+          go mod download
+
+          # Run integration test
+          go test -v -run testIntegration ./integration_test.go ./common.go
+
+          echo "✅ Integration Terratest completed successfully"
+
+      - name: Run Unified Terratest
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        working-directory: infra/tests
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+        run: |
+          echo "🧪 Running Unified Terratest..."
+
+          # Install dependencies
+          go mod download
+
+          # Run unified test
+          go test -v -run testUnifiedInfrastructure ./unified_test.go ./common.go
+
+          echo "✅ Unified Terratest completed successfully"
+
       - name: Terraform Destroy
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
         run: |
@@ -983,37 +1170,37 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Test Development Configuration
+      - name: Test Deployed Environment Configuration
         working-directory: infra/pipeline/base-infrastructure
+        env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
         run: |
-          terraform init -backend=false
-          terraform plan -var-file="dev.tfvars" -no-color -out=tfplan-dev
-          terraform show -json tfplan-dev > tfplan-dev.json
+          DEPLOYED_ENV="${{ github.event.inputs.environment || 'dev' }}"
+          echo "🧪 Testing deployed environment: $DEPLOYED_ENV"
 
-      - name: Test Production Configuration
-        working-directory: infra/pipeline/base-infrastructure
-        run: |
-          terraform init -backend=false
-          terraform plan -var-file="prod.tfvars" -no-color -out=tfplan-prod
-          terraform show -json tfplan-prod > tfplan-prod.json
+          terraform init -backend-config=""
+          terraform plan -no-color -out=tfplan-$DEPLOYED_ENV
+          terraform show -json tfplan-$DEPLOYED_ENV > tfplan-$DEPLOYED_ENV.json
 
       - name: Validate Plan Outputs
         run: |
-          # Check that plans were generated successfully
-          if [ ! -f "infra/pipeline/base-infrastructure/tfplan-dev.json" ] || [ ! -f "infra/pipeline/base-infrastructure/tfplan-prod.json" ]; then
-            echo "❌ Plan files not generated"
+          DEPLOYED_ENV="${{ github.event.inputs.environment || 'dev' }}"
+          PLAN_FILE="infra/pipeline/base-infrastructure/tfplan-$DEPLOYED_ENV.json"
+
+          # Check that plan was generated successfully
+          if [ ! -f "$PLAN_FILE" ]; then
+            echo "❌ Plan file not generated for environment: $DEPLOYED_ENV"
             exit 1
           fi
 
-          # Check for errors in plans
-          if grep -q '"error"' infra/pipeline/base-infrastructure/tfplan-dev.json || grep -q '"error"' infra/pipeline/base-infrastructure/tfplan-prod.json; then
-            echo "❌ Errors found in terraform plans"
-            cat infra/pipeline/base-infrastructure/tfplan-dev.json
-            cat infra/pipeline/base-infrastructure/tfplan-prod.json
+          # Check for errors in plan
+          if grep -q '"error"' "$PLAN_FILE"; then
+            echo "❌ Errors found in terraform plan for environment: $DEPLOYED_ENV"
+            cat "$PLAN_FILE"
             exit 1
           fi
 
-          echo "✅ Terraform plans validated successfully"
+          echo "✅ Terraform plan validated successfully for environment: $DEPLOYED_ENV"
 
       - name: Force Unlock Test Infrastructure on Failure
         if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
