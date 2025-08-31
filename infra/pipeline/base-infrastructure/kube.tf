@@ -75,7 +75,7 @@ module "kube-hetzner" {
   # ssh_hcloud_key_label = "role=admin"
 
   # If you use SSH agent and have issues with SSH connecting to your nodes, you can increase the number of auth tries (default is 2)
-  ssh_max_auth_tries = 10
+  ssh_max_auth_tries = 1
 
   # If you want to use an ssh key that is already registered within hetzner cloud, you can pass its id.
   # If no id is passed, a new ssh key will be registered within hetzner cloud.
@@ -383,7 +383,7 @@ module "kube-hetzner" {
   # cluster_autoscaler_log_level = 4
   # cluster_autoscaler_log_to_stderr = true
   # cluster_autoscaler_stderr_threshold = "INFO"
-  # cluster_autoscaler_server_creation_timeout = 15
+  cluster_autoscaler_server_creation_timeout = 5
 
   # Additional Cluster Autoscaler binary configuration
   #
@@ -616,7 +616,7 @@ module "kube-hetzner" {
 
   # Allows you to specify the k3s version. If defined, supersedes initial_k3s_channel.
   # See https://github.com/k3s-io/k3s/releases for the available versions.
-  # install_k3s_version = "v1.30.2+k3s2"
+  install_k3s_version = "v1.30.2+k3s2"
 
   # Allows you to specify either stable, latest, testing or supported minor versions.
   # see https://rancher.com/docs/k3s/latest/en/upgrades/basic/ and https://update.k3s.io/v1-release/channels
@@ -939,7 +939,7 @@ module "kube-hetzner" {
   # We recommend the default, but if you want to use specific IDs you can.
   # You can fetch the ids with the hcloud cli by running the "hcloud image list --selector 'microos-snapshot=yes'" command.
   # microos_x86_snapshot_id = "1234567"
-  # microos_arm_snapshot_id = "1234567"
+  microos_arm_snapshot_id = ""
 
   ### ADVANCED - Custom helm values for packages above (search _values if you want to located where those are mentioned upper in this file)
   # ⚠️ Inside the _values variable below are examples, up to you to find out the best helm values possible, we do not provide support for customized helm values.
