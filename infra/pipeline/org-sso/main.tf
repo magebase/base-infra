@@ -118,49 +118,6 @@ output "production_account_id" {
   value       = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
 }
 
-# Cloudflare Email Routing for AWS Account Emails
-resource "cloudflare_email_routing_rule" "aws_dev" {
-  zone_id = var.cloudflare_zone_id
-  name    = "AWS Development Account"
-  enabled = true
-
-  matchers = [
-    {
-      type  = "literal"
-      field = "to"
-      value = "aws-dev@magebase.dev"
-    }
-  ]
-
-  actions = [
-    {
-      type  = "forward"
-      value = [var.development_email]
-    }
-  ]
-}
-
-resource "cloudflare_email_routing_rule" "aws_prod" {
-  zone_id = var.cloudflare_zone_id
-  name    = "AWS Production Account"
-  enabled = true
-
-  matchers = [
-    {
-      type  = "literal"
-      field = "to"
-      value = "aws-prod@magebase.dev"
-    }
-  ]
-
-  actions = [
-    {
-      type  = "forward"
-      value = [var.production_email]
-    }
-  ]
-}
-
 # AWS SSO/IAM Identity Center Configuration
 # This should be deployed to the management account
 
