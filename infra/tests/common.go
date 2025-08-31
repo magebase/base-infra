@@ -12,12 +12,12 @@ import (
 
 // TestConfig holds test configuration
 type TestConfig struct {
-	Environment         string
-	AWSRegion          string
-	SSORegion          string
-	ProjectName        string
-	BootstrapDir       string
-	OrgSSODir          string
+	Environment           string
+	AWSRegion             string
+	SSORegion             string
+	ProjectName           string
+	BootstrapDir          string
+	OrgSSODir             string
 	BaseInfrastructureDir string
 }
 
@@ -28,11 +28,11 @@ func getTestConfig() *TestConfig {
 
 	return &TestConfig{
 		Environment:           "test",
-		AWSRegion:            "ap-southeast-1",
-		SSORegion:            "ap-southeast-1",
-		ProjectName:          "magebase",
-		BootstrapDir:         filepath.Join(projectRoot, "pipeline", "bootstrap"),
-		OrgSSODir:           filepath.Join(projectRoot, "pipeline", "org-sso"),
+		AWSRegion:             "ap-southeast-1",
+		SSORegion:             "ap-southeast-1",
+		ProjectName:           "magebase",
+		BootstrapDir:          filepath.Join(projectRoot, "pipeline", "bootstrap"),
+		OrgSSODir:             filepath.Join(projectRoot, "pipeline", "org-sso"),
 		BaseInfrastructureDir: filepath.Join(projectRoot, "pipeline", "base-infrastructure"),
 	}
 }
@@ -74,7 +74,7 @@ func setupTerraformOptions(t *testing.T, terraformDir string, vars map[string]in
 		},
 		RetryableTerraformErrors: map[string]string{
 			".*timeout while waiting for state to become.*": "Temporary state timeout",
-			".*Lock Info.*":                                "State lock conflict",
+			".*Lock Info.*": "State lock conflict",
 		},
 		MaxRetries:         3,
 		TimeBetweenRetries: 30, // seconds
@@ -85,8 +85,8 @@ func setupTerraformOptions(t *testing.T, terraformDir string, vars map[string]in
 		terraformOptions.EnvVars = map[string]string{
 			"AWS_ACCESS_KEY_ID":     accessKey,
 			"AWS_SECRET_ACCESS_KEY": os.Getenv("AWS_SECRET_ACCESS_KEY"),
-			"AWS_REGION":           "ap-southeast-1",
-			"AWS_DEFAULT_REGION":   "ap-southeast-1",
+			"AWS_REGION":            "ap-southeast-1",
+			"AWS_DEFAULT_REGION":    "ap-southeast-1",
 		}
 	}
 

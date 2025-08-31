@@ -7,10 +7,10 @@ import (
 
 // Test constants
 const (
-	ProjectName     = "magebase"
-	Environment     = "test"
-	AWSRegion       = "ap-southeast-1"
-	SSORegion       = "ap-southeast-1"
+	ProjectName         = "magebase"
+	Environment         = "test"
+	AWSRegion           = "ap-southeast-1"
+	SSORegion           = "ap-southeast-1"
 	ManagementAccountID = "123456789012" // Replace with actual management account ID
 )
 

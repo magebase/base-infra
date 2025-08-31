@@ -31,11 +31,11 @@ func testBaseInfrastructure(t *testing.T, config *TestConfig) {
 
 	// Setup Terraform options
 	terraformOptions := setupTerraformOptions(t, testConfig.BaseInfrastructureDir, map[string]interface{}{
-		"environment":       config.Environment,
-		"project_name":      config.ProjectName,
-		"hcloud_token":      "dummy", // Will be overridden by env var
-		"ssh_private_key":   "dummy", // Will be overridden by env var
-		"ssh_public_key":    "dummy", // Will be overridden by env var
+		"environment":     config.Environment,
+		"project_name":    config.ProjectName,
+		"hcloud_token":    "dummy", // Will be overridden by env var
+		"ssh_private_key": "dummy", // Will be overridden by env var
+		"ssh_public_key":  "dummy", // Will be overridden by env var
 	})
 
 	// Set environment variables for sensitive values
@@ -45,8 +45,8 @@ func testBaseInfrastructure(t *testing.T, config *TestConfig) {
 		"TF_VAR_ssh_public_key":  os.Getenv("SSH_PUBLIC_KEY"),
 		"AWS_ACCESS_KEY_ID":      os.Getenv("AWS_ACCESS_KEY_ID"),
 		"AWS_SECRET_ACCESS_KEY":  os.Getenv("AWS_SECRET_ACCESS_KEY"),
-		"AWS_REGION":            config.AWSRegion,
-		"AWS_DEFAULT_REGION":    config.AWSRegion,
+		"AWS_REGION":             config.AWSRegion,
+		"AWS_DEFAULT_REGION":     config.AWSRegion,
 	}
 
 	// Ensure cleanup on failure

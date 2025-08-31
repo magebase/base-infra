@@ -26,7 +26,7 @@ func testSSOSetup(t *testing.T, config *TestConfig) {
 
 	// Setup Terraform options
 	terraformOptions := setupTerraformOptions(t, testConfig.OrgSSODir, map[string]interface{}{
-		"environment": config.Environment,
+		"environment":  config.Environment,
 		"project_name": config.ProjectName,
 	})
 
