@@ -439,7 +439,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           terraform plan -no-color -input=false \
-            -var-file="organizations-terraform.tfvars" \
+            -var-file="terraform.tfvars" \
             -var="hcloud_token=dummy" \
             -var="cloudflare_api_token=dummy" \
             -var="aws_ses_account_id=dummy" \
@@ -523,7 +523,7 @@ jobs:
 
           # Apply with dummy values for non-AWS variables
           terraform apply -auto-approve -input=false \
-            -var-file="dev.tfvars" \
+            -var-file="terraform.tfvars" \
             -var="database_url=dummy" \
             -var="cache_database_url=dummy" \
             -var="secret_key_base=dummy" \
