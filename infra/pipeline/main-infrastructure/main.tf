@@ -31,24 +31,6 @@ terraform {
   }
 }
 
-# AWS Organizations and SSO Configuration
-# This must run first to create accounts before SSO assignments
-module "organizations" {
-  source = "../organizations"
-
-  development_email = var.development_email
-  production_email  = var.production_email
-  region            = "us-east-1" # Organizations must be in us-east-1
-}
-
-# AWS SSO Configuration (depends on organizations module)
-module "sso" {
-  source = "../sso"
-
-  development_account_id = module.organizations.development_account_id
-  production_account_id  = module.organizations.production_account_id
-  region                 = "ap-southeast-1" # SSO region
-}
 
 # Hetzner Cloud Provider
 provider "hcloud" {
