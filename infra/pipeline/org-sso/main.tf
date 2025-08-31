@@ -5,27 +5,108 @@ terraform {
       version = "~> 5.0"
     }
   }
-
   required_version = ">= 1.8.0"
 }
 
-# Configure the AWS Provider
+# Management Account Provider
 provider "aws" {
-  region = var.region
+  region = var.region # Organizations must be in us-east-1
 
   # Skip role assumption if credentials are already from an assumed role
   # This prevents circular role assumption when running in CI/CD or with SSO
   skip_metadata_api_check     = true
   skip_credentials_validation = true
+}
 
-  # Use default credentials chain (AWS CLI, environment variables, IAM roles)
-  # For SSO, you might need to configure assume_role if deploying from a different account
+# Create Development Account
+resource "aws_organizations_account" "development" {
+  name      = "Magebase Development"
+  email     = var.development_email
+  role_name = "OrganizationAccountAccessRole"
+
+  # Optional: Add to specific OU
+  parent_id = local.development_ou_id
+
+  tags = {
+    Environment = "Development"
+    Project     = "Magebase"
+  }
+}
+
+# Create Production Account
+resource "aws_organizations_account" "production" {
+  name      = "Magebase Production"
+  email     = var.production_email
+  role_name = "OrganizationAccountAccessRole"
+
+  # Optional: Add to specific OU
+  parent_id = local.production_ou_id
+
+  tags = {
+    Environment = "Production"
+    Project     = "Magebase"
+  }
+}
+
+# Create Organizational Units (or reference existing ones)
+data "aws_organizations_organizational_units" "existing" {
+  parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+locals {
+  existing_ou_names = toset([for ou in data.aws_organizations_organizational_units.existing.children : ou.name])
+}
+
+resource "aws_organizations_organizational_unit" "development" {
+  count = contains(local.existing_ou_names, "Development") ? 0 : 1
+
+  name      = "Development"
+  parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+resource "aws_organizations_organizational_unit" "production" {
+  count = contains(local.existing_ou_names, "Production") ? 0 : 1
+
+  name      = "Production"
+  parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+# Data sources for existing OUs
+data "aws_organizations_organizational_unit" "development" {
+  count = contains(local.existing_ou_names, "Development") ? 1 : 0
+
+  name      = "Development"
+  parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+data "aws_organizations_organizational_unit" "production" {
+  count = contains(local.existing_ou_names, "Production") ? 1 : 0
+
+  name      = "Production"
+  parent_id = data.aws_organizations_organization.main.roots[0].id
+}
+
+locals {
+  development_ou_id = contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : aws_organizations_organizational_unit.development[0].id
+  production_ou_id  = contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : aws_organizations_organizational_unit.production[0].id
+}
+
+# Reference existing organization (don't create if it exists)
+data "aws_organizations_organization" "main" {}
+
+# Output the account IDs for use in SSO configuration
+output "development_account_id" {
+  description = "AWS Account ID for the development account"
+  value       = aws_organizations_account.development.id
+}
+
+output "production_account_id" {
+  description = "AWS Account ID for the production account"
+  value       = aws_organizations_account.production.id
 }
 
 # AWS SSO/IAM Identity Center Configuration
 # This should be deployed to the management account
-
-
 
 locals {
   # SSO Configuration
@@ -165,31 +246,31 @@ locals {
   account_assignments = {
     # Development Account Assignments
     development_administrator = {
-      account_id     = var.development_account_id
+      account_id     = aws_organizations_account.development.id
       permission_set = "administrator"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     development_infrastructure = {
-      account_id     = var.development_account_id
+      account_id     = aws_organizations_account.development.id
       permission_set = "infrastructure"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     development_deployment = {
-      account_id     = var.development_account_id
+      account_id     = aws_organizations_account.development.id
       permission_set = "deployment"
       principal_type = "GROUP"
       principal_name = "DevelopmentTeam"
     }
     development_ses = {
-      account_id     = var.development_account_id
+      account_id     = aws_organizations_account.development.id
       permission_set = "ses"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     development_readonly = {
-      account_id     = var.development_account_id
+      account_id     = aws_organizations_account.development.id
       permission_set = "readonly"
       principal_type = "GROUP"
       principal_name = "Auditors"
@@ -197,31 +278,31 @@ locals {
 
     # Production Account Assignments
     production_administrator = {
-      account_id     = var.production_account_id
+      account_id     = aws_organizations_account.production.id
       permission_set = "administrator"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     production_infrastructure = {
-      account_id     = var.production_account_id
+      account_id     = aws_organizations_account.production.id
       permission_set = "infrastructure"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     production_deployment = {
-      account_id     = var.production_account_id
+      account_id     = aws_organizations_account.production.id
       permission_set = "deployment"
       principal_type = "GROUP"
       principal_name = "ProductionTeam"
     }
     production_ses = {
-      account_id     = var.production_account_id
+      account_id     = aws_organizations_account.production.id
       permission_set = "ses"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     production_readonly = {
-      account_id     = var.production_account_id
+      account_id     = aws_organizations_account.production.id
       permission_set = "readonly"
       principal_type = "GROUP"
       principal_name = "Auditors"
@@ -359,8 +440,6 @@ resource "aws_ssoadmin_account_assignment" "main" {
   # Add dependency on groups being created first
   depends_on = [aws_identitystore_group.main]
 }
-
-
 
 # Outputs
 output "sso_enabled" {

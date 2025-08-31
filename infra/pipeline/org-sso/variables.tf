@@ -1,7 +1,17 @@
-variable "region" {
-  description = "AWS region for SSO resources"
+variable "development_email" {
+  description = "Email address for development AWS account"
   type        = string
-  default     = "ap-southeast-1"
+}
+
+variable "production_email" {
+  description = "Email address for production AWS account"
+  type        = string
+}
+
+variable "region" {
+  description = "AWS region for Organizations (must be us-east-1)"
+  type        = string
+  default     = "us-east-1"
 }
 
 variable "development_account_id" {
