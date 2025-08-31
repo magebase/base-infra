@@ -985,7 +985,7 @@ jobs:
       tf_plan_exitcode: ${{ steps.validate-tf-plan.outputs.exitcode }}
     defaults:
       run:
-        working-directory: infra/pipeline/main-infrastructure
+        working-directory: infra/pipeline/base-infrastructure
 
     steps:
       - name: Checkout code
@@ -1255,7 +1255,7 @@ jobs:
           echo ""
           echo "📋 If the automatic unlock failed, please manually force-unlock the infrastructure state:"
           echo "1. Find the lock ID from the failed infrastructure deployment step logs above"
-          echo "2. Run: cd infra/pipeline/main-infrastructure && terraform force-unlock -force <lock_id>"
+          echo "2. Run: cd infra/pipeline/base-infrastructure && terraform force-unlock -force <lock_id>"
           echo "3. Re-run the workflow"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -1277,14 +1277,14 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Test Development Configuration
-        working-directory: infra/pipeline/main-infrastructure
+        working-directory: infra/pipeline/base-infrastructure
         run: |
           terraform init -backend=false
           terraform plan -var-file="dev.tfvars" -no-color -out=tfplan-dev
           terraform show -json tfplan-dev > tfplan-dev.json
 
       - name: Test Production Configuration
-        working-directory: infra/pipeline/main-infrastructure
+        working-directory: infra/pipeline/base-infrastructure
         run: |
           terraform plan -var-file="prod.tfvars" -no-color -out=tfplan-prod
           terraform show -json tfplan-prod > tfplan-prod.json
@@ -1292,16 +1292,16 @@ jobs:
       - name: Validate Plan Outputs
         run: |
           # Check that plans were generated successfully
-          if [ ! -f "infra/pipeline/main-infrastructure/tfplan-dev.json" ] || [ ! -f "infra/pipeline/main-infrastructure/tfplan-prod.json" ]; then
+          if [ ! -f "infra/pipeline/base-infrastructure/tfplan-dev.json" ] || [ ! -f "infra/pipeline/base-infrastructure/tfplan-prod.json" ]; then
             echo "❌ Plan files not generated"
             exit 1
           fi
 
           # Check for errors in plans
-          if grep -q '"error"' infra/pipeline/main-infrastructure/tfplan-dev.json || grep -q '"error"' infra/pipeline/main-infrastructure/tfplan-prod.json; then
+          if grep -q '"error"' infra/pipeline/base-infrastructure/tfplan-dev.json || grep -q '"error"' infra/pipeline/base-infrastructure/tfplan-prod.json; then
             echo "❌ Errors found in terraform plans"
-            cat infra/pipeline/main-infrastructure/tfplan-dev.json
-            cat infra/pipeline/main-infrastructure/tfplan-prod.json
+            cat infra/pipeline/base-infrastructure/tfplan-dev.json
+            cat infra/pipeline/base-infrastructure/tfplan-prod.json
             exit 1
           fi
 
@@ -1309,7 +1309,7 @@ jobs:
 
       - name: Force Unlock Test Infrastructure on Failure
         if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
-        working-directory: infra/pipeline/main-infrastructure
+        working-directory: infra/pipeline/base-infrastructure
         run: |
           echo "🔍 Attempting to force unlock test infrastructure Terraform state after failure..."
 
@@ -1352,7 +1352,7 @@ jobs:
           echo ""
           echo "📋 If the automatic unlock failed, please manually force-unlock the test infrastructure state:"
           echo "1. Find the lock ID from the failed test infrastructure step logs above"
-          echo "2. Run: cd infra/pipeline/main-infrastructure && terraform force-unlock -force <lock_id>"
+          echo "2. Run: cd infra/pipeline/base-infrastructure && terraform force-unlock -force <lock_id>"
           echo "3. Re-run the workflow"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
