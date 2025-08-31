@@ -1385,14 +1385,7 @@ jobs:
   notify:
     name: Deployment Results
     runs-on: ubuntu-latest
-    needs:
-      [
-        sso-setup,
-        bootstrap,
-        validate,
-        test-terraform,
-        security-scan,
-      ]
+    needs: [sso-setup, bootstrap, validate, test-terraform, security-scan]
     if: always()
 
     steps:
