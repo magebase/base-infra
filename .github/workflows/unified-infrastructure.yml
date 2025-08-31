@@ -370,7 +370,7 @@ jobs:
           fi
 
           # Check if SSO is already enabled
-          if aws sso-admin list-instances >/dev/null 2>&1; then
+          if aws sso-admin list-instances --region ${{ env.SSO_REGION }} >/dev/null 2>&1; then
             echo "✅ AWS SSO is already enabled"
           else
             echo "ℹ️  AWS SSO will be enabled during deployment"
@@ -545,9 +545,13 @@ jobs:
           # Export the development account ID for use in subsequent steps
           echo "DEV_ACCOUNT_ID=$DEV_ACCOUNT_ID" >> $GITHUB_ENV
 
-          # Show the created account IDs
+          # Show the created account IDs (only if outputs exist)
           echo "📋 Created AWS Account IDs:"
-          terraform output -json | jq '.development_account_id.value, .production_account_id.value'
+          if terraform output development_account_id >/dev/null 2>&1; then
+            terraform output -json | jq '.development_account_id.value, .production_account_id.value' 2>/dev/null || echo "Some outputs not available yet"
+          else
+            echo "Account outputs not available - accounts may still be creating"
+          fi
 
       - name: Force Unlock on Failure
         if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
@@ -621,30 +625,39 @@ jobs:
         run: |
           echo "🔍 Verifying SSO configuration..."
 
-          # Check if SSO instances exist
+          # Check if SSO instances exist and get instance ARN
           if aws sso-admin list-instances --region ${{ env.SSO_REGION }} >/dev/null 2>&1; then
             echo "✅ AWS SSO is properly configured"
+            SSO_INSTANCE_ARN=$(aws sso-admin list-instances --region ${{ env.SSO_REGION }} | jq -r '.Instances[0].InstanceArn')
+            echo "SSO Instance ARN: $SSO_INSTANCE_ARN"
             aws sso-admin list-instances --region ${{ env.SSO_REGION }} | jq '.Instances[] | {InstanceArn, IdentityStoreId}'
           else
             echo "⚠️  AWS SSO configuration may be incomplete"
+            SSO_INSTANCE_ARN=""
           fi
 
           # Check account assignments for development account
           echo "📋 SSO Account Assignments (Development):"
-          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id)
-          if [ -n "$DEV_ACCOUNT_ID" ]; then
+          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "")
+          if [ -n "$DEV_ACCOUNT_ID" ] && [ -n "$SSO_INSTANCE_ARN" ]; then
             aws sso-admin list-account-assignments --region ${{ env.SSO_REGION }} \
+              --instance-arn "$SSO_INSTANCE_ARN" \
               --account-id "$DEV_ACCOUNT_ID" \
-              --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} | jq -r '.PermissionSets[0]') 2>/dev/null || echo "No assignments found for development account"
+              --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} --instance-arn "$SSO_INSTANCE_ARN" | jq -r '.PermissionSets[0]' 2>/dev/null) 2>/dev/null || echo "No assignments found for development account"
+          else
+            echo "Missing DEV_ACCOUNT_ID or SSO_INSTANCE_ARN for development account check"
           fi
 
           # Check account assignments for production account
           echo "📋 SSO Account Assignments (Production):"
-          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id)
-          if [ -n "$PROD_ACCOUNT_ID" ]; then
+          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null || echo "")
+          if [ -n "$PROD_ACCOUNT_ID" ] && [ -n "$SSO_INSTANCE_ARN" ]; then
             aws sso-admin list-account-assignments --region ${{ env.SSO_REGION }} \
+              --instance-arn "$SSO_INSTANCE_ARN" \
               --account-id "$PROD_ACCOUNT_ID" \
-              --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} | jq -r '.PermissionSets[0]') 2>/dev/null || echo "No assignments found for production account"
+              --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} --instance-arn "$SSO_INSTANCE_ARN" | jq -r '.PermissionSets[0]' 2>/dev/null) 2>/dev/null || echo "No assignments found for production account"
+          else
+            echo "Missing PROD_ACCOUNT_ID or SSO_INSTANCE_ARN for production account check"
           fi
 
   # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON BOOTSTRAP & SSO) =====
