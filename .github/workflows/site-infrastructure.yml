@@ -15,6 +15,10 @@ on:
     paths:
       - "infra/pipeline/site-infrastructure/**"
       - ".github/workflows/site-infrastructure.yml"
+  workflow_run:
+    workflows: ["Unified Infrastructure Deployment"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
@@ -56,7 +60,9 @@ jobs:
       id-token: write
       contents: read
     # Skip planning if base infrastructure status is not confirmed
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan' || github.event.inputs.base_infrastructure_status == 'completed'
+    if: >
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan' || github.event.inputs.base_infrastructure_status == 'completed') &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     defaults:
       run:
         working-directory: infra/pipeline/site-infrastructure
@@ -64,6 +70,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Extract Environment from Triggering Workflow
+        if: github.event_name == 'workflow_run'
+        run: |
+          # Extract environment from the triggering workflow
+          TRIGGERING_WORKFLOW="${{ github.event.workflow_run.name }}"
+          echo "🔗 Triggered by workflow: $TRIGGERING_WORKFLOW"
+
+          # Try to extract environment from workflow inputs or outputs
+          # For now, default to dev, but this can be enhanced to parse the triggering workflow's inputs
+          ENVIRONMENT="dev"
+          echo "🌍 Inferred environment: $ENVIRONMENT"
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -192,7 +211,7 @@ jobs:
         id: tf-plan
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         env:
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_environment: ${{ github.event_name == 'workflow_run' && steps.extract-env.outputs.environment || github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
@@ -211,7 +230,7 @@ jobs:
         id: tf-plan-main
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_environment: ${{ github.event_name == 'workflow_run' && steps.extract-env.outputs.environment || github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
@@ -280,7 +299,7 @@ jobs:
       - name: Terraform Apply
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         env:
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_environment: ${{ github.event_name == 'workflow_run' && steps.extract-env.outputs.environment || github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
