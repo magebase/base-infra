@@ -124,16 +124,20 @@ resource "cloudflare_email_routing_rule" "aws_dev" {
   name    = "AWS Development Account"
   enabled = true
 
-  matcher {
-    type  = "literal"
-    field = "to"
-    value = "aws-dev@magebase.dev"
-  }
+  matchers = [
+    {
+      type  = "literal"
+      field = "to"
+      value = "aws-dev@magebase.dev"
+    }
+  ]
 
-  action {
-    type  = "forward"
-    value = [var.development_email]
-  }
+  actions = [
+    {
+      type  = "forward"
+      value = [var.development_email]
+    }
+  ]
 }
 
 resource "cloudflare_email_routing_rule" "aws_prod" {
@@ -141,16 +145,20 @@ resource "cloudflare_email_routing_rule" "aws_prod" {
   name    = "AWS Production Account"
   enabled = true
 
-  matcher {
-    type  = "literal"
-    field = "to"
-    value = "aws-prod@magebase.dev"
-  }
+  matchers = [
+    {
+      type  = "literal"
+      field = "to"
+      value = "aws-prod@magebase.dev"
+    }
+  ]
 
-  action {
-    type  = "forward"
-    value = [var.production_email]
-  }
+  actions = [
+    {
+      type  = "forward"
+      value = [var.production_email]
+    }
+  ]
 }
 
 # AWS SSO/IAM Identity Center Configuration
