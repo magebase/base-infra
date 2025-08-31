@@ -39,7 +39,7 @@ provider "hcloud" {
 
 # Cloudflare Provider
 provider "cloudflare" {
-  api_token = var.cloudflare_api_token != "" ? var.cloudflare_api_token : "dummy_token_for_validation_12345678901234567890"
+  api_token = var.cloudflare_api_token
 }
 
 # AWS Provider (for Route53 operations)
@@ -229,24 +229,24 @@ output "active_storage_cdn_url" {
   description = "Cloudflare CDN URL for Active Storage files"
 }
 
-# AWS Organization Outputs
-output "development_account_id" {
-  description = "AWS Account ID for the development account"
-  value       = module.organizations.development_account_id
-}
+# AWS Organization Outputs (moved to separate org-sso step)
+# output "development_account_id" {
+#   description = "AWS Account ID for the development account"
+#   value       = module.organizations.development_account_id
+# }
 
-output "production_account_id" {
-  description = "AWS Account ID for the production account"
-  value       = module.organizations.production_account_id
-}
+# output "production_account_id" {
+#   description = "AWS Account ID for the production account"
+#   value       = module.organizations.production_account_id
+# }
 
-# SSO Outputs
-output "sso_enabled" {
-  description = "Whether AWS SSO is enabled"
-  value       = module.sso.sso_enabled
-}
+# SSO Outputs (moved to separate org-sso step)
+# output "sso_enabled" {
+#   description = "Whether AWS SSO is enabled"
+#   value       = module.sso.sso_enabled
+# }
 
-output "sso_instance_arn" {
-  description = "ARN of the AWS SSO instance"
-  value       = module.sso.sso_instance_arn
-}
+# output "sso_instance_arn" {
+#   description = "ARN of the AWS SSO instance"
+#   value       = module.sso.sso_instance_arn
+# }
