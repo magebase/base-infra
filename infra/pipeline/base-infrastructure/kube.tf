@@ -920,15 +920,19 @@ module "kube-hetzner" {
   # See https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner/issues/349
   # When "false". The kubeconfig file can instead be created by executing: "terraform output --raw kubeconfig > cluster_kubeconfig.yaml"
   # Always be careful to not commit this file!
-  # create_kubeconfig = false
+  create_kubeconfig = false
 
   # Don't create the kustomize backup. This can be helpful for automation.
   create_kustomization = false
 
-  # Export the values.yaml files used for the deployment of traefik, longhorn, cert-manager, etc.
-  # This can be helpful to use them for later deployments like with ArgoCD.
-  # The default is false.
-  # export_values = true
+  # Additional safeguard: disable kustomization deployment commands
+  extra_kustomize_deployment_commands = ""
+
+  # Additional safeguard: empty kustomization parameters
+  extra_kustomize_parameters = {}
+
+  # Disable export of values files to prevent any kustomization-related operations
+  export_values = false
 
   # MicroOS snapshot IDs to be used. Per default empty, the most recent image created using createkh will be used.
   # We recommend the default, but if you want to use specific IDs you can.
