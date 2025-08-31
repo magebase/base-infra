@@ -21,10 +21,6 @@ module "bootstrap" {
   region        = var.region
   account_alias = var.account_alias
 
-  # Customize the bucket and table names to match our convention
-  bucket_purpose      = "tf-state-bootstrap"
-  dynamodb_table_name = var.dynamodb_table_name
-
   # Enable additional security features
   dynamodb_point_in_time_recovery = true
   enable_s3_public_access_block   = true

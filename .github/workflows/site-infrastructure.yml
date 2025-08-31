@@ -141,7 +141,7 @@ jobs:
         id: oidc-auth
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ steps.get-infra-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          role-to-assume: arn:aws:iam::${{ steps.get-infra-account.outputs.account_id }}:role/GitHubActionsSSORole
           aws-region: ${{ env.INFRA_REGION }}
         continue-on-error: true
 

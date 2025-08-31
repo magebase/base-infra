@@ -504,6 +504,106 @@ resource "aws_ssoadmin_account_assignment" "main" {
   depends_on = [aws_identitystore_group.main]
 }
 
+# Development Account Provider
+provider "aws" {
+  alias  = "development"
+  region = var.region
+
+  assume_role {
+    role_arn = "arn:aws:iam::${local.development_account_id}:role/OrganizationAccountAccessRole"
+  }
+}
+
+# Production Account Provider
+provider "aws" {
+  alias  = "production"
+  region = var.region
+
+  assume_role {
+    role_arn = "arn:aws:iam::${local.production_account_id}:role/OrganizationAccountAccessRole"
+  }
+}
+
+# Create GitHubActionsSSORole in Development Account
+resource "aws_iam_role" "github_actions_sso_development" {
+  provider = aws.development
+  name     = "GitHubActionsSSORole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = "arn:aws:iam::${local.development_account_id}:oidc-provider/token.actions.githubusercontent.com"
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:magebase/*"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Environment = "Development"
+    Purpose     = "GitHub Actions CI/CD"
+    ManagedBy   = "terraform"
+  }
+}
+
+# Attach AdministratorAccess policy to GitHubActionsSSORole in Development
+resource "aws_iam_role_policy_attachment" "github_actions_sso_development_admin" {
+  provider   = aws.development
+  role       = aws_iam_role.github_actions_sso_development.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+# Create GitHubActionsSSORole in Production Account
+resource "aws_iam_role" "github_actions_sso_production" {
+  provider = aws.production
+  name     = "GitHubActionsSSORole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = "arn:aws:iam::${local.production_account_id}:oidc-provider/token.actions.githubusercontent.com"
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:magebase/*"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Environment = "Production"
+    Purpose     = "GitHub Actions CI/CD"
+    ManagedBy   = "terraform"
+  }
+}
+
+# Attach AdministratorAccess policy to GitHubActionsSSORole in Production
+resource "aws_iam_role_policy_attachment" "github_actions_sso_production_admin" {
+  provider   = aws.production
+  role       = aws_iam_role.github_actions_sso_production.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
 # Outputs
 output "sso_enabled" {
   description = "Whether AWS SSO is enabled in this account"
@@ -554,4 +654,14 @@ output "account_assignments" {
 output "sso_start_url" {
   description = "AWS SSO start URL"
   value       = local.sso_enabled ? "https://${local.identity_store_id}.awsapps.com/start" : null
+}
+
+output "github_actions_sso_role_development_arn" {
+  description = "ARN of the GitHubActionsSSORole in the development account"
+  value       = aws_iam_role.github_actions_sso_development.arn
+}
+
+output "github_actions_sso_role_production_arn" {
+  description = "ARN of the GitHubActionsSSORole in the production account"
+  value       = aws_iam_role.github_actions_sso_production.arn
 }
