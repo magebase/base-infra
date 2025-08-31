@@ -1,3 +1,28 @@
+# Terraform configuration for Magebase base infrastructure (k3s cluster)
+terraform {
+  required_version = ">= 1.8.0"
+
+  # Backend configuration using S3 bucket created by bootstrap
+  backend "s3" {
+    bucket         = "magebase-tf-state-bootstrap-ap-southeast-1"
+    region         = "ap-southeast-1"
+    dynamodb_table = "magebase-terraform-locks-bootstrap"
+    encrypt        = true
+  }
+
+  required_providers {
+    hcloud = {
+      source  = "hetznercloud/hcloud"
+      version = ">= 1.51.0"
+    }
+  }
+}
+
+# Hetzner Cloud Provider
+provider "hcloud" {
+  token = var.hcloud_token
+}
+
 locals {
   # You have the choice of setting your Hetzner API token here or define the TF_VAR_hcloud_token env
   # within your shell, such as: export TF_VAR_hcloud_token=xxxxxxxxxxx
@@ -5,6 +30,7 @@ locals {
 
   # Your Hetzner token can be found in your Project > Security > API Token (Read & Write is required).
   hcloud_token = "xxxxxxxxxxx"
+  cluster_name = "${var.environment}-magebase"
 }
 
 module "kube-hetzner" {
@@ -56,7 +82,7 @@ module "kube-hetzner" {
 
   # These can be customized, or left with the default values
   # * For Hetzner locations see https://docs.hetzner.com/general/others/data-centers-and-connection/
-  network_region = "eu-central" # change to `us-east` if location is ash
+  network_region = "ap-southeast" # change to `us-east` if location is ash
 
   # If you want to create the private network before calling this module,
   # you can do so and pass its id here. For example if you want to use a proxy
@@ -121,9 +147,9 @@ module "kube-hetzner" {
 
   control_plane_nodepools = [
     {
-      name        = "control-plane-fsn1",
-      server_type = "cx22",
-      location    = "fsn1",
+      name        = "control-plane-sin",
+      server_type = "cpx11",
+      location    = "sin",
       labels      = [],
       taints      = [],
       count       = 1
@@ -142,54 +168,14 @@ module "kube-hetzner" {
       # the instructions regarding this type of setup in README.md: "Use only private IPs in your cluster".
       # disable_ipv4 = true
       # disable_ipv6 = true
-    },
-    {
-      name        = "control-plane-nbg1",
-      server_type = "cx22",
-      location    = "nbg1",
-      labels      = [],
-      taints      = [],
-      count       = 1
-
-      # Fine-grained control over placement groups (nodes in the same group are spread over different physical servers, 10 nodes per placement group max):
-      # placement_group = "default"
-
-      # Enable automatic backups via Hetzner (default: false)
-      # backups = true
-
-      # To disable public ips (default: false)
-      # WARNING: If both values are set to "true", your server will only be accessible via a private network. Make sure you have followed
-      # the instructions regarding this type of setup in README.md: "Use only private IPs in your cluster".
-      # disable_ipv4 = true
-      # disable_ipv6 = true
-    },
-    {
-      name        = "control-plane-hel1",
-      server_type = "cx22",
-      location    = "hel1",
-      labels      = [],
-      taints      = [],
-      count       = 1
-
-      # Fine-grained control over placement groups (nodes in the same group are spread over different physical servers, 10 nodes per placement group max):
-      # placement_group = "default"
-
-      # Enable automatic backups via Hetzner (default: false)
-      # backups = true
-
-      # To disable public ips (default: false)
-      # WARNING: If both values are set to "true", your server will only be accessible via a private network. Make sure you have followed
-      # the instructions regarding this type of setup in README.md: "Use only private IPs in your cluster".
-      # disable_ipv4 = true
-      # disable_ipv6 = true
     }
   ]
 
   agent_nodepools = [
     {
       name        = "agent-small",
-      server_type = "cx22",
-      location    = "fsn1",
+      server_type = "cpx11",
+      location    = "sin",
       labels      = [],
       taints      = [],
       count       = 1
@@ -205,8 +191,8 @@ module "kube-hetzner" {
     },
     {
       name        = "agent-large",
-      server_type = "cx32",
-      location    = "nbg1",
+      server_type = "cpx21",
+      location    = "sin",
       labels      = [],
       taints      = [],
       count       = 1
@@ -219,14 +205,14 @@ module "kube-hetzner" {
     },
     {
       name        = "storage",
-      server_type = "cx32",
-      location    = "fsn1",
+      server_type = "cpx21",
+      location    = "sin",
       # Fully optional, just a demo.
-      labels      = [
+      labels = [
         "node.kubernetes.io/server-usage=storage"
       ],
-      taints      = [],
-      count       = 1
+      taints = [],
+      count  = 1
 
       # In the case of using Longhorn, you can use Hetzner volumes instead of using the node's own storage by specifying a value from 10 to 10240 (in GB)
       # It will create one volume per node in the nodepool, and configure Longhorn to use them.
@@ -242,8 +228,8 @@ module "kube-hetzner" {
     # See the https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner#examples for an example use case.
     {
       name        = "egress",
-      server_type = "cx22",
-      location    = "fsn1",
+      server_type = "cpx11",
+      location    = "sin",
       labels = [
         "node.kubernetes.io/role=egress"
       ],
@@ -255,39 +241,7 @@ module "kube-hetzner" {
       # This is useful in combination with the Egress Gateway feature for hosting certain services in the cluster, such as email servers.
       # floating_ip_rns = "my.domain.com"
       count = 1
-    },
-    # Arm based nodes
-    {
-      name        = "agent-arm-small",
-      server_type = "cax11",
-      location    = "fsn1",
-      labels      = [],
-      taints      = [],
-      count       = 1
-    },
-    # For fine-grained control over the nodes in a node pool, replace the count variable with a nodes map.
-    # In this case, the node-pool variables are defaults which can be overridden on a per-node basis.
-    # Each key in the nodes map refers to a single node and must be an integer string ("1", "123", ...).
-    {
-      name        = "agent-arm-medium",
-      server_type = "cax21",
-      location    = "fsn1",
-      labels      = [],
-      taints      = [],
-      nodes = {
-        "1" : {
-          location                  = "nbg1"
-          labels = [
-            "testing-labels=a1",
-          ]
-        },
-        "20" : {
-          labels = [
-            "testing-labels=b1",
-          ]
-        }
-      }
-    },
+    }
   ]
   # Add additional configuration options for control planes here.
   # E.g to enable monitoring for etcd, proxy etc:
@@ -313,7 +267,7 @@ module "kube-hetzner" {
 
   # * LB location and type, the latter will depend on how much load you want it to handle, see https://www.hetzner.com/cloud/load-balancer
   load_balancer_type     = "lb11"
-  load_balancer_location = "fsn1"
+  load_balancer_location = "sin"
 
   # Disable IPv6 for the load balancer, the default is false.
   # load_balancer_disable_ipv6 = true
@@ -344,7 +298,7 @@ module "kube-hetzner" {
   #
   # nat_router = {
   #   server_type = "cax21"
-  #   location    = "fsn1"
+  #   location    = "sin"
   #   enable_sudo = false # optional, default to false. Set to true to add nat-router user to the sudo'ers. Note that ssh as root is disabled.
   #   labels      = {} # optionally add labels.
   # }
@@ -366,8 +320,8 @@ module "kube-hetzner" {
   # autoscaler_nodepools = [
   #  {
   #    name        = "autoscaled-small"
-  #    server_type = "cx32"
-  #    location    = "fsn1"
+  #    server_type = "cpx11"
+  #    location    = "sin"
   #    min_nodes   = 0
   #    max_nodes   = 5
   #    labels      = {
@@ -1216,18 +1170,10 @@ bootstrapPassword: "supermario"
 
 }
 
-provider "hcloud" {
-  token = var.hcloud_token != "" ? var.hcloud_token : local.hcloud_token
-}
-
-terraform {
-  required_version = ">= 1.5.0"
-  required_providers {
-    hcloud = {
-      source  = "hetznercloud/hcloud"
-      version = ">= 1.51.0"
-    }
-  }
+# Outputs
+output "cluster_name" {
+  value       = local.cluster_name
+  description = "Name of the k3s cluster"
 }
 
 output "kubeconfig" {
@@ -1236,6 +1182,13 @@ output "kubeconfig" {
 }
 
 variable "hcloud_token" {
-  sensitive = true
-  default   = ""
+  sensitive   = true
+  default     = ""
+  description = "Hetzner Cloud API token"
+}
+
+variable "environment" {
+  description = "Environment name (e.g., dev, staging, prod)"
+  type        = string
+  default     = "dev"
 }
