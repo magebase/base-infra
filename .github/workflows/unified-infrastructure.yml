@@ -1175,9 +1175,48 @@ jobs:
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && env.ADVANCED_SECURITY_ENABLED == 'true'
         with:
           sarif_file: "trivy-results.sarif"
+        continue-on-error: true
+
+      - name: Check Advanced Security availability
+        if: always()
+        run: |
+          echo "🔍 Checking GitHub Advanced Security status..."
+          if [ "${{ github.event.repository.private }}" == "true" ] || [ "${{ github.event.repository.visibility }}" == "private" ]; then
+            echo "✅ Private repository - Advanced Security should be available"
+            echo "ADVANCED_SECURITY_ENABLED=true" >> $GITHUB_ENV
+          else
+            echo "ℹ️  Public repository - Advanced Security may not be available for free tier"
+            echo "ADVANCED_SECURITY_ENABLED=false" >> $GITHUB_ENV
+          fi
+
+      - name: Display scan results summary
+        if: always()
+        run: |
+          echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f "trivy-results.sarif" ]; then
+            echo "✅ Trivy scan completed successfully" >> $GITHUB_STEP_SUMMARY
+            echo "- SARIF file generated: trivy-results.sarif" >> $GITHUB_STEP_SUMMARY
+
+            if [ "${{ env.ADVANCED_SECURITY_ENABLED }}" == "true" ]; then
+              echo "- Results uploaded to GitHub Security tab" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ⚠️  GitHub Advanced Security not available for SARIF upload" >> $GITHUB_STEP_SUMMARY
+              echo "- 📄 SARIF file available for manual review" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ Trivy scan failed - no results file generated" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Next Steps:" >> $GITHUB_STEP_SUMMARY
+          echo "- Enable GitHub Advanced Security for automatic vulnerability tracking" >> $GITHUB_STEP_SUMMARY
+          echo "- Review trivy-results.sarif for detailed findings" >> $GITHUB_STEP_SUMMARY
+          echo "- Consider running additional security scans as needed" >> $GITHUB_STEP_SUMMARY
 
   notify:
     name: Deployment Results
