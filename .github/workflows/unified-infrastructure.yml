@@ -309,6 +309,10 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.INFRA_REGION }}
           MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
         run: |
           echo "🧪 Running Bootstrap Terratest..."
 
@@ -708,6 +712,10 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.AWS_REGION }}
           MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
         run: |
           echo "🧪 Running SSO Terratest..."
 
@@ -934,9 +942,9 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.INFRA_REGION }}
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
         run: |
           echo "🧪 Running Base Infrastructure Terratest..."
@@ -993,9 +1001,9 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.INFRA_REGION }}
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
         run: |
           echo "🧪 Running Base Infrastructure Terratest after apply..."
@@ -1015,9 +1023,9 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.INFRA_REGION }}
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
           AWS_SSO_REGION: ${{ env.SSO_REGION }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -1039,9 +1047,9 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.INFRA_REGION }}
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
           AWS_SSO_REGION: ${{ env.SSO_REGION }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -1114,9 +1122,11 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.INFRA_REGION }}
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+          AWS_SSO_REGION: ${{ env.SSO_REGION }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
         run: |
           echo "🧪 Running Integration Terratest..."
@@ -1136,9 +1146,11 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ env.INFRA_REGION }}
-          HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+          AWS_SSO_REGION: ${{ env.SSO_REGION }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
         run: |
           echo "🧪 Running Unified Terratest..."
