@@ -26,3 +26,9 @@ variable "location" {
   type        = string
   default     = "fsn1"
 }
+
+variable "hetzner_object_storage_endpoint" {
+  description = "Hetzner Object Storage endpoint URL (e.g., fsn1.your-storagebox.de)"
+  type        = string
+  default     = ""
+}

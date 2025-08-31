@@ -17,7 +17,7 @@ terraform {
 
 locals {
   cluster_name            = var.cluster_name
-  object_storage_endpoint = "https://${var.location}.${var.domain_name}"
+  object_storage_endpoint = var.hetzner_object_storage_endpoint != "" ? "https://${var.hetzner_object_storage_endpoint}" : "https://${var.location}.${var.domain_name}"
 }
 
 # Hetzner Object Storage Bucket for PostgreSQL Backups using MinIO provider

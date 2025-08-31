@@ -70,6 +70,12 @@ variable "hetzner_object_storage_secret_key" {
   sensitive   = true
 }
 
+variable "hetzner_object_storage_endpoint" {
+  description = "Hetzner Object Storage endpoint URL (e.g., fsn1.your-storagebox.de)"
+  type        = string
+  default     = ""
+}
+
 variable "docker_image" {
   description = "Docker image for deployment"
   type        = string

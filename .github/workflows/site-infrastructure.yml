@@ -107,16 +107,30 @@ jobs:
           # This can be overridden based on environment if needed
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
 
-          # Default to management account, can be updated based on SSO setup
-          ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+          # Try to get account IDs from triggering workflow outputs first
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            DEV_ACCOUNT_ID="${{ github.event.workflow_run.outputs.development_account_id }}"
+            PROD_ACCOUNT_ID="${{ github.event.workflow_run.outputs.production_account_id }}"
+
+            if [ -n "$DEV_ACCOUNT_ID" ] && [ -n "$PROD_ACCOUNT_ID" ]; then
+              echo "✅ Using account IDs from triggering workflow outputs"
+            else
+              echo "⚠️  Triggering workflow outputs not available, falling back to repository variables"
+              DEV_ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID }}"
+              PROD_ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID }}"
+            fi
+          else
+            # For manual triggers, use repository variables
+            DEV_ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID }}"
+            PROD_ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID }}"
+          fi
 
           if [ "$ENVIRONMENT" == "prod" ] || [ "$ENVIRONMENT" == "uat" ]; then
             echo "Using production account for site infrastructure (environment: $ENVIRONMENT)"
-            # In a real setup, this would come from SSO outputs
-            ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+            ACCOUNT_ID="$PROD_ACCOUNT_ID"
           else
             echo "Using development account for site infrastructure (environment: $ENVIRONMENT)"
-            ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+            ACCOUNT_ID="$DEV_ACCOUNT_ID"
           fi
 
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
@@ -127,7 +141,7 @@ jobs:
         id: oidc-auth
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          role-to-assume: arn:aws:iam::${{ steps.get-infra-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.INFRA_REGION }}
         continue-on-error: true
 

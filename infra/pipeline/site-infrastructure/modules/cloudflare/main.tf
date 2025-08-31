@@ -88,7 +88,7 @@ resource "cloudflare_record" "root_a" {
   name    = var.domain_name
   content = var.cluster_ipv4
   type    = "A"
-  ttl     = 300
+  ttl     = 1 # Must be 1 when proxied is true
   proxied = true
 }
 
@@ -99,7 +99,7 @@ resource "cloudflare_record" "root_aaaa" {
   name    = var.domain_name
   content = var.cluster_ipv6
   type    = "AAAA"
-  ttl     = 300
+  ttl     = 1 # Must be 1 when proxied is true
   proxied = true
 }
 
@@ -109,7 +109,7 @@ resource "cloudflare_record" "www_cname" {
   name    = "www"
   content = var.domain_name
   type    = "CNAME"
-  ttl     = 300
+  ttl     = 1 # Must be 1 when proxied is true
   proxied = true
 }
 
@@ -119,7 +119,7 @@ resource "cloudflare_record" "cdn_cname" {
   name    = "cdn"
   content = var.domain_name
   type    = "CNAME"
-  ttl     = 300
+  ttl     = 1 # Must be 1 when proxied is true
   proxied = true
 }
 

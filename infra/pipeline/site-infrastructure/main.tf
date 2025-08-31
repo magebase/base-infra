@@ -50,8 +50,6 @@ provider "aws" {
 
 # IAM Role for SES Management (created outside module to avoid cycle)
 resource "aws_iam_role" "ses_manager" {
-  count = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? 1 : 0
-
   provider = aws.route53
   name     = "SESManagerRole"
 
@@ -75,15 +73,20 @@ resource "aws_iam_role" "ses_manager" {
     Environment = var.environment
     Purpose     = "SES Management"
   }
+
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes = [
+      assume_role_policy, # Allow manual changes to the policy
+    ]
+  }
 }
 
 # IAM Policy for SES Management
 resource "aws_iam_role_policy" "ses_manager_policy" {
-  count = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? 1 : 0
-
   provider = aws.route53
   name     = "SESManagerPolicy"
-  role     = aws_iam_role.ses_manager[0].id
+  role     = aws_iam_role.ses_manager.id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -108,6 +111,13 @@ resource "aws_iam_role_policy" "ses_manager_policy" {
       }
     ]
   })
+
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes = [
+      policy, # Allow manual changes to the policy
+    ]
+  }
 }
 
 # AWS Provider (for SES only) - now uses the role created above
@@ -115,11 +125,8 @@ provider "aws" {
   alias  = "ses"
   region = "ap-southeast-1" # Singapore region for SES
 
-  dynamic "assume_role" {
-    for_each = local.use_ses ? [1] : []
-    content {
-      role_arn = aws_iam_role.ses_manager[0].arn
-    }
+  assume_role {
+    role_arn = aws_iam_role.ses_manager.arn
   }
 }
 
@@ -140,7 +147,6 @@ locals {
   cluster_name        = "${var.environment}-magebase"
   singapore_locations = ["sin"] # Singapore location
   location            = "fsn1"  # Falkenstein for all environments
-  use_ses             = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy"
 }
 
 # Cloudflare DNS Configuration
@@ -154,11 +160,11 @@ module "cloudflare_dns" {
   # SES configuration
   aws_ses_account_id = var.aws_ses_account_id
 
-  # SES DNS Records - pass empty values when SES is disabled to avoid dependency issues
-  ses_verification_record = local.use_ses ? module.aws_ses[0].ses_verification_record : null
+  # SES DNS Records - SES is always enabled
+  ses_verification_record = module.aws_ses.ses_verification_record
   ses_dkim_records        = [] # Always pass empty list to avoid count dependency issues
-  ses_spf_record          = local.use_ses ? module.aws_ses[0].ses_spf_record : null
-  ses_mx_record           = local.use_ses ? module.aws_ses[0].ses_mx_record : null
+  ses_spf_record          = module.aws_ses.ses_spf_record
+  ses_mx_record           = module.aws_ses.ses_mx_record
 }
 
 # Cloudflare CDN Configuration for Active Storage - commented out due to module issues
@@ -173,10 +179,8 @@ module "cloudflare_dns" {
 #   zone_id                 = module.cloudflare_dns.zone_id
 # }
 
-# AWS SES Configuration (conditional - requires proper IAM role setup)
+# AWS SES Configuration (always enabled)
 module "aws_ses" {
-  count = local.use_ses ? 1 : 0
-
   source = "./modules/aws-ses"
   providers = {
     aws = aws.ses
@@ -185,13 +189,13 @@ module "aws_ses" {
   domain_name          = var.domain_name
   environment          = var.environment
   account_id           = var.aws_ses_account_id
-  ses_manager_role_arn = aws_iam_role.ses_manager[0].arn
+  ses_manager_role_arn = aws_iam_role.ses_manager.arn
 }
 
 # MinIO Provider for Hetzner Object Storage (recommended approach)
 provider "minio" {
   alias          = "hetzner"
-  minio_server   = "fsn1.${var.domain_name}"
+  minio_server   = var.hetzner_object_storage_endpoint != "" ? var.hetzner_object_storage_endpoint : "fsn1.${var.domain_name}"
   minio_user     = var.hetzner_object_storage_access_key
   minio_password = var.hetzner_object_storage_secret_key
   minio_region   = "fsn1"
@@ -207,7 +211,7 @@ provider "aws" {
   skip_metadata_api_check     = true
   skip_region_validation      = true
   endpoints {
-    s3 = "https://fsn1.${var.domain_name}"
+    s3 = var.hetzner_object_storage_endpoint != "" ? "https://${var.hetzner_object_storage_endpoint}" : "https://fsn1.${var.domain_name}"
   }
 }
 
@@ -225,6 +229,7 @@ module "hetzner_object_storage" {
   location                          = local.location
   hetzner_object_storage_access_key = var.hetzner_object_storage_access_key
   hetzner_object_storage_secret_key = var.hetzner_object_storage_secret_key
+  hetzner_object_storage_endpoint   = var.hetzner_object_storage_endpoint
 }
 
 output "hetzner_object_storage_bucket" {
