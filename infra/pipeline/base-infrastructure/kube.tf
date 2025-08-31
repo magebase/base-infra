@@ -39,6 +39,8 @@ module "kube-hetzner" {
   }
   hcloud_token = var.hcloud_token != "" ? var.hcloud_token : local.hcloud_token
 
+  kured_version = "1.19.0"
+
   # Then fill or edit the below values. Only the first values starting with a * are obligatory; the rest can remain with their default values, or you
   # could adapt them to your needs.
 
