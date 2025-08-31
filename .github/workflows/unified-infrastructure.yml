@@ -530,19 +530,7 @@ jobs:
 
           # Apply with dummy values for non-AWS variables
           terraform apply -auto-approve -input=false \
-            -var-file="terraform.tfvars" \
-            -var="database_url=dummy" \
-            -var="cache_database_url=dummy" \
-            -var="secret_key_base=dummy" \
-            -var="ruby_llm_api_key=dummy" \
-            -var="aws_ses_access_key_id=dummy" \
-            -var="aws_ses_secret_access_key=dummy" \
-            -var="hetzner_object_storage_access_key=dummy" \
-            -var="hetzner_object_storage_secret_key=dummy" \
-            -var="stripe_api_key=dummy" \
-            -var="stripe_webhook_secret=dummy" \
-            -var="ssh_private_key=dummy" \
-            -var="ssh_public_key=dummy"
+            -var-file="terraform.tfvars"
 
           echo "✅ AWS Organizations and SSO configuration applied successfully"
 
