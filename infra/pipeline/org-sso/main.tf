@@ -27,18 +27,6 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
-# Import existing Development Account
-data "aws_organizations_account" "development" {
-  count = var.development_account_id != "" ? 1 : 0
-  id    = var.development_account_id
-}
-
-# Import existing Production Account
-data "aws_organizations_account" "production" {
-  count = var.production_account_id != "" ? 1 : 0
-  id    = var.production_account_id
-}
-
 # Create Development Account (only if not importing)
 resource "aws_organizations_account" "development" {
   count = var.development_account_id == "" ? 1 : 0
@@ -306,31 +294,31 @@ locals {
   account_assignments = {
     # Development Account Assignments
     development_administrator = {
-      account_id     = aws_organizations_account.development.id
+      account_id     = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
       permission_set = "administrator"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     development_infrastructure = {
-      account_id     = aws_organizations_account.development.id
+      account_id     = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
       permission_set = "infrastructure"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     development_deployment = {
-      account_id     = aws_organizations_account.development.id
+      account_id     = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
       permission_set = "deployment"
       principal_type = "GROUP"
       principal_name = "DevelopmentTeam"
     }
     development_ses = {
-      account_id     = aws_organizations_account.development.id
+      account_id     = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
       permission_set = "ses"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     development_readonly = {
-      account_id     = aws_organizations_account.development.id
+      account_id     = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
       permission_set = "readonly"
       principal_type = "GROUP"
       principal_name = "Auditors"
@@ -338,31 +326,31 @@ locals {
 
     # Production Account Assignments
     production_administrator = {
-      account_id     = aws_organizations_account.production.id
+      account_id     = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
       permission_set = "administrator"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     production_infrastructure = {
-      account_id     = aws_organizations_account.production.id
+      account_id     = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
       permission_set = "infrastructure"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     production_deployment = {
-      account_id     = aws_organizations_account.production.id
+      account_id     = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
       permission_set = "deployment"
       principal_type = "GROUP"
       principal_name = "ProductionTeam"
     }
     production_ses = {
-      account_id     = aws_organizations_account.production.id
+      account_id     = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
       permission_set = "ses"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     production_readonly = {
-      account_id     = aws_organizations_account.production.id
+      account_id     = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
       permission_set = "readonly"
       principal_type = "GROUP"
       principal_name = "Auditors"
