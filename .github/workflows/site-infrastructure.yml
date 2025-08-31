@@ -7,14 +7,8 @@ name: Site Infrastructure Deployment
 on:
   push:
     branches: [main]
-    paths:
-      - "infra/pipeline/site-infrastructure/**"
-      - ".github/workflows/site-infrastructure.yml"
   pull_request:
     branches: [main]
-    paths:
-      - "infra/pipeline/site-infrastructure/**"
-      - ".github/workflows/site-infrastructure.yml"
   workflow_run:
     workflows: ["Unified Infrastructure Deployment"]
     types: [completed]
