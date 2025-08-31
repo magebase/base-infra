@@ -212,7 +212,7 @@ jobs:
         id: tf-plan
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         env:
-          TF_VAR_environment: ${{ github.event_name == 'workflow_run' && steps.extract-env.outputs.environment || github.event.inputs.environment || 'dev' }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
@@ -231,7 +231,7 @@ jobs:
         id: tf-plan-main
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
-          TF_VAR_environment: ${{ github.event_name == 'workflow_run' && steps.extract-env.outputs.environment || github.event.inputs.environment || 'dev' }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
@@ -254,6 +254,15 @@ jobs:
 
             if terraform plan -no-color -out=tfplan; then
               echo "✅ Terraform plan completed successfully"
+              echo "📄 Plan file created: tfplan"
+
+              # Verify the plan file was created
+              if [ -f "tfplan" ]; then
+                echo "✅ Plan file verified: $(ls -la tfplan)"
+              else
+                echo "❌ Plan file was not created despite successful plan command"
+                exit 1
+              fi
               break
             else
               RETRY_COUNT=$((RETRY_COUNT + 1))
@@ -300,7 +309,7 @@ jobs:
       - name: Terraform Apply
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         env:
-          TF_VAR_environment: ${{ github.event_name == 'workflow_run' && steps.extract-env.outputs.environment || github.event.inputs.environment || 'dev' }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
@@ -311,6 +320,12 @@ jobs:
           TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
         run: |
           echo "🚀 Applying site infrastructure changes..."
+
+          # Check if tfplan exists, if not create it
+          if [ ! -f "tfplan" ]; then
+            echo "📋 No tfplan file found, creating plan first..."
+            terraform plan -no-color -out=tfplan
+          fi
 
           # Retry logic for state lock conflicts
           MAX_RETRIES=3
