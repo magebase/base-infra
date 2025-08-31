@@ -681,6 +681,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      pull-requests: write
     # Skip if SSO was skipped and we're not doing a full deployment
     if: (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped') && (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
     defaults:
@@ -847,12 +848,11 @@ jobs:
           done
 
       - name: Update Pull Request
-        uses: github/codeql-action/upload-sarif@v3
+        uses: actions/github-script@v7
         if: github.event_name == 'pull_request' && (steps.tf-plan.outcome == 'success' || steps.tf-plan-main.outcome == 'success')
         env:
           PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout || steps.tf-plan-main.outputs.stdout }}"
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const planOutcome = '${{ steps.tf-plan.outcome }}' === 'success' ? '${{ steps.tf-plan.outcome }}' : '${{ steps.tf-plan-main.outcome }}';
             const output = `#### Base Infrastructure Deployment 🏗️ (k3s Cluster)
@@ -993,6 +993,7 @@ jobs:
       - name: Test Production Configuration
         working-directory: infra/pipeline/base-infrastructure
         run: |
+          terraform init -backend=false
           terraform plan -var-file="prod.tfvars" -no-color -out=tfplan-prod
           terraform show -json tfplan-prod > tfplan-prod.json
 
@@ -1070,6 +1071,9 @@ jobs:
     name: Security and Compliance Scan
     runs-on: self-hosted
     needs: base-infrastructure-deploy
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - name: Checkout code
