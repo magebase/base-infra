@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.0"
+    }
   }
   required_version = ">= 1.8.0"
 }
@@ -16,6 +20,11 @@ provider "aws" {
   # This prevents circular role assumption when running in CI/CD or with SSO
   skip_metadata_api_check     = true
   skip_credentials_validation = true
+}
+
+# Cloudflare Provider
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
 }
 
 # Import existing Development Account
@@ -119,6 +128,41 @@ output "development_account_id" {
 output "production_account_id" {
   description = "AWS Account ID for the production account"
   value       = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
+}
+
+# Cloudflare Email Routing for AWS Account Emails
+resource "cloudflare_email_routing_rule" "aws_dev" {
+  zone_id = var.cloudflare_zone_id
+  name    = "AWS Development Account"
+  enabled = true
+
+  matcher {
+    type  = "literal"
+    field = "to"
+    value = "aws-dev@magebase.dev"
+  }
+
+  action {
+    type  = "forward"
+    value = [var.development_email]
+  }
+}
+
+resource "cloudflare_email_routing_rule" "aws_prod" {
+  zone_id = var.cloudflare_zone_id
+  name    = "AWS Production Account"
+  enabled = true
+
+  matcher {
+    type  = "literal"
+    field = "to"
+    value = "aws-prod@magebase.dev"
+  }
+
+  action {
+    type  = "forward"
+    value = [var.production_email]
+  }
 }
 
 # AWS SSO/IAM Identity Center Configuration

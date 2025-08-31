@@ -26,12 +26,13 @@ variable "production_account_id" {
   default     = ""
 }
 
-variable "tags" {
-  description = "Tags to apply to all resources"
-  type        = map(string)
-  default = {
-    Environment = "management"
-    Project     = "magebase"
-    ManagedBy   = "terraform"
-  }
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token for managing email routing"
+  type        = string
+  sensitive   = true
+}
+
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID for the domain"
+  type        = string
 }
