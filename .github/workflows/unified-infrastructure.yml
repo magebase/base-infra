@@ -455,7 +455,6 @@ jobs:
             -var="hcloud_token=dummy" \
             -var="aws_ses_account_id=dummy" \
             -var="database_url=dummy" \
-            -var="cache_database_url=dummy" \
             -var="secret_key_base=dummy" \
             -var="ruby_llm_api_key=dummy" \
             -var="aws_ses_access_key_id=dummy" \
@@ -714,15 +713,15 @@ jobs:
               ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
               echo "Using development account for infrastructure (environment: $ENVIRONMENT): $ACCOUNT_ID"
             fi
-            # Output SES credentials from sso-setup
-            echo "ses_access_key_id=${{ needs.sso-setup.outputs.aws_access_key_id }}" >> $GITHUB_OUTPUT
-            echo "ses_secret_access_key=${{ needs.sso-setup.outputs.aws_secret_access_key }}" >> $GITHUB_OUTPUT
+            # SES credentials are not provided by sso-setup - using role assumption instead
+            echo "ses_access_key_id=" >> $GITHUB_OUTPUT
+            echo "ses_secret_access_key=" >> $GITHUB_OUTPUT
           else
             ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
             echo "Using management account for infrastructure (SSO failed): $ACCOUNT_ID"
-            # Fallback to secrets if sso-setup failed
-            echo "ses_access_key_id=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_OUTPUT
-            echo "ses_secret_access_key=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_OUTPUT
+            # Fallback to empty credentials if sso-setup failed
+            echo "ses_access_key_id=" >> $GITHUB_OUTPUT
+            echo "ses_secret_access_key=" >> $GITHUB_OUTPUT
           fi
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 

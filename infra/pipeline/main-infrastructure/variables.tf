@@ -38,12 +38,6 @@ variable "database_url" {
   sensitive   = true
 }
 
-variable "cache_database_url" {
-  description = "Cache database URL (SolidCache uses PostgreSQL)"
-  type        = string
-  sensitive   = true
-}
-
 variable "secret_key_base" {
   description = "Rails secret key base"
   type        = string
@@ -60,12 +54,14 @@ variable "aws_ses_access_key_id" {
   description = "AWS SES access key ID"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "aws_ses_secret_access_key" {
   description = "AWS SES secret access key"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "hetzner_object_storage_access_key" {

@@ -32,7 +32,7 @@ DOMAIN=your-domain.com
 
 # Database
 DATABASE_URL=postgresql://user:password@magebase-db-rw:5432/magebase
-CACHE_DATABASE_URL=redis://magebase-redis-service:6379/0
+# Cache uses the same database as DATABASE_URL (SolidCache with PostgreSQL)
 
 # Secrets (base64 encoded)
 SECRET_KEY_BASE_B64=base64-encoded-secret-key

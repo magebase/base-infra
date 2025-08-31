@@ -126,7 +126,6 @@ prepare_manifests() {
     # Export environment variables for envsubst
     export IMAGE_REGISTRY IMAGE_NAME IMAGE_TAG DOMAIN
     export DATABASE_URL="${DATABASE_URL:-postgresql://magebase:magebase@magebase-db-rw:5432/magebase}"
-    export CACHE_DATABASE_URL="${CACHE_DATABASE_URL:-redis://magebase-redis-service:6379/0}"
 
     # Generate manifests
     cd "$overlay_dir"
