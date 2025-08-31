@@ -1,8 +1,6 @@
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
     }
     cloudflare = {
       source  = "cloudflare/cloudflare"
@@ -27,9 +25,9 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
-# Create Development Account (only if not importing)
+# Create Development Account (only if not importing and not already exists)
 resource "aws_organizations_account" "development" {
-  count = var.development_account_id == "" ? 1 : 0
+  count = !local.development_account_exists && var.development_account_id == "" ? 1 : 0
 
   name      = "Magebase Development"
   email     = var.development_email
@@ -44,9 +42,9 @@ resource "aws_organizations_account" "development" {
   }
 }
 
-# Create Production Account (only if not importing)
+# Create Production Account (only if not importing and not already exists)
 resource "aws_organizations_account" "production" {
-  count = var.production_account_id == "" ? 1 : 0
+  count = !local.production_account_exists && var.production_account_id == "" ? 1 : 0
 
   name      = "Magebase Production"
   email     = var.production_email
@@ -61,6 +59,9 @@ resource "aws_organizations_account" "production" {
   }
 }
 
+# Reference existing organization (don't create if it exists)
+data "aws_organizations_organization" "main" {}
+
 # Create Organizational Units (or reference existing ones)
 data "aws_organizations_organizational_units" "existing" {
   parent_id = data.aws_organizations_organization.main.roots[0].id
@@ -68,6 +69,20 @@ data "aws_organizations_organizational_units" "existing" {
 
 locals {
   existing_ou_names = toset([for ou in data.aws_organizations_organizational_units.existing.children : ou.name])
+
+  development_ou_id = contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : aws_organizations_organizational_unit.development[0].id
+  production_ou_id  = contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : aws_organizations_organizational_unit.production[0].id
+
+  # Check for existing accounts by email
+  existing_development_account = [for acc in data.aws_organizations_organization.main.accounts : acc if acc.email == var.development_email]
+  existing_production_account  = [for acc in data.aws_organizations_organization.main.accounts : acc if acc.email == var.production_email]
+
+  development_account_exists = length(local.existing_development_account) > 0
+  production_account_exists  = length(local.existing_production_account) > 0
+
+  # Determine account IDs
+  development_account_id = local.development_account_exists ? local.existing_development_account[0].id : (var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id)
+  production_account_id  = local.production_account_exists ? local.existing_production_account[0].id : (var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id)
 }
 
 resource "aws_organizations_organizational_unit" "development" {
@@ -99,24 +114,59 @@ data "aws_organizations_organizational_unit" "production" {
   parent_id = data.aws_organizations_organization.main.roots[0].id
 }
 
-locals {
-  development_ou_id = contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : aws_organizations_organizational_unit.development[0].id
-  production_ou_id  = contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : aws_organizations_organizational_unit.production[0].id
-}
-
-# Reference existing organization (don't create if it exists)
-data "aws_organizations_organization" "main" {}
-
 # Output the account IDs for use in SSO configuration
 output "development_account_id" {
   description = "AWS Account ID for the development account"
-  value       = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
+  value       = local.development_account_id
 }
 
 output "production_account_id" {
   description = "AWS Account ID for the production account"
-  value       = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
+  value       = local.production_account_id
 }
+
+# Cloudflare Email Routing for AWS Account Emails
+# resource "cloudflare_email_routing_rule" "aws_dev" {
+#   zone_id = var.cloudflare_zone_id
+#   name    = "AWS Development Account"
+#   enabled = true
+
+#   matchers = [
+#     {
+#       type  = "literal"
+#       field = "to"
+#       value = "aws-dev@magebase.dev"
+#     }
+#   ]
+
+#   actions = [
+#     {
+#       type  = "forward"
+#       value = [var.development_email]
+#     }
+#   ]
+# }
+
+# resource "cloudflare_email_routing_rule" "aws_prod" {
+#   zone_id = var.cloudflare_zone_id
+#   name    = "AWS Production Account"
+#   enabled = true
+
+#   matchers = [
+#     {
+#       type  = "literal"
+#       field = "to"
+#       value = "aws-prod@magebase.dev"
+#     }
+#   ]
+
+#   actions = [
+#     {
+#       type  = "forward"
+#       value = [var.production_email]
+#     }
+#   ]
+# }
 
 # AWS SSO/IAM Identity Center Configuration
 # This should be deployed to the management account
@@ -259,31 +309,31 @@ locals {
   account_assignments = {
     # Development Account Assignments
     development_administrator = {
-      account_id     = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
+      account_id     = local.development_account_id
       permission_set = "administrator"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     development_infrastructure = {
-      account_id     = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
+      account_id     = local.development_account_id
       permission_set = "infrastructure"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     development_deployment = {
-      account_id     = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
+      account_id     = local.development_account_id
       permission_set = "deployment"
       principal_type = "GROUP"
       principal_name = "DevelopmentTeam"
     }
     development_ses = {
-      account_id     = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
+      account_id     = local.development_account_id
       permission_set = "ses"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     development_readonly = {
-      account_id     = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
+      account_id     = local.development_account_id
       permission_set = "readonly"
       principal_type = "GROUP"
       principal_name = "Auditors"
@@ -291,31 +341,31 @@ locals {
 
     # Production Account Assignments
     production_administrator = {
-      account_id     = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
+      account_id     = local.production_account_id
       permission_set = "administrator"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     production_infrastructure = {
-      account_id     = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
+      account_id     = local.production_account_id
       permission_set = "infrastructure"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     production_deployment = {
-      account_id     = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
+      account_id     = local.production_account_id
       permission_set = "deployment"
       principal_type = "GROUP"
       principal_name = "ProductionTeam"
     }
     production_ses = {
-      account_id     = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
+      account_id     = local.production_account_id
       permission_set = "ses"
       principal_type = "GROUP"
       principal_name = "InfrastructureTeam"
     }
     production_readonly = {
-      account_id     = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
+      account_id     = local.production_account_id
       permission_set = "readonly"
       principal_type = "GROUP"
       principal_name = "Auditors"
