@@ -1187,26 +1187,3 @@ output "kubeconfig" {
   sensitive = true
 }
 
-variable "hcloud_token" {
-  sensitive   = true
-  default     = ""
-  description = "Hetzner Cloud API token"
-}
-
-variable "environment" {
-  description = "Environment name (e.g., dev, staging, prod)"
-  type        = string
-  default     = "dev"
-}
-
-variable "ssh_public_key" {
-  description = "SSH public key for accessing cluster nodes"
-  type        = string
-  sensitive   = true
-}
-
-variable "ssh_private_key" {
-  description = "SSH private key for accessing cluster nodes"
-  type        = string
-  sensitive   = true
-}
