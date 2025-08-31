@@ -49,7 +49,7 @@ module "kube-hetzner" {
   source = "kube-hetzner/kube-hetzner/hcloud"
   #    When using the terraform registry as source, you can optionally specify a version number.
   #    See https://registry.terraform.io/modules/kube-hetzner/kube-hetzner/hcloud for the available versions
-  version = "2.15.0"
+  version = "2.17.4"
   # 2. For local dev, path to the git repo
   # source = "../../kube-hetzner/"
   # 3. If you want to use the latest master branch (see https://developer.hashicorp.com/terraform/language/modules/sources#github), use
@@ -75,7 +75,7 @@ module "kube-hetzner" {
   # ssh_hcloud_key_label = "role=admin"
 
   # If you use SSH agent and have issues with SSH connecting to your nodes, you can increase the number of auth tries (default is 2)
-  ssh_max_auth_tries = 1
+  ssh_max_auth_tries = 10
 
   # If you want to use an ssh key that is already registered within hetzner cloud, you can pass its id.
   # If no id is passed, a new ssh key will be registered within hetzner cloud.
@@ -580,13 +580,13 @@ module "kube-hetzner" {
   # For production use, always use an HA setup with at least 3 control-plane nodes and 2 agents, and keep this on for maximum security.
 
   # The default is "true" (in HA setup i.e. at least 3 control plane nodes & 2 agents, just keep it enabled since it works flawlessly).
-  automatically_upgrade_k3s = false
+  # automatically_upgrade_k3s = false
 
   # By default nodes are drained before k3s upgrade, which will delete and transfer all pods to other nodes.
   # Set this to false to cordon nodes instead, which just prevents scheduling new pods on the node during upgrade
   # and keeps all pods running. This may be useful if you have pods which are known to be slow to start e.g.
   # because they have to mount volumes with many files which require to get the right security context applied.
-  system_upgrade_use_drain = false
+  system_upgrade_use_drain = true
 
   # During k3s via system-upgrade-manager pods are evicted by default.
   # On small clusters this can lead to hanging upgrades and indefinitely unschedulable nodes,
@@ -597,7 +597,7 @@ module "kube-hetzner" {
 
   # The default is "true" (in HA setup it works wonderfully well, with automatic roll-back to the previous snapshot in case of an issue).
   # IMPORTANT! For non-HA clusters i.e. when the number of control-plane nodes is < 3, you have to turn it off.
-  automatically_upgrade_os = false
+  # automatically_upgrade_os = false
 
   # If you need more control over kured and the reboot behaviour, you can pass additional options to kured.
   # For example limiting reboots to certain timeframes. For all options see: https://kured.dev/docs/configuration/
@@ -616,7 +616,7 @@ module "kube-hetzner" {
 
   # Allows you to specify the k3s version. If defined, supersedes initial_k3s_channel.
   # See https://github.com/k3s-io/k3s/releases for the available versions.
-  install_k3s_version = "v1.30.2+k3s2"
+  # install_k3s_version = "v1.30.2+k3s2"
 
   # Allows you to specify either stable, latest, testing or supported minor versions.
   # see https://rancher.com/docs/k3s/latest/en/upgrades/basic/ and https://update.k3s.io/v1-release/channels
@@ -939,7 +939,7 @@ module "kube-hetzner" {
   # We recommend the default, but if you want to use specific IDs you can.
   # You can fetch the ids with the hcloud cli by running the "hcloud image list --selector 'microos-snapshot=yes'" command.
   # microos_x86_snapshot_id = "1234567"
-  microos_arm_snapshot_id = ""
+  # microos_arm_snapshot_id = "1234567"
 
   ### ADVANCED - Custom helm values for packages above (search _values if you want to located where those are mentioned upper in this file)
   # ⚠️ Inside the _values variable below are examples, up to you to find out the best helm values possible, we do not provide support for customized helm values.
