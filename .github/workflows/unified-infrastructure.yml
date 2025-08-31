@@ -60,7 +60,6 @@ on:
 
 env:
   TF_VERSION: "1.8.0"
-  TF_WORKING_DIR: infra/pipeline
   AWS_REGION: us-east-1 # Organizations must be in us-east-1
   SSO_REGION: ap-southeast-1
   INFRA_REGION: ap-southeast-1
@@ -73,6 +72,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    env:
+      TF_WORKING_DIR: infra/pipeline
     # Skip if we're not doing a full deployment
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan'
     outputs:
