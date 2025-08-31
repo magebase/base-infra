@@ -974,7 +974,7 @@ jobs:
   test-terraform:
     name: Test Terraform Configuration
     runs-on: self-hosted
-    needs: base-inf
+    needs: base-infrastructure-deploy
 
     steps:
       - name: Checkout code
