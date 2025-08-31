@@ -37,10 +37,10 @@ module "kube-hetzner" {
   source  = "kube-hetzner/kube-hetzner/hcloud"
   version = "2.15.3"
 
-  hcloud_token     = var.hcloud_token
-  ssh_public_key   = var.ssh_public_key
-  ssh_private_key  = var.ssh_private_key
-  network_region   = "ap-southeast"
+  hcloud_token    = var.hcloud_token
+  ssh_public_key  = var.ssh_public_key
+  ssh_private_key = var.ssh_private_key
+  network_region  = "ap-southeast"
 
   # Control plane configuration
   control_plane_nodepools = [
@@ -83,8 +83,8 @@ module "kube-hetzner" {
   ]
 
   # Additional configuration
-  cluster_name = local.cluster_name
-  cni_plugin   = "cilium"
+  cluster_name            = local.cluster_name
+  cni_plugin              = "cilium"
   enable_klipper_metal_lb = true
 }
 
