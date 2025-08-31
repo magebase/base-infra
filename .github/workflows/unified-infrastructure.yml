@@ -724,30 +724,6 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
         run: |
-          # Set terraform variables with fallbacks for missing secrets
-          export TF_VAR_database_url="${{ secrets.DATABASE_URL }}"
-          export TF_VAR_cache_database_url="${{ secrets.CACHE_DATABASE_URL }}"
-          export TF_VAR_secret_key_base="${{ secrets.SECRET_KEY_BASE }}"
-          export TF_VAR_ruby_llm_api_key="${{ secrets.RUBY_LLM_API_KEY }}"
-          export TF_VAR_aws_ses_access_key_id="${{ secrets.AWS_SES_ACCESS_KEY_ID }}"
-          export TF_VAR_aws_ses_secret_access_key="${{ secrets.AWS_SES_SECRET_ACCESS_KEY }}"
-          export TF_VAR_hetzner_object_storage_access_key="${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}"
-          export TF_VAR_hetzner_object_storage_secret_key="${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}"
-          export TF_VAR_stripe_api_key="${{ secrets.STRIPE_API_KEY }}"
-          export TF_VAR_stripe_webhook_secret="${{ secrets.STRIPE_WEBHOOK_SECRET }}"
-          
-          # Set dummy values for any missing secrets
-          [ -z "$TF_VAR_database_url" ] && export TF_VAR_database_url="postgresql://dummy:dummy@localhost:5432/dummy"
-          [ -z "$TF_VAR_cache_database_url" ] && export TF_VAR_cache_database_url="postgresql://dummy:dummy@localhost:5432/dummy_cache"
-          [ -z "$TF_VAR_secret_key_base" ] && export TF_VAR_secret_key_base="dummy_secret_key_for_planning"
-          [ -z "$TF_VAR_ruby_llm_api_key" ] && export TF_VAR_ruby_llm_api_key="dummy_api_key"
-          [ -z "$TF_VAR_aws_ses_access_key_id" ] && export TF_VAR_aws_ses_access_key_id="dummy_access_key"
-          [ -z "$TF_VAR_aws_ses_secret_access_key" ] && export TF_VAR_aws_ses_secret_access_key="dummy_secret_key"
-          [ -z "$TF_VAR_hetzner_object_storage_access_key" ] && export TF_VAR_hetzner_object_storage_access_key="dummy_access_key"
-          [ -z "$TF_VAR_hetzner_object_storage_secret_key" ] && export TF_VAR_hetzner_object_storage_secret_key="dummy_secret_key"
-          [ -z "$TF_VAR_stripe_api_key" ] && export TF_VAR_stripe_api_key="sk_test_dummy"
-          [ -z "$TF_VAR_stripe_webhook_secret" ] && export TF_VAR_stripe_webhook_secret="whsec_dummy"
-          
           terraform plan -no-color -out=tfplan
         continue-on-error: true
 
@@ -762,32 +738,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
         run: |
-          # Set terraform variables with fallbacks for missing secrets
-          export TF_VAR_database_url="${{ secrets.DATABASE_URL }}"
-          export TF_VAR_cache_database_url="${{ secrets.CACHE_DATABASE_URL }}"
-          export TF_VAR_secret_key_base="${{ secrets.SECRET_KEY_BASE }}"
-          export TF_VAR_ruby_llm_api_key="${{ secrets.RUBY_LLM_API_KEY }}"
-          export TF_VAR_aws_ses_access_key_id="${{ secrets.AWS_SES_ACCESS_KEY_ID }}"
-          export TF_VAR_aws_ses_secret_access_key="${{ secrets.AWS_SES_SECRET_ACCESS_KEY }}"
-          export TF_VAR_hetzner_object_storage_access_key="${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}"
-          export TF_VAR_hetzner_object_storage_secret_key="${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}"
-          export TF_VAR_stripe_api_key="${{ secrets.STRIPE_API_KEY }}"
-          export TF_VAR_stripe_webhook_secret="${{ secrets.STRIPE_WEBHOOK_SECRET }}"
-          
-          # Set dummy values for any missing secrets
-          [ -z "$TF_VAR_database_url" ] && export TF_VAR_database_url="postgresql://dummy:dummy@localhost:5432/dummy"
-          [ -z "$TF_VAR_cache_database_url" ] && export TF_VAR_cache_database_url="postgresql://dummy:dummy@localhost:5432/dummy_cache"
-          [ -z "$TF_VAR_secret_key_base" ] && export TF_VAR_secret_key_base="dummy_secret_key_for_planning"
-          [ -z "$TF_VAR_ruby_llm_api_key" ] && export TF_VAR_ruby_llm_api_key="dummy_api_key"
-          [ -z "$TF_VAR_aws_ses_access_key_id" ] && export TF_VAR_aws_ses_access_key_id="dummy_access_key"
-          [ -z "$TF_VAR_aws_ses_secret_access_key" ] && export TF_VAR_aws_ses_secret_access_key="dummy_secret_key"
-          [ -z "$TF_VAR_hetzner_object_storage_access_key" ] && export TF_VAR_hetzner_object_storage_access_key="dummy_access_key"
-          [ -z "$TF_VAR_hetzner_object_storage_secret_key" ] && export TF_VAR_hetzner_object_storage_secret_key="dummy_secret_key"
-          [ -z "$TF_VAR_stripe_api_key" ] && export TF_VAR_stripe_api_key="sk_test_dummy"
-          [ -z "$TF_VAR_stripe_webhook_secret" ] && export TF_VAR_stripe_webhook_secret="whsec_dummy"
-          
           terraform plan -no-color -out=tfplan
-
       - name: Update Pull Request
         uses: actions/github-script@v7
         if: github.event_name == 'pull_request' && (steps.tf-plan.outcome == 'success' || steps.tf-plan-main.outcome == 'success')
