@@ -114,8 +114,12 @@ resource "aws_iam_role_policy" "ses_manager_policy" {
 provider "aws" {
   alias  = "ses"
   region = "ap-southeast-1" # Singapore region for SES
-  assume_role {
-    role_arn = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? aws_iam_role.ses_manager[0].arn : "arn:aws:iam::123456789012:role/DummyRole"
+
+  dynamic "assume_role" {
+    for_each = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? [1] : []
+    content {
+      role_arn = aws_iam_role.ses_manager[0].arn
+    }
   }
 }
 
@@ -135,7 +139,7 @@ data "terraform_remote_state" "base_infrastructure" {
 locals {
   cluster_name        = "${var.environment}-magebase"
   singapore_locations = ["sin"] # Singapore location
-  location            = "sin"   # Singapore for all environments
+  location            = "fsn1"  # Falkenstein for all environments
 }
 
 # Cloudflare DNS Configuration
@@ -143,7 +147,7 @@ module "cloudflare_dns" {
   source = "./modules/cloudflare"
 
   domain_name  = var.domain_name
-  cluster_ipv4 = data.terraform_remote_state.base_infrastructure.outputs.ingress_public_ipv4
+  cluster_ipv4 = data.terraform_remote_state.base_infrastructure.outputs.lb_ipv4
   cluster_ipv6 = null # IPv6 not currently available from base infrastructure
 
   # SES configuration
@@ -186,10 +190,10 @@ module "aws_ses" {
 # MinIO Provider for Hetzner Object Storage (recommended approach)
 provider "minio" {
   alias          = "hetzner"
-  minio_server   = "sin.${var.domain_name}"
+  minio_server   = "fsn1.${var.domain_name}"
   minio_user     = var.hetzner_object_storage_access_key
   minio_password = var.hetzner_object_storage_secret_key
-  minio_region   = "sin"
+  minio_region   = "fsn1"
   minio_ssl      = true
 }
 
@@ -202,7 +206,7 @@ provider "aws" {
   skip_metadata_api_check     = true
   skip_region_validation      = true
   endpoints {
-    s3 = "https://sin.${var.domain_name}"
+    s3 = "https://fsn1.${var.domain_name}"
   }
 }
 

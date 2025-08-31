@@ -1188,3 +1188,8 @@ output "kubeconfig" {
   sensitive = true
 }
 
+output "lb_ipv4" {
+  value       = module.kube-hetzner.lb_ipv4
+  description = "IPv4 address of the load balancer"
+}
+
