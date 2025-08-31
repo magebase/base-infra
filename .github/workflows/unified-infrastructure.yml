@@ -377,12 +377,14 @@ jobs:
 
       - name: Terraform Format
         id: fmt
+        working-directory: infra/pipeline/org-sso
         run: |
           terraform fmt -check -recursive
         continue-on-error: true
 
       - name: Handle State Locks
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        working-directory: infra/pipeline/org-sso
         run: |
           echo "🔍 Checking for existing Terraform state locks..."
 
@@ -426,17 +428,20 @@ jobs:
           echo "🔄 Proceeding with Terraform operations..."
 
       - name: Terraform Init
+        working-directory: infra/pipeline/org-sso
         run: |
           terraform init -input=false -upgrade
 
       - name: Terraform Validate
         id: validate
+        working-directory: infra/pipeline/org-sso
         run: |
           terraform validate -no-color
 
       - name: Terraform Plan
         id: plan
         if: github.event_name == 'pull_request'
+        working-directory: infra/pipeline/org-sso
         run: |
           terraform plan -no-color -input=false \
             -var-file="terraform.tfvars" \
@@ -514,6 +519,7 @@ jobs:
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        working-directory: infra/pipeline/org-sso
         env:
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || '' }}
@@ -553,6 +559,7 @@ jobs:
 
       - name: Force Unlock on Failure
         if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
+        working-directory: infra/pipeline/org-sso
         run: |
           echo "🔍 Attempting to force unlock Terraform state after failure..."
 
@@ -610,6 +617,7 @@ jobs:
 
       - name: Get Development Account ID
         id: get-dev-account
+        working-directory: infra/pipeline/org-sso
         run: |
           DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
           echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
@@ -617,6 +625,7 @@ jobs:
 
       - name: Verify SSO Configuration
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        working-directory: infra/pipeline/org-sso
         run: |
           echo "🔍 Verifying SSO configuration..."
 
