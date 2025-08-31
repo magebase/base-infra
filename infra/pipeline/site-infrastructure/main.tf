@@ -13,11 +13,11 @@ terraform {
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
-      version = ">= 1.51.0"
+      version = ">= 1.52.0"
     }
     cloudflare = {
       source  = "cloudflare/cloudflare"
-      version = "~> 5.0"
+      version = "~> 4.0"
     }
     aws = {
       source  = "hashicorp/aws"
