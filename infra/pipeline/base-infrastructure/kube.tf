@@ -82,7 +82,7 @@ module "kube-hetzner" {
 
   # These can be customized, or left with the default values
   # * For Hetzner locations see https://docs.hetzner.com/general/others/data-centers-and-connection/
-  network_region = "ap-southeast" # change to `us-east` if location is ash
+  network_region = "eu-central" # change to `us-east` if location is ash
 
   # If you want to create the private network before calling this module,
   # you can do so and pass its id here. For example if you want to use a proxy
@@ -147,9 +147,9 @@ module "kube-hetzner" {
 
   control_plane_nodepools = [
     {
-      name        = "control-plane-sin",
-      server_type = "cpx11",
-      location    = "sin",
+      name        = "control-plane-fsn1",
+      server_type = "cax11",
+      location    = "fsn1",
       labels      = [],
       taints      = [],
       count       = 1
@@ -174,8 +174,8 @@ module "kube-hetzner" {
   agent_nodepools = [
     {
       name        = "agent-small",
-      server_type = "cpx11",
-      location    = "sin",
+      server_type = "cax11",
+      location    = "fsn1",
       labels      = [],
       taints      = [],
       count       = 1
@@ -189,59 +189,59 @@ module "kube-hetzner" {
       # Enable automatic backups via Hetzner (default: false)
       # backups = true
     },
-    {
-      name        = "agent-large",
-      server_type = "cpx21",
-      location    = "sin",
-      labels      = [],
-      taints      = [],
-      count       = 1
+    # {
+    #   name        = "agent-large",
+    #   server_type = "cax21",
+    #   location    = "fsn1",
+    #   labels      = [],
+    #   taints      = [],
+    #   count       = 1
 
-      # Fine-grained control over placement groups (nodes in the same group are spread over different physical servers, 10 nodes per placement group max):
-      # placement_group = "default"
+    #   # Fine-grained control over placement groups (nodes in the same group are spread over different physical servers, 10 nodes per placement group max):
+    #   # placement_group = "default"
 
-      # Enable automatic backups via Hetzner (default: false)
-      # backups = true
-    },
-    {
-      name        = "storage",
-      server_type = "cpx21",
-      location    = "sin",
-      # Fully optional, just a demo.
-      labels = [
-        "node.kubernetes.io/server-usage=storage"
-      ],
-      taints = [],
-      count  = 1
+    #   # Enable automatic backups via Hetzner (default: false)
+    #   # backups = true
+    # },
+    # {
+    #   name        = "storage",
+    #   server_type = "cax21",
+    #   location    = "fsn1",
+    #   # Fully optional, just a demo.
+    #   labels = [
+    #     "node.kubernetes.io/server-usage=storage"
+    #   ],
+    #   taints = [],
+    #   count  = 1
 
-      # In the case of using Longhorn, you can use Hetzner volumes instead of using the node's own storage by specifying a value from 10 to 10240 (in GB)
-      # It will create one volume per node in the nodepool, and configure Longhorn to use them.
-      # Something worth noting is that Volume storage is slower than node storage, which is achieved by not mentioning longhorn_volume_size or setting it to 0.
-      # So for something like DBs, you definitely want node storage, for other things like backups, volume storage is fine, and cheaper.
-      # longhorn_volume_size = 20
+    #   # In the case of using Longhorn, you can use Hetzner volumes instead of using the node's own storage by specifying a value from 10 to 10240 (in GB)
+    #   # It will create one volume per node in the nodepool, and configure Longhorn to use them.
+    #   # Something worth noting is that Volume storage is slower than node storage, which is achieved by not mentioning longhorn_volume_size or setting it to 0.
+    #   # So for something like DBs, you definitely want node storage, for other things like backups, volume storage is fine, and cheaper.
+    #   # longhorn_volume_size = 20
 
-      # Enable automatic backups via Hetzner (default: false)
-      # backups = true
-    },
-    # Egress nodepool useful to route egress traffic using Hetzner Floating IPs (https://docs.hetzner.com/cloud/floating-ips)
-    # used with Cilium's Egress Gateway feature https://docs.cilium.io/en/stable/gettingstarted/egress-gateway/
-    # See the https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner#examples for an example use case.
-    {
-      name        = "egress",
-      server_type = "cpx11",
-      location    = "sin",
-      labels = [
-        "node.kubernetes.io/role=egress"
-      ],
-      taints = [
-        "node.kubernetes.io/role=egress:NoSchedule"
-      ],
-      floating_ip = true
-      # Optionally associate a reverse DNS entry with the floating IP(s).
-      # This is useful in combination with the Egress Gateway feature for hosting certain services in the cluster, such as email servers.
-      # floating_ip_rns = "my.domain.com"
-      count = 1
-    }
+    #   # Enable automatic backups via Hetzner (default: false)
+    #   # backups = true
+    # },
+    # # Egress nodepool useful to route egress traffic using Hetzner Floating IPs (https://docs.hetzner.com/cloud/floating-ips)
+    # # used with Cilium's Egress Gateway feature https://docs.cilium.io/en/stable/gettingstarted/egress-gateway/
+    # # See the https://github.com/kube-hetzner/terraform-hcloud-kube-hetzner#examples for an example use case.
+    # {
+    #   name        = "egress",
+    #   server_type = "cax11",
+    #   location    = "fsn1",
+    #   labels = [
+    #     "node.kubernetes.io/role=egress"
+    #   ],
+    #   taints = [
+    #     "node.kubernetes.io/role=egress:NoSchedule"
+    #   ],
+    #   floating_ip = true
+    #   # Optionally associate a reverse DNS entry with the floating IP(s).
+    #   # This is useful in combination with the Egress Gateway feature for hosting certain services in the cluster, such as email servers.
+    #   # floating_ip_rns = "my.domain.com"
+    #   count = 1
+    # }
   ]
   # Add additional configuration options for control planes here.
   # E.g to enable monitoring for etcd, proxy etc:
@@ -267,7 +267,7 @@ module "kube-hetzner" {
 
   # * LB location and type, the latter will depend on how much load you want it to handle, see https://www.hetzner.com/cloud/load-balancer
   load_balancer_type     = "lb11"
-  load_balancer_location = "sin"
+  load_balancer_location = "fsn1"
 
   # Disable IPv6 for the load balancer, the default is false.
   # load_balancer_disable_ipv6 = true
