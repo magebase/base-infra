@@ -68,7 +68,7 @@ jobs:
   # ===== TERRAFORM STATE BACKEND BOOTSTRAP (MUST RUN FIRST) =====
   bootstrap:
     name: "Terraform State Backend Bootstrap"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       id-token: write
       contents: read
@@ -302,7 +302,7 @@ jobs:
   # ===== AWS ORGANIZATIONS & SSO SETUP =====
   sso-setup:
     name: "AWS Organizations & SSO Setup"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [bootstrap]
     permissions:
       id-token: write
@@ -678,7 +678,7 @@ jobs:
   # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON BOOTSTRAP & SSO) =====
   base-infrastructure-deploy:
     name: "Base Infrastructure Deployment (k3s Cluster)"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [sso-setup, bootstrap]
     permissions:
       id-token: write
@@ -974,7 +974,7 @@ jobs:
   # ===== VALIDATION & TESTING =====
   validate:
     name: Validate Infrastructure
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [bootstrap, sso-setup, base-infrastructure-deploy]
     permissions:
       id-token: write
@@ -1264,7 +1264,7 @@ jobs:
 
   test-terraform:
     name: Test Terraform Configuration
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: validate
 
     steps:
@@ -1361,7 +1361,7 @@ jobs:
 
   security-scan:
     name: Security and Compliance Scan
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: validate
 
     steps:
@@ -1384,7 +1384,7 @@ jobs:
 
   notify:
     name: Deployment Results
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [sso-setup, bootstrap, validate, test-terraform, security-scan]
     if: always()
 

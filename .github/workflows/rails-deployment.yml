@@ -63,7 +63,7 @@ env:
 jobs:
   test:
     name: Run Comprehensive Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     if: github.event.inputs.skip_tests != true
     services:
       postgres:
@@ -140,7 +140,7 @@ jobs:
 
   lint:
     name: Code Quality & Linting
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: test
     if: success() || github.event.inputs.skip_tests == true
 
@@ -188,7 +188,7 @@ jobs:
 
   security:
     name: Security Audit & Scan
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: lint
     if: success()
 
@@ -217,7 +217,7 @@ jobs:
 
   build:
     name: Build Docker Image
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [lint, security]
     if: success()
     outputs:
@@ -313,7 +313,7 @@ jobs:
 
   security-scan:
     name: Container Security Scan
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build
     if: success()
 
@@ -337,7 +337,7 @@ jobs:
 
   deploy:
     name: Deploy to ArgoCD
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [build, security-scan]
     if: success() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -392,7 +392,7 @@ jobs:
 
   performance-test:
     name: Performance Testing
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: deploy
     if: success() && github.ref == 'refs/heads/main'
 
@@ -410,7 +410,7 @@ jobs:
 
   cleanup:
     name: Cleanup Old Images
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [build, deploy]
     if: success() && needs.build.outputs.new_release_published == 'true'
 
@@ -425,7 +425,7 @@ jobs:
 
   notify:
     name: Deployment Notification
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs:
       [
         test,

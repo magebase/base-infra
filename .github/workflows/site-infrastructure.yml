@@ -55,7 +55,7 @@ env:
 jobs:
   site-infrastructure-deploy:
     name: "Site Infrastructure Deployment"
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       id-token: write
       contents: read
