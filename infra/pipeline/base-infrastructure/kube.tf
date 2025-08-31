@@ -73,7 +73,7 @@ module "kube-hetzner" {
   # ssh_hcloud_key_label = "role=admin"
 
   # If you use SSH agent and have issues with SSH connecting to your nodes, you can increase the number of auth tries (default is 2)
-  # ssh_max_auth_tries = 10
+  ssh_max_auth_tries = 10
 
   # If you want to use an ssh key that is already registered within hetzner cloud, you can pass its id.
   # If no id is passed, a new ssh key will be registered within hetzner cloud.
@@ -921,7 +921,7 @@ module "kube-hetzner" {
   # create_kubeconfig = false
 
   # Don't create the kustomize backup. This can be helpful for automation.
-  # create_kustomization = false
+  create_kustomization = false
 
   # Export the values.yaml files used for the deployment of traefik, longhorn, cert-manager, etc.
   # This can be helpful to use them for later deployments like with ArgoCD.
