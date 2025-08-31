@@ -121,7 +121,7 @@ jobs:
         id: oidc-auth
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ steps.get-bootstrap-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          role-to-assume: arn:aws:iam::${{ steps.get-bootstrap-account.outputs.account_id }}:role/GitHubActionsSSORole
           aws-region: ${{ env.INFRA_REGION }}
         continue-on-error: true
 
@@ -365,14 +365,14 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSSORole
           aws-region: ${{ env.AWS_REGION }}
         timeout-minutes: 5
 
       - name: Configure AWS Credentials for SSO Region
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSSORole
           aws-region: ${{ env.SSO_REGION }}
           role-session-name: SSOConfig
         timeout-minutes: 5
