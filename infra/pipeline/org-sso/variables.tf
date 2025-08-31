@@ -15,13 +15,15 @@ variable "region" {
 }
 
 variable "development_account_id" {
-  description = "AWS Account ID for the development account"
+  description = "AWS Account ID for the development account (leave empty to create new account)"
   type        = string
+  default     = ""
 }
 
 variable "production_account_id" {
-  description = "AWS Account ID for the production account"
+  description = "AWS Account ID for the production account (leave empty to create new account)"
   type        = string
+  default     = ""
 }
 
 variable "tags" {

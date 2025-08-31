@@ -18,8 +18,22 @@ provider "aws" {
   skip_credentials_validation = true
 }
 
-# Create Development Account
+# Import existing Development Account
+data "aws_organizations_account" "development" {
+  count = var.development_account_id != "" ? 1 : 0
+  id    = var.development_account_id
+}
+
+# Import existing Production Account
+data "aws_organizations_account" "production" {
+  count = var.production_account_id != "" ? 1 : 0
+  id    = var.production_account_id
+}
+
+# Create Development Account (only if not importing)
 resource "aws_organizations_account" "development" {
+  count = var.development_account_id == "" ? 1 : 0
+
   name      = "Magebase Development"
   email     = var.development_email
   role_name = "OrganizationAccountAccessRole"
@@ -33,8 +47,10 @@ resource "aws_organizations_account" "development" {
   }
 }
 
-# Create Production Account
+# Create Production Account (only if not importing)
 resource "aws_organizations_account" "production" {
+  count = var.production_account_id == "" ? 1 : 0
+
   name      = "Magebase Production"
   email     = var.production_email
   role_name = "OrganizationAccountAccessRole"
@@ -97,12 +113,12 @@ data "aws_organizations_organization" "main" {}
 # Output the account IDs for use in SSO configuration
 output "development_account_id" {
   description = "AWS Account ID for the development account"
-  value       = aws_organizations_account.development.id
+  value       = var.development_account_id != "" ? var.development_account_id : aws_organizations_account.development[0].id
 }
 
 output "production_account_id" {
   description = "AWS Account ID for the production account"
-  value       = aws_organizations_account.production.id
+  value       = var.production_account_id != "" ? var.production_account_id : aws_organizations_account.production[0].id
 }
 
 # AWS SSO/IAM Identity Center Configuration

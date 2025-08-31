@@ -2,14 +2,14 @@
 # Replace with your actual email addresses for account creation
 # Note: These email addresses must be unique and not already used in AWS Organizations
 
-development_email = "aws-dev-3@magebase.dev"
-production_email  = "aws-prod-3@magebase.dev"
+development_email = "aws-dev-2@magebase.dev"
+production_email  = "aws-prod-2@magebase.dev"
 
 # AWS Region
 region = "us-east-1" # Organizations must be in us-east-1
 
-# Account IDs (will be populated after organizations are created)
-development_account_id = ""
+# Account IDs (populate these with your existing account IDs)
+development_account_id = "308488080915"
 production_account_id  = ""
 
 # Tags for all resources
