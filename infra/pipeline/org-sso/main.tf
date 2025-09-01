@@ -3,10 +3,10 @@ terraform {
 
   # Backend configuration using management account
   backend "s3" {
-    bucket  = "magebase-tf-state-management-ap-southeast-1"
-    key     = "magebase/org-sso/terraform.tfstate"
-    region  = "ap-southeast-1"
-    encrypt = true
+    bucket      = "magebase-tf-state-management-ap-southeast-1"
+    key         = "magebase/org-sso/terraform.tfstate"
+    region      = "ap-southeast-1"
+    encrypt     = true
   }
 
   required_providers {
@@ -817,7 +817,7 @@ output "github_actions_sso_roles" {
     for k, v in {
       development = local.development_account_id
       production  = local.production_account_id
-      } : k => {
+    } : k => {
       arn  = try(aws_iam_role.github_actions_sso[k].arn, try(data.aws_iam_role.github_actions_sso_existing[k].arn, null))
       name = "GitHubActionsSSORole"
     }

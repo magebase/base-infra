@@ -211,7 +211,7 @@ jobs:
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
           terraform init -upgrade \
-            -backend-config="bucket=magebase-tf-state-management" \
+            -backend-config="bucket=magebase-tf-state-management-ap-southeast-1" \
             -backend-config="key=magebase/site-infrastructure/${ENVIRONMENT}/terraform.tfstate"
 
       - name: Terraform Validate

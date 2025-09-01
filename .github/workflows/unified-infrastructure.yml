@@ -140,8 +140,8 @@ jobs:
           echo "🚀 Bootstrapping Terraform state backend..."
 
           # Expected resource names based on bootstrap configuration
-          STATE_BUCKET="magebase-tf-state-management"
-          LOGS_BUCKET="magebase-tf-state-management-log"
+          STATE_BUCKET="magebase-tf-state-management-ap-southeast-1"
+          LOGS_BUCKET="magebase-tf-state-management-log-ap-southeast-1"
           DYNAMODB_TABLE="magebase-terraform-locks-management"
 
           echo "📋 Expected resources:"
@@ -980,7 +980,7 @@ jobs:
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
           terraform init -upgrade \
-            -backend-config="bucket=magebase-tf-state-management" \
+            -backend-config="bucket=${{ needs.bootstrap.outputs.state_bucket }}" \
             -backend-config="key=magebase/base-infrastructure/${ENVIRONMENT}/terraform.tfstate"
 
       - name: Terraform Validate
