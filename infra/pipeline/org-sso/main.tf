@@ -36,7 +36,6 @@ provider "cloudflare" {
 
 # Create Development Account (only if not importing and not already exists)
 resource "aws_organizations_account" "development" {
-  count = local.development_account_exists ? 0 : 1
 
   name      = "Magebase Development"
   email     = var.development_email
@@ -53,7 +52,6 @@ resource "aws_organizations_account" "development" {
 
 # Create Production Account (only if not importing and not already exists)
 resource "aws_organizations_account" "production" {
-  count = local.production_account_exists ? 0 : 1
 
   name      = "Magebase Production"
   email     = var.production_email
