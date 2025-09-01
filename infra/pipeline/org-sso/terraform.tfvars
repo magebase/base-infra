@@ -8,8 +8,8 @@ production_email  = "aws-prod@magebase.dev"
 # AWS Region
 region = "us-east-1" # Organizations must be in us-east-1
 
-# Account IDs (leave empty to auto-detect existing accounts or create new ones)
-development_account_id = ""
+# Account IDs (populate these with your existing account IDs to prevent destruction)
+development_account_id = "077540773988"
 production_account_id  = ""
 
 # Cloudflare Configuration
