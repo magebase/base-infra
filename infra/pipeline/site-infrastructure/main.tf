@@ -8,7 +8,7 @@ terraform {
     key            = "magebase/site-infrastructure/${var.environment}/terraform.tfstate"
     region         = "ap-southeast-1"
     encrypt        = true
-    # dynamodb_table = "magebase-terraform-locks-management"  # Temporarily disabled due to lock issues
+    dynamodb_table = "magebase-terraform-locks-management"
   }
 
   required_providers {
@@ -191,7 +191,7 @@ module "aws_ses" {
 # MinIO Provider for Hetzner Object Storage (recommended approach)
 provider "minio" {
   alias          = "hetzner"
-  minio_server   = var.hetzner_object_storage_endpoint != "" ? var.hetzner_object_storage_endpoint : "fsn1.your-storagebox.de"
+  minio_server   = var.hetzner_object_storage_endpoint != "" ? var.hetzner_object_storage_endpoint : "fsn1.${var.domain_name}"
   minio_user     = var.hetzner_object_storage_access_key
   minio_password = var.hetzner_object_storage_secret_key
   minio_region   = "fsn1"
@@ -207,7 +207,7 @@ provider "aws" {
   skip_metadata_api_check     = true
   skip_region_validation      = true
   endpoints {
-    s3 = var.hetzner_object_storage_endpoint != "" ? "https://${var.hetzner_object_storage_endpoint}" : "https://fsn1.your-storagebox.de"
+    s3 = var.hetzner_object_storage_endpoint != "" ? "https://${var.hetzner_object_storage_endpoint}" : "https://fsn1.${var.domain_name}"
   }
 
 
