@@ -71,17 +71,6 @@ resource "aws_organizations_account" "production" {
 # Reference existing organization (don't create if it exists)
 data "aws_organizations_organization" "main" {}
 
-# Data sources for existing accounts
-data "aws_organizations_account" "development_existing" {
-  count      = var.development_account_id != "" ? 1 : 0
-  account_id = var.development_account_id
-}
-
-data "aws_organizations_account" "production_existing" {
-  count      = var.production_account_id != "" ? 1 : 0
-  account_id = var.production_account_id
-}
-
 # Create Organizational Units (or reference existing ones)
 data "aws_organizations_organizational_units" "existing" {
   parent_id = data.aws_organizations_organization.main.roots[0].id
