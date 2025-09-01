@@ -36,6 +36,7 @@ provider "cloudflare" {
 
 # Create Development Account (only if not importing and not already exists)
 resource "aws_organizations_account" "development" {
+  count = (var.development_account_id == "" && !local.development_account_exists) ? 1 : 0
 
   name      = "Magebase Development"
   email     = var.development_email
@@ -52,6 +53,7 @@ resource "aws_organizations_account" "development" {
 
 # Create Production Account (only if not importing and not already exists)
 resource "aws_organizations_account" "production" {
+  count = (var.production_account_id == "" && !local.production_account_exists) ? 1 : 0
 
   name      = "Magebase Production"
   email     = var.production_email
@@ -77,19 +79,19 @@ data "aws_organizations_organizational_units" "existing" {
 locals {
   existing_ou_names = toset([for ou in data.aws_organizations_organizational_units.existing.children : ou.name])
 
-  development_ou_id = contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : aws_organizations_organizational_unit.development[0].id
-  production_ou_id  = contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : aws_organizations_organizational_unit.production[0].id
+  development_ou_id = contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : (length(aws_organizations_organizational_unit.development) > 0 ? aws_organizations_organizational_unit.development[0].id : "")
+  production_ou_id  = contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : (length(aws_organizations_organizational_unit.production) > 0 ? aws_organizations_organizational_unit.production[0].id : "")
 
   # Check for existing accounts by email
   existing_development_account = [for acc in data.aws_organizations_organization.main.accounts : acc if acc.email == var.development_email]
   existing_production_account  = [for acc in data.aws_organizations_organization.main.accounts : acc if acc.email == var.production_email]
 
-  development_account_exists = length(local.existing_development_account) > 0
-  production_account_exists  = length(local.existing_production_account) > 0
+  development_account_exists = length(local.existing_development_account) > 0 || var.development_account_id != ""
+  production_account_exists  = length(local.existing_production_account) > 0 || var.production_account_id != ""
 
-  # Determine account IDs
-  development_account_id = local.development_account_exists ? local.existing_development_account[0].id : (var.development_account_id != "" ? var.development_account_id : try(aws_organizations_account.development.id, ""))
-  production_account_id  = local.production_account_exists ? local.existing_production_account[0].id : (var.production_account_id != "" ? var.production_account_id : try(aws_organizations_account.production.id, ""))
+  # Determine account IDs - prioritize explicit variables over discovery
+  development_account_id = var.development_account_id != "" ? var.development_account_id : (length(local.existing_development_account) > 0 ? local.existing_development_account[0].id : try(aws_organizations_account.development[0].id, ""))
+  production_account_id  = var.production_account_id != "" ? var.production_account_id : (length(local.existing_production_account) > 0 ? local.existing_production_account[0].id : try(aws_organizations_account.production[0].id, ""))
 }
 
 resource "aws_organizations_organizational_unit" "development" {
