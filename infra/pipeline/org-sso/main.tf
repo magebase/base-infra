@@ -36,8 +36,6 @@ provider "cloudflare" {
 
 # Create Development Account (only if not importing and not already exists)
 resource "aws_organizations_account" "development" {
-  for_each = !local.development_account_exists && var.development_account_id == "" ? { "create" = true } : {}
-
   name      = "Magebase Development"
   email     = var.development_email
   role_name = "OrganizationAccountAccessRole"
@@ -53,8 +51,6 @@ resource "aws_organizations_account" "development" {
 
 # Create Production Account (only if not importing and not already exists)
 resource "aws_organizations_account" "production" {
-  for_each = !local.production_account_exists && var.production_account_id == "" ? { "create" = true } : {}
-
   name      = "Magebase Production"
   email     = var.production_email
   role_name = "OrganizationAccountAccessRole"
