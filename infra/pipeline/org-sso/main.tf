@@ -36,7 +36,7 @@ provider "cloudflare" {
 
 # Create Development Account (only if not importing and not already exists)
 resource "aws_organizations_account" "development" {
-  count = (var.development_account_id == "" && !local.development_account_exists) ? 1 : 0
+  count = var.development_account_id == "" ? 1 : 0
 
   name      = "Magebase Development"
   email     = var.development_email
@@ -53,7 +53,7 @@ resource "aws_organizations_account" "development" {
 
 # Create Production Account (only if not importing and not already exists)
 resource "aws_organizations_account" "production" {
-  count = (var.production_account_id == "" && !local.production_account_exists) ? 1 : 0
+  count = var.production_account_id == "" ? 1 : 0
 
   name      = "Magebase Production"
   email     = var.production_email
@@ -90,8 +90,8 @@ locals {
   production_account_exists  = length(local.existing_production_account) > 0 || var.production_account_id != ""
 
   # Determine account IDs - prioritize explicit variables over discovery
-  development_account_id = var.development_account_id != "" ? var.development_account_id : (length(local.existing_development_account) > 0 ? local.existing_development_account[0].id : try(aws_organizations_account.development[0].id, ""))
-  production_account_id  = var.production_account_id != "" ? var.production_account_id : (length(local.existing_production_account) > 0 ? local.existing_production_account[0].id : try(aws_organizations_account.production[0].id, ""))
+  development_account_id = var.development_account_id != "" ? var.development_account_id : (length(local.existing_development_account) > 0 ? local.existing_development_account[0].id : (length(aws_organizations_account.development) > 0 ? aws_organizations_account.development[0].id : ""))
+  production_account_id  = var.production_account_id != "" ? var.production_account_id : (length(local.existing_production_account) > 0 ? local.existing_production_account[0].id : (length(aws_organizations_account.production) > 0 ? aws_organizations_account.production[0].id : ""))
 }
 
 resource "aws_organizations_organizational_unit" "development" {
