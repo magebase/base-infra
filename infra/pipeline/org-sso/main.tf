@@ -555,6 +555,13 @@ resource "aws_iam_role" "github_actions_sso" {
             "token.actions.githubusercontent.com:sub" = "repo:magebase/site:*"
           }
         }
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::308488080915:role/GitHubActionsSSORole"
+        }
+        Action = "sts:AssumeRole"
       }
     ]
   })
@@ -749,6 +756,53 @@ resource "aws_iam_role_policy" "github_actions_sso_policy_existing" {
 
   lifecycle {
     create_before_destroy = true
+  }
+}
+
+# Update trust policy for existing GitHub Actions SSO Role
+resource "aws_iam_role" "github_actions_sso_existing_update" {
+  for_each = {
+    for k, v in {
+      development = local.development_account_id
+      production  = local.production_account_id
+    } : k => v
+    if try(data.aws_iam_role.github_actions_sso_existing[k], null) != null
+  }
+
+  provider = aws
+  name     = data.aws_iam_role.github_actions_sso_existing[each.key].name
+
+  # Trust policy allowing both GitHub Actions OIDC and cross-account assumption
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = "arn:aws:iam::${each.value}:oidc-provider/token.actions.githubusercontent.com"
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:magebase/site:*"
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::308488080915:role/GitHubActionsSSORole"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  lifecycle {
+    ignore_changes = [tags]
   }
 }
 
