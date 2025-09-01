@@ -2,7 +2,9 @@ name: Site Infrastructure Deployment
 
 # This workflow handles the deployment of site-specific infrastructure resources
 # including SES, Cloudflare DNS/CDN, and Hetzner object storage.
-# It depends on the base infrastructure (k3s cluster) being deployed first.
+# DEPENDENCY: This workflow requires unified-infrastructure to run successfully first.
+# It will automatically trigger after unified-infrastructure completes, or can be run manually
+# after verifying unified-infrastructure has succeeded.
 
 on:
   push:
@@ -93,6 +95,69 @@ jobs:
             exit 1
           fi
           echo "✅ Base infrastructure status confirmed"
+
+      - name: Validate Unified Infrastructure Status
+        run: |
+          echo "🔍 Validating Unified Infrastructure Deployment status..."
+
+          # Check if this was triggered by unified-infrastructure workflow
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            if [ "${{ github.event.workflow_run.conclusion }}" == "success" ]; then
+              echo "✅ Site infrastructure triggered by successful unified infrastructure deployment"
+              echo "🔗 Triggering workflow: ${{ github.event.workflow_run.name }}"
+              echo "📋 Triggering run ID: ${{ github.event.workflow_run.id }}"
+            else
+              echo "❌ Site infrastructure triggered by failed unified infrastructure deployment"
+              echo "🔗 Triggering workflow: ${{ github.event.workflow_run.name }}"
+              echo "📋 Triggering conclusion: ${{ github.event.workflow_run.conclusion }}"
+              exit 1
+            fi
+          else
+            # For manual triggers, check if unified-infrastructure has run recently
+            echo "🔍 Checking for recent unified infrastructure deployment..."
+
+            # Get the latest run of the unified infrastructure workflow
+            LATEST_RUN=$(gh run list --workflow="Unified Infrastructure Deployment" --limit=1 --json conclusion,status,createdAt --jq '.[0]')
+
+            if [ -z "$LATEST_RUN" ]; then
+              echo "❌ No unified infrastructure deployment found"
+              echo "📋 Please run the 'Unified Infrastructure Deployment' workflow first"
+              echo "💡 This ensures all base infrastructure and accounts are properly configured"
+              exit 1
+            fi
+
+            CONCLUSION=$(echo "$LATEST_RUN" | jq -r '.conclusion')
+            STATUS=$(echo "$LATEST_RUN" | jq -r '.status')
+            CREATED_AT=$(echo "$LATEST_RUN" | jq -r '.createdAt')
+
+            echo "📋 Latest unified infrastructure run:"
+            echo "  Status: $STATUS"
+            echo "  Conclusion: $CONCLUSION"
+            echo "  Created: $CREATED_AT"
+
+            if [ "$CONCLUSION" != "success" ]; then
+              echo "❌ Latest unified infrastructure deployment did not succeed"
+              echo "📋 Conclusion: $CONCLUSION"
+              echo "💡 Please ensure the unified infrastructure deployment completes successfully first"
+              exit 1
+            fi
+
+            # Check if the run is recent (within last 24 hours)
+            CREATED_TIMESTAMP=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$CREATED_AT" +%s 2>/dev/null || date -d "$CREATED_AT" +%s)
+            CURRENT_TIMESTAMP=$(date +%s)
+            TIME_DIFF=$((CURRENT_TIMESTAMP - CREATED_TIMESTAMP))
+            MAX_AGE=$((24 * 60 * 60)) # 24 hours in seconds
+
+            if [ $TIME_DIFF -gt $MAX_AGE ]; then
+              echo "⚠️  Latest unified infrastructure deployment is older than 24 hours"
+              echo "📋 Age: $((TIME_DIFF / 3600)) hours"
+              echo "💡 Consider running a fresh unified infrastructure deployment"
+            else
+              echo "✅ Unified infrastructure deployment is recent ($((TIME_DIFF / 3600)) hours old)"
+            fi
+
+            echo "✅ Unified infrastructure validation passed"
+          fi
 
       - name: Get Infrastructure Account ID
         id: get-infra-account

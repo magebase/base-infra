@@ -114,6 +114,27 @@ data "aws_organizations_organizational_unit" "production" {
   parent_id = data.aws_organizations_organization.main.roots[0].id
 }
 
+# Data sources to check for existing IAM roles
+data "aws_iam_role" "github_actions_sso_development" {
+  provider = aws.development
+  name     = "GitHubActionsSSORole"
+}
+
+data "aws_iam_role" "github_actions_sso_production" {
+  provider = aws.production
+  name     = "GitHubActionsSSORole"
+}
+
+data "aws_iam_role" "organization_access_production" {
+  provider = aws.production
+  name     = "OrganizationAccountAccessRole"
+}
+
+data "aws_iam_role" "organization_access_development" {
+  provider = aws.development
+  name     = "OrganizationAccountAccessRole"
+}
+
 # Output the account IDs for use in SSO configuration
 output "development_account_id" {
   description = "AWS Account ID for the development account"
@@ -532,8 +553,9 @@ provider "aws" {
   }
 }
 
-# Create GitHubActionsSSORole in Development Account
+# Create GitHubActionsSSORole in Development Account (only if it doesn't exist)
 resource "aws_iam_role" "github_actions_sso_development" {
+  count = try(data.aws_iam_role.github_actions_sso_development.arn, null) == null ? 1 : 0
   provider = aws.development
   name     = "GitHubActionsSSORole"
 
@@ -565,18 +587,20 @@ resource "aws_iam_role" "github_actions_sso_development" {
   }
 }
 
-# Attach AdministratorAccess policy to GitHubActionsSSORole in Development
+# Attach AdministratorAccess policy to GitHubActionsSSORole in Development (only if role was created)
 resource "aws_iam_role_policy_attachment" "github_actions_sso_development_admin" {
+  count      = try(data.aws_iam_role.github_actions_sso_development.arn, null) == null ? 1 : 0
   provider   = aws.development
-  role       = aws_iam_role.github_actions_sso_development.name
+  role       = aws_iam_role.github_actions_sso_development[0].name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# Add inline policy for cross-account access in Development
+# Add inline policy for cross-account access in Development (only if role was created)
 resource "aws_iam_role_policy" "github_actions_sso_development_cross_account" {
+  count    = try(data.aws_iam_role.github_actions_sso_development.arn, null) == null ? 1 : 0
   provider = aws.development
   name     = "GitHubActionsSSOCrossAccountPolicy"
-  role     = aws_iam_role.github_actions_sso_development.id
+  role     = aws_iam_role.github_actions_sso_development[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -593,8 +617,9 @@ resource "aws_iam_role_policy" "github_actions_sso_development_cross_account" {
   })
 }
 
-# Create GitHubActionsSSORole in Production Account
+# Create GitHubActionsSSORole in Production Account (only if it doesn't exist)
 resource "aws_iam_role" "github_actions_sso_production" {
+  count = try(data.aws_iam_role.github_actions_sso_production.arn, null) == null ? 1 : 0
   provider = aws.production
   name     = "GitHubActionsSSORole"
 
@@ -626,18 +651,20 @@ resource "aws_iam_role" "github_actions_sso_production" {
   }
 }
 
-# Attach AdministratorAccess policy to GitHubActionsSSORole in Production
+# Attach AdministratorAccess policy to GitHubActionsSSORole in Production (only if role was created)
 resource "aws_iam_role_policy_attachment" "github_actions_sso_production_admin" {
+  count      = try(data.aws_iam_role.github_actions_sso_production.arn, null) == null ? 1 : 0
   provider   = aws.production
-  role       = aws_iam_role.github_actions_sso_production.name
+  role       = aws_iam_role.github_actions_sso_production[0].name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# Add inline policy for cross-account access in Production
+# Add inline policy for cross-account access in Production (only if role was created)
 resource "aws_iam_role_policy" "github_actions_sso_production_cross_account" {
+  count    = try(data.aws_iam_role.github_actions_sso_production.arn, null) == null ? 1 : 0
   provider = aws.production
   name     = "GitHubActionsSSOCrossAccountPolicy"
-  role     = aws_iam_role.github_actions_sso_production.id
+  role     = aws_iam_role.github_actions_sso_production[0].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -654,9 +681,9 @@ resource "aws_iam_role_policy" "github_actions_sso_production_cross_account" {
   })
 }
 
-# Create OrganizationAccountAccessRole in Development Account (if it doesn't exist)
+# Create OrganizationAccountAccessRole in Development Account (only if it doesn't exist)
 resource "aws_iam_role" "organization_access_development" {
-  count    = data.aws_caller_identity.current.account_id != local.development_account_id ? 1 : 0
+  count    = try(data.aws_iam_role.organization_access_development.arn, null) == null && data.aws_caller_identity.current.account_id != local.development_account_id ? 1 : 0
   provider = aws.development
   name     = "OrganizationAccountAccessRole"
 
@@ -684,17 +711,17 @@ resource "aws_iam_role" "organization_access_development" {
   }
 }
 
-# Attach AdministratorAccess policy to OrganizationAccountAccessRole in Development
+# Attach AdministratorAccess policy to OrganizationAccountAccessRole in Development (only if role was created)
 resource "aws_iam_role_policy_attachment" "organization_access_development_admin" {
-  count      = data.aws_caller_identity.current.account_id != local.development_account_id ? 1 : 0
+  count      = try(data.aws_iam_role.organization_access_development.arn, null) == null && data.aws_caller_identity.current.account_id != local.development_account_id ? 1 : 0
   provider   = aws.development
   role       = aws_iam_role.organization_access_development[0].name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
-# Create OrganizationAccountAccessRole in Production Account (if it doesn't exist)
+# Create OrganizationAccountAccessRole in Production Account (only if it doesn't exist)
 resource "aws_iam_role" "organization_access_production" {
-  count    = data.aws_caller_identity.current.account_id != local.production_account_id ? 1 : 0
+  count    = try(data.aws_iam_role.organization_access_production.arn, null) == null && data.aws_caller_identity.current.account_id != local.production_account_id ? 1 : 0
   provider = aws.production
   name     = "OrganizationAccountAccessRole"
 
@@ -722,9 +749,9 @@ resource "aws_iam_role" "organization_access_production" {
   }
 }
 
-# Attach AdministratorAccess policy to OrganizationAccountAccessRole in Production
+# Attach AdministratorAccess policy to OrganizationAccountAccessRole in Production (only if role was created)
 resource "aws_iam_role_policy_attachment" "organization_access_production_admin" {
-  count      = data.aws_caller_identity.current.account_id != local.production_account_id ? 1 : 0
+  count      = try(data.aws_iam_role.organization_access_production.arn, null) == null && data.aws_caller_identity.current.account_id != local.production_account_id ? 1 : 0
   provider   = aws.production
   role       = aws_iam_role.organization_access_production[0].name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
@@ -784,10 +811,20 @@ output "sso_start_url" {
 
 output "github_actions_sso_role_development_arn" {
   description = "ARN of the GitHubActionsSSORole in the development account"
-  value       = aws_iam_role.github_actions_sso_development.arn
+  value       = try(aws_iam_role.github_actions_sso_development[0].arn, data.aws_iam_role.github_actions_sso_development.arn)
 }
 
 output "github_actions_sso_role_production_arn" {
   description = "ARN of the GitHubActionsSSORole in the production account"
-  value       = aws_iam_role.github_actions_sso_production.arn
+  value       = try(aws_iam_role.github_actions_sso_production[0].arn, data.aws_iam_role.github_actions_sso_production.arn)
+}
+
+output "organization_access_role_development_arn" {
+  description = "ARN of the OrganizationAccountAccessRole in the development account"
+  value       = try(aws_iam_role.organization_access_development[0].arn, data.aws_iam_role.organization_access_development.arn)
+}
+
+output "organization_access_role_production_arn" {
+  description = "ARN of the OrganizationAccountAccessRole in the production account"
+  value       = try(aws_iam_role.organization_access_production[0].arn, data.aws_iam_role.organization_access_production.arn)
 }
