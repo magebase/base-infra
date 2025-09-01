@@ -749,6 +749,12 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          aws-region: ${{ env.INFRA_REGION }}
+
       - name: Bootstrap Development Account
         id: dev-bootstrap
         env:
@@ -764,21 +770,17 @@ jobs:
           fi
           echo "Using development account: $DEV_ACCOUNT_ID"
 
-          # Configure AWS credentials for development account
-          echo "🔑 Configuring AWS credentials for development account..."
-          aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID" --profile dev-bootstrap
-          aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY" --profile dev-bootstrap
-          aws configure set region ${{ env.INFRA_REGION }} --profile dev-bootstrap
-
           # Assume role into development account
           echo "🔄 Assuming GitHubActionsSSORole in development account..."
           ASSUMED_CREDS=$(aws sts assume-role \
             --role-arn "arn:aws:iam::${DEV_ACCOUNT_ID}:role/GitHubActionsSSORole" \
-            --role-session-name "DevBootstrap" \
-            --profile dev-bootstrap)
+            --role-session-name "dev-bootstrap-${{ github.run_id }}" \
+            --region ${{ env.INFRA_REGION }})
 
           if [ $? -ne 0 ]; then
             echo "❌ Failed to assume role in development account"
+            echo "This might be because the GitHubActionsSSORole doesn't exist in account $DEV_ACCOUNT_ID"
+            echo "or the role doesn't have the correct trust policy."
             exit 1
           fi
 
@@ -825,21 +827,17 @@ jobs:
           fi
           echo "Using production account: $PROD_ACCOUNT_ID"
 
-          # Configure AWS credentials for production account
-          echo "🔑 Configuring AWS credentials for production account..."
-          aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID" --profile prod-bootstrap
-          aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY" --profile prod-bootstrap
-          aws configure set region ${{ env.INFRA_REGION }} --profile prod-bootstrap
-
           # Assume role into production account
           echo "🔄 Assuming GitHubActionsSSORole in production account..."
           ASSUMED_CREDS=$(aws sts assume-role \
             --role-arn "arn:aws:iam::${PROD_ACCOUNT_ID}:role/GitHubActionsSSORole" \
-            --role-session-name "ProdBootstrap" \
-            --profile prod-bootstrap)
+            --role-session-name "prod-bootstrap-${{ github.run_id }}" \
+            --region ${{ env.INFRA_REGION }})
 
           if [ $? -ne 0 ]; then
             echo "❌ Failed to assume role in production account"
+            echo "This might be because the GitHubActionsSSORole doesn't exist in account $PROD_ACCOUNT_ID"
+            echo "or the role doesn't have the correct trust policy."
             exit 1
           fi
 
