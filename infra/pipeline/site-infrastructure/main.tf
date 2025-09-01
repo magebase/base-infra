@@ -8,7 +8,7 @@ terraform {
     key            = "magebase/site-infrastructure/${var.environment}/terraform.tfstate"
     region         = "ap-southeast-1"
     encrypt        = true
-    dynamodb_table = "magebase-terraform-locks-management"
+    # dynamodb_table = "magebase-terraform-locks-management"  # Temporarily disabled due to lock issues
   }
 
   required_providers {
