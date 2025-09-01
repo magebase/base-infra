@@ -7,7 +7,6 @@ terraform {
     bucket      = "magebase-tf-state-bootstrap-dev-ap-southeast-1"
     key         = "magebase/site-infrastructure/dev/terraform.tfstate"
     region      = "ap-southeast-1"
-    use_lockfile = true
     encrypt     = true
   }
 
@@ -153,7 +152,6 @@ data "terraform_remote_state" "org_sso" {
     bucket      = "magebase-tf-state-bootstrap-ap-southeast-1"
     key         = "magebase/org-sso/terraform.tfstate"
     region      = "ap-southeast-1"
-    use_lockfile = true
     encrypt     = true
   }
 }

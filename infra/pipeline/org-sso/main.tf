@@ -6,7 +6,6 @@ terraform {
     bucket      = "magebase-tf-state-bootstrap-ap-southeast-1"
     key         = "magebase/org-sso/terraform.tfstate"
     region      = "ap-southeast-1"
-    use_lockfile = true
     encrypt     = true
   }
 
