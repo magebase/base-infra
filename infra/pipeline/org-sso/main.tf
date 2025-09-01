@@ -3,7 +3,7 @@ terraform {
 
   # Backend configuration using management account
   backend "s3" {
-    bucket      = "magebase-tf-state-management"
+    bucket      = "magebase-tf-state-management-ap-southeast-1"
     key         = "magebase/org-sso/terraform.tfstate"
     region      = "ap-southeast-1"
     encrypt     = true
