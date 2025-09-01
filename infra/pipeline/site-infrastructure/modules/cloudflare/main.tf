@@ -151,20 +151,58 @@ resource "cloudflare_record" "ses_dkim" {
 
 # Data sources to check for existing SES records
 data "cloudflare_record" "ses_spf_existing" {
-  count = var.ses_spf_record != null ? 1 : 0
-  zone_id = data.cloudflare_zone.main.id
-  filter {
-    name = trimsuffix(var.ses_spf_record.name, ".${var.domain_name}")
-    type = var.ses_spf_record.type
-  }
+  count    = var.ses_spf_record != null ? 1 : 0
+  hostname = trimsuffix(var.ses_spf_record.name, ".${var.domain_name}")
+  type     = var.ses_spf_record.type
+  zone_id  = data.cloudflare_zone.main.id
 }
 
 data "cloudflare_record" "ses_mx_existing" {
-  count = var.ses_mx_record != null ? 1 : 0
+  count    = var.ses_mx_record != null ? 1 : 0
+  hostname = trimsuffix(var.ses_mx_record.name, ".${var.domain_name}")
+  type     = var.ses_mx_record.type
+  zone_id  = data.cloudflare_zone.main.id
+}
+
+# SES SPF Record
+resource "cloudflare_record" "ses_spf" {
+  count   = var.ses_spf_record != null && try(data.cloudflare_record.ses_spf_existing[0].id, "") == "" ? 1 : 0
   zone_id = data.cloudflare_zone.main.id
-  filter {
-    name = trimsuffix(var.ses_mx_record.name, ".${var.domain_name}")
-    type = var.ses_mx_record.type
+  name    = trimsuffix(var.ses_spf_record.name, ".${var.domain_name}")
+  content = var.ses_spf_record.content
+  type    = var.ses_spf_record.type
+  ttl     = var.ses_spf_record.ttl
+  proxied = false
+
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes = [
+      name,    # Allow existing records to be preserved
+      content, # Allow existing records to be preserved
+      ttl,
+    ]
+  }
+}
+
+# SES MX Record
+resource "cloudflare_record" "ses_mx" {
+  count    = var.ses_mx_record != null && try(data.cloudflare_record.ses_mx_existing[0].id, "") == "" ? 1 : 0
+  zone_id  = data.cloudflare_zone.main.id
+  name     = trimsuffix(var.ses_mx_record.name, ".${var.domain_name}")
+  content  = var.ses_mx_record.content
+  type     = var.ses_mx_record.type
+  ttl      = var.ses_mx_record.ttl
+  priority = var.ses_mx_record.priority
+  proxied  = false
+
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes = [
+      name,     # Allow existing records to be preserved
+      content,  # Allow existing records to be preserved
+      ttl,
+      priority,
+    ]
   }
 }
 
