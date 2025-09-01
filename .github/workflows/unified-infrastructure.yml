@@ -901,28 +901,16 @@ jobs:
       - name: Get Infrastructure Account ID
         id: get-infra-account
         run: |
-          # Determine which account to use based on environment
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-
-          if [ "${{ needs.sso-setup.result }}" == "success" ]; then
-            if [ "$ENVIRONMENT" == "prod" ] || [ "$ENVIRONMENT" == "uat" ]; then
-              ACCOUNT_ID="${{ needs.sso-setup.outputs.production_account_id }}"
-              echo "Using production account for base infrastructure (environment: $ENVIRONMENT): $ACCOUNT_ID"
-            else
-              ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
-              echo "Using development account for base infrastructure (environment: $ENVIRONMENT): $ACCOUNT_ID"
-            fi
-          else
-            ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-            echo "Using management account for base infrastructure (SSO failed): $ACCOUNT_ID"
-          fi
+          # Use management account for base infrastructure (SSO is commented out)
+          ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+          echo "Using management account for base infrastructure: $ACCOUNT_ID"
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
 
       - name: Configure AWS credentials via OIDC
         id: oidc-auth
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          role-to-assume: arn:aws:iam::${{ steps.get-infra-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.INFRA_REGION }}
         continue-on-error: true
 
