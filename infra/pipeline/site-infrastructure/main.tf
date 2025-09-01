@@ -2,7 +2,7 @@
 terraform {
   required_version = ">= 1.8.0"
 
-    # Temporary local backend for testing - replace with S3 backend once permissions are resolved
+  # Temporary local backend for testing - replace with S3 backend once permissions are resolved
   # backend "s3" {
   #   bucket      = "magebase-tf-state-management-ap-southeast-1"
   #   key         = "magebase/site-infrastructure/dev/terraform.tfstate"
