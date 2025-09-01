@@ -183,8 +183,8 @@ resource "cloudflare_record" "ses_mx" {
   lifecycle {
     create_before_destroy = true
     ignore_changes = [
-      name,     # Allow existing records to be preserved
-      content,  # Allow existing records to be preserved
+      name,    # Allow existing records to be preserved
+      content, # Allow existing records to be preserved
       ttl,
       priority,
     ]
