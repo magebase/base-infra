@@ -878,8 +878,8 @@ jobs:
       id-token: write
       contents: read
       pull-requests: write
-    # Skip if SSO was skipped and we're not doing a full deployment
-    if: (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped') && (needs.bootstrap.result == 'success') && (needs.bootstrap-env-account.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
+    # Skip if we're not doing a full deployment (only depends on bootstrap since SSO jobs are commented out)
+    if: (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
     defaults:
       run:
         working-directory: infra/pipeline/base-infrastructure
@@ -1378,14 +1378,8 @@ jobs:
           echo "## 🚀 Unified Infrastructure Deployment Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # SSO Setup Results
-          if [ "${{ needs.sso-setup.result }}" == "success" ]; then
-            echo "✅ **AWS Organizations & SSO:** Deployed successfully" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ needs.sso-setup.result }}" == "skipped" ]; then
-            echo "⏭️ **AWS Organizations & SSO:** Skipped" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **AWS Organizations & SSO:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
+          # SSO Setup Results (commented out in workflow)
+          echo "⏭️ **AWS Organizations & SSO:** Not configured (job commented out)" >> $GITHUB_STEP_SUMMARY
 
           # Bootstrap Results
           if [ "${{ needs.bootstrap.result }}" == "success" ]; then
@@ -1397,12 +1391,8 @@ jobs:
           # Site Infrastructure Deployment handled by separate workflow
           echo "ℹ️ **Site Infrastructure:** Deployed via separate workflow" >> $GITHUB_STEP_SUMMARY
 
-          # Testing Results
-          if [ "${{ needs.test-terraform.result }}" == "success" ]; then
-            echo "✅ **Terraform Testing:** Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Terraform Testing:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
+          # Testing Results (tests are commented out)
+          echo "⏭️ **Terraform Testing:** Not configured (tests commented out)" >> $GITHUB_STEP_SUMMARY
 
           # Security Scan Results
           if [ "${{ needs.security-scan.result }}" == "success" ]; then
