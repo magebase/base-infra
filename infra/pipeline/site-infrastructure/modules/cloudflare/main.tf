@@ -150,7 +150,7 @@ resource "cloudflare_record" "ses_dkim" {
 }
 
 # Data sources to check for existing SES records
-data "cloudflare_records" "ses_spf_existing" {
+data "cloudflare_record" "ses_spf_existing" {
   count = var.ses_spf_record != null ? 1 : 0
   zone_id = data.cloudflare_zone.main.id
   filter {
@@ -159,7 +159,7 @@ data "cloudflare_records" "ses_spf_existing" {
   }
 }
 
-data "cloudflare_records" "ses_mx_existing" {
+data "cloudflare_record" "ses_mx_existing" {
   count = var.ses_mx_record != null ? 1 : 0
   zone_id = data.cloudflare_zone.main.id
   filter {
