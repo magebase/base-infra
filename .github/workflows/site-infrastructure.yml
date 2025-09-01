@@ -99,35 +99,14 @@ jobs:
       - name: Get Infrastructure Account ID
         id: get-infra-account
         run: |
-          # For site infrastructure, we typically use the development account
-          # This can be overridden based on environment if needed
+          # For site infrastructure, we need to use the management account
+          # because the Terraform state bucket is created there
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
 
-          # Try to get account IDs from triggering workflow outputs first
-          if [ "${{ github.event_name }}" == "workflow_run" ]; then
-            DEV_ACCOUNT_ID="${{ github.event.workflow_run.outputs.development_account_id }}"
-            PROD_ACCOUNT_ID="${{ github.event.workflow_run.outputs.production_account_id }}"
-
-            if [ -n "$DEV_ACCOUNT_ID" ] && [ -n "$PROD_ACCOUNT_ID" ]; then
-              echo "✅ Using account IDs from triggering workflow outputs"
-            else
-              echo "⚠️  Triggering workflow outputs not available, falling back to repository variables"
-              DEV_ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID }}"
-              PROD_ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID }}"
-            fi
-          else
-            # For manual triggers, use repository variables
-            DEV_ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID }}"
-            PROD_ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID }}"
-          fi
-
-          if [ "$ENVIRONMENT" == "prod" ] || [ "$ENVIRONMENT" == "uat" ]; then
-            echo "Using production account for site infrastructure (environment: $ENVIRONMENT)"
-            ACCOUNT_ID="$PROD_ACCOUNT_ID"
-          else
-            echo "Using development account for site infrastructure (environment: $ENVIRONMENT)"
-            ACCOUNT_ID="$DEV_ACCOUNT_ID"
-          fi
+          # Use management account for accessing the shared Terraform state bucket
+          ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+          echo "Using management account for site infrastructure (environment: $ENVIRONMENT)"
+          echo "Account ID: $ACCOUNT_ID"
 
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
           echo "ses_access_key_id=" >> $GITHUB_OUTPUT
