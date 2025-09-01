@@ -121,7 +121,7 @@ jobs:
         id: oidc-auth
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ steps.get-bootstrap-account.outputs.account_id }}:role/GitHubActionsSSORole
+          role-to-assume: arn:aws:iam::${{ steps.get-bootstrap-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.INFRA_REGION }}
         continue-on-error: true
 
@@ -365,14 +365,14 @@ jobs:
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSSORole
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.AWS_REGION }}
         timeout-minutes: 5
 
       - name: Configure AWS Credentials for SSO Region
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/GitHubActionsSSORole
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.SSO_REGION }}
           role-session-name: SSOConfig
         timeout-minutes: 5
@@ -723,17 +723,165 @@ jobs:
 
       #     echo "✅ SSO Terratest completed successfully"
 
+  # ===== ENVIRONMENT ACCOUNT BOOTSTRAP (DEPENDS ON SSO) =====
+  bootstrap-env-account:
+    name: "Environment Account Bootstrap"
+    runs-on: self-hosted
+    needs: sso-setup
+    permissions:
+      id-token: write
+      contents: read
+    # Only run if SSO setup was successful
+    if: needs.sso-setup.result == 'success' && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
+    outputs:
+      dev_bootstrap_complete: ${{ steps.dev-bootstrap.outputs.bootstrap_complete }}
+      prod_bootstrap_complete: ${{ steps.prod-bootstrap.outputs.bootstrap_complete }}
+    defaults:
+      run:
+        working-directory: infra/pipeline/bootstrap-env-account
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Bootstrap Development Account
+        id: dev-bootstrap
+        env:
+          TF_VAR_environment: "dev"
+        run: |
+          echo "🚀 Bootstrapping development account..."
+
+          # Get development account ID from SSO setup
+          DEV_ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
+          if [ -z "$DEV_ACCOUNT_ID" ]; then
+            echo "❌ Development account ID not found from SSO setup"
+            exit 1
+          fi
+          echo "Using development account: $DEV_ACCOUNT_ID"
+
+          # Configure AWS credentials for development account
+          echo "🔑 Configuring AWS credentials for development account..."
+          aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID" --profile dev-bootstrap
+          aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY" --profile dev-bootstrap
+          aws configure set region ${{ env.INFRA_REGION }} --profile dev-bootstrap
+
+          # Assume role into development account
+          echo "🔄 Assuming GitHubActionsSSORole in development account..."
+          ASSUMED_CREDS=$(aws sts assume-role \
+            --role-arn "arn:aws:iam::${DEV_ACCOUNT_ID}:role/GitHubActionsSSORole" \
+            --role-session-name "DevBootstrap" \
+            --profile dev-bootstrap)
+
+          if [ $? -ne 0 ]; then
+            echo "❌ Failed to assume role in development account"
+            exit 1
+          fi
+
+          # Extract temporary credentials
+          export AWS_ACCESS_KEY_ID=$(echo $ASSUMED_CREDS | jq -r '.Credentials.AccessKeyId')
+          export AWS_SECRET_ACCESS_KEY=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SecretAccessKey')
+          export AWS_SESSION_TOKEN=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SessionToken')
+
+          # Initialize Terraform
+          terraform init -upgrade
+
+          # Check if bootstrap resources already exist
+          STATE_BUCKET="magebase-tf-state-bootstrap-dev-${{ env.INFRA_REGION }}"
+          DYNAMODB_TABLE="magebase-terraform-locks-dev"
+
+          echo "🔍 Checking for existing bootstrap resources in development account..."
+          if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+            echo "✅ Development account bootstrap resources already exist"
+            echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️  Creating bootstrap resources for development account..."
+
+            # Apply bootstrap
+            terraform apply -auto-approve \
+              -var="environment=dev" \
+              -var="region=${{ env.INFRA_REGION }}"
+
+            echo "✅ Development account bootstrap completed"
+            echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bootstrap Production Account
+        id: prod-bootstrap
+        env:
+          TF_VAR_environment: "prod"
+        run: |
+          echo "🚀 Bootstrapping production account..."
+
+          # Get production account ID from SSO setup
+          PROD_ACCOUNT_ID="${{ needs.sso-setup.outputs.production_account_id }}"
+          if [ -z "$PROD_ACCOUNT_ID" ]; then
+            echo "❌ Production account ID not found from SSO setup"
+            exit 1
+          fi
+          echo "Using production account: $PROD_ACCOUNT_ID"
+
+          # Configure AWS credentials for production account
+          echo "🔑 Configuring AWS credentials for production account..."
+          aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID" --profile prod-bootstrap
+          aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY" --profile prod-bootstrap
+          aws configure set region ${{ env.INFRA_REGION }} --profile prod-bootstrap
+
+          # Assume role into production account
+          echo "🔄 Assuming GitHubActionsSSORole in production account..."
+          ASSUMED_CREDS=$(aws sts assume-role \
+            --role-arn "arn:aws:iam::${PROD_ACCOUNT_ID}:role/GitHubActionsSSORole" \
+            --role-session-name "ProdBootstrap" \
+            --profile prod-bootstrap)
+
+          if [ $? -ne 0 ]; then
+            echo "❌ Failed to assume role in production account"
+            exit 1
+          fi
+
+          # Extract temporary credentials
+          export AWS_ACCESS_KEY_ID=$(echo $ASSUMED_CREDS | jq -r '.Credentials.AccessKeyId')
+          export AWS_SECRET_ACCESS_KEY=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SecretAccessKey')
+          export AWS_SESSION_TOKEN=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SessionToken')
+
+          # Initialize Terraform
+          terraform init -upgrade
+
+          # Check if bootstrap resources already exist
+          STATE_BUCKET="magebase-tf-state-bootstrap-prod-${{ env.INFRA_REGION }}"
+          DYNAMODB_TABLE="magebase-terraform-locks-prod"
+
+          echo "🔍 Checking for existing bootstrap resources in production account..."
+          if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+            echo "✅ Production account bootstrap resources already exist"
+            echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
+          else
+            echo "ℹ️  Creating bootstrap resources for production account..."
+
+            # Apply bootstrap
+            terraform apply -auto-approve \
+              -var="environment=prod" \
+              -var="region=${{ env.INFRA_REGION }}"
+
+            echo "✅ Production account bootstrap completed"
+            echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
+          fi
+
   # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON BOOTSTRAP & SSO) =====
   base-infrastructure-deploy:
     name: "Base Infrastructure Deployment (k3s Cluster)"
     runs-on: self-hosted
-    needs: [sso-setup, bootstrap]
+    needs: [sso-setup, bootstrap, bootstrap-env-account]
     permissions:
       id-token: write
       contents: read
       pull-requests: write
     # Skip if SSO was skipped and we're not doing a full deployment
-    if: (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped') && (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
+    if: (needs.sso-setup.result == 'success' || needs.sso-setup.result == 'skipped') && (needs.bootstrap.result == 'success') && (needs.bootstrap-env-account.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
     defaults:
       run:
         working-directory: infra/pipeline/base-infrastructure
@@ -845,7 +993,9 @@ jobs:
         id: init
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-          terraform init -upgrade -backend-config="key=magebase/base-infrastructure/${ENVIRONMENT}/terraform.tfstate"
+          terraform init -upgrade \
+            -backend-config="bucket=magebase-tf-state-bootstrap-${ENVIRONMENT}-ap-southeast-1" \
+            -backend-config="key=magebase/base-infrastructure/${ENVIRONMENT}/terraform.tfstate"
 
       - name: Terraform Validate
         id: validate

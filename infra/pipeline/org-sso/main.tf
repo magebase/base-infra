@@ -1,4 +1,15 @@
 terraform {
+  required_version = ">= 1.8.0"
+
+  # Backend configuration using management account bootstrap
+  backend "s3" {
+    bucket      = "magebase-tf-state-bootstrap-ap-southeast-1"
+    key         = "magebase/org-sso/terraform.tfstate"
+    region      = "ap-southeast-1"
+    use_lockfile = true
+    encrypt     = true
+  }
+
   required_providers {
     aws = {
     }
@@ -7,7 +18,6 @@ terraform {
       version = "~> 5.0"
     }
   }
-  required_version = ">= 1.8.0"
 }
 
 # Management Account Provider
@@ -112,27 +122,6 @@ data "aws_organizations_organizational_unit" "production" {
 
   name      = "Production"
   parent_id = data.aws_organizations_organization.main.roots[0].id
-}
-
-# Data sources to check for existing IAM roles
-data "aws_iam_role" "github_actions_sso_development" {
-  provider = aws.development
-  name     = "GitHubActionsSSORole"
-}
-
-data "aws_iam_role" "github_actions_sso_production" {
-  provider = aws.production
-  name     = "GitHubActionsSSORole"
-}
-
-data "aws_iam_role" "organization_access_production" {
-  provider = aws.production
-  name     = "OrganizationAccountAccessRole"
-}
-
-data "aws_iam_role" "organization_access_development" {
-  provider = aws.development
-  name     = "OrganizationAccountAccessRole"
 }
 
 # Output the account IDs for use in SSO configuration
@@ -525,47 +514,24 @@ resource "aws_ssoadmin_account_assignment" "main" {
   depends_on = [aws_identitystore_group.main]
 }
 
-# Development Account Provider
-provider "aws" {
-  alias  = "development"
-  region = var.region
-
-  # Only assume role if we're not already in the development account
-  dynamic "assume_role" {
-    for_each = data.aws_caller_identity.current.account_id != local.development_account_id ? [1] : []
-    content {
-      role_arn = "arn:aws:iam::${local.development_account_id}:role/OrganizationAccountAccessRole"
-    }
+# GitHub Actions SSO Role for CI/CD Pipeline
+resource "aws_iam_role" "github_actions_sso" {
+  for_each = {
+    development = local.development_account_id
+    production  = local.production_account_id
   }
-}
 
-# Production Account Provider
-provider "aws" {
-  alias  = "production"
-  region = var.region
-
-  # Only assume role if we're not already in the production account
-  dynamic "assume_role" {
-    for_each = data.aws_caller_identity.current.account_id != local.production_account_id ? [1] : []
-    content {
-      role_arn = "arn:aws:iam::${local.production_account_id}:role/OrganizationAccountAccessRole"
-    }
-  }
-}
-
-# Create GitHubActionsSSORole in Development Account (only if it doesn't exist)
-resource "aws_iam_role" "github_actions_sso_development" {
-  count = try(data.aws_iam_role.github_actions_sso_development.arn, null) == null ? 1 : 0
-  provider = aws.development
+  provider = aws
   name     = "GitHubActionsSSORole"
 
+  # Trust policy allowing GitHub Actions OIDC provider to assume this role
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
         Effect = "Allow"
         Principal = {
-          Federated = "arn:aws:iam::${local.development_account_id}:oidc-provider/token.actions.githubusercontent.com"
+          Federated = "arn:aws:iam::${each.value}:oidc-provider/token.actions.githubusercontent.com"
         }
         Action = "sts:AssumeRoleWithWebIdentity"
         Condition = {
@@ -573,7 +539,7 @@ resource "aws_iam_role" "github_actions_sso_development" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:magebase/*"
+            "token.actions.githubusercontent.com:sub" = "repo:magebase/site:*"
           }
         }
       }
@@ -581,180 +547,102 @@ resource "aws_iam_role" "github_actions_sso_development" {
   })
 
   tags = {
-    Environment = "Development"
+    Environment = each.key
     Purpose     = "GitHub Actions CI/CD"
     ManagedBy   = "terraform"
   }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
-# Attach AdministratorAccess policy to GitHubActionsSSORole in Development (only if role was created)
-resource "aws_iam_role_policy_attachment" "github_actions_sso_development_admin" {
-  count      = try(data.aws_iam_role.github_actions_sso_development.arn, null) == null ? 1 : 0
-  provider   = aws.development
-  role       = aws_iam_role.github_actions_sso_development[0].name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-}
+# IAM Policy for GitHub Actions SSO Role
+resource "aws_iam_role_policy" "github_actions_sso_policy" {
+  for_each = aws_iam_role.github_actions_sso
 
-# Add inline policy for cross-account access in Development (only if role was created)
-resource "aws_iam_role_policy" "github_actions_sso_development_cross_account" {
-  count    = try(data.aws_iam_role.github_actions_sso_development.arn, null) == null ? 1 : 0
-  provider = aws.development
-  name     = "GitHubActionsSSOCrossAccountPolicy"
-  role     = aws_iam_role.github_actions_sso_development[0].id
+  provider = aws
+  name     = "GitHubActionsSSOPolicy"
+  role     = each.value.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # Administrative access for infrastructure management
       {
         Effect = "Allow"
-        Action = "sts:AssumeRole"
-        Resource = [
-          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/OrganizationAccountAccessRole",
-          "arn:aws:iam::${local.production_account_id}:role/OrganizationAccountAccessRole"
+        Action = [
+          "iam:*",
+          "organizations:*",
+          "sso:*",
+          "sso-admin:*",
+          "identitystore:*"
         ]
-      }
-    ]
-  })
-}
-
-# Create GitHubActionsSSORole in Production Account (only if it doesn't exist)
-resource "aws_iam_role" "github_actions_sso_production" {
-  count = try(data.aws_iam_role.github_actions_sso_production.arn, null) == null ? 1 : 0
-  provider = aws.production
-  name     = "GitHubActionsSSORole"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
+        Resource = "*"
+      },
+      # Cross-account role assumption
       {
         Effect = "Allow"
-        Principal = {
-          Federated = "arn:aws:iam::${local.production_account_id}:oidc-provider/token.actions.githubusercontent.com"
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:magebase/*"
-          }
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Environment = "Production"
-    Purpose     = "GitHub Actions CI/CD"
-    ManagedBy   = "terraform"
-  }
-}
-
-# Attach AdministratorAccess policy to GitHubActionsSSORole in Production (only if role was created)
-resource "aws_iam_role_policy_attachment" "github_actions_sso_production_admin" {
-  count      = try(data.aws_iam_role.github_actions_sso_production.arn, null) == null ? 1 : 0
-  provider   = aws.production
-  role       = aws_iam_role.github_actions_sso_production[0].name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-}
-
-# Add inline policy for cross-account access in Production (only if role was created)
-resource "aws_iam_role_policy" "github_actions_sso_production_cross_account" {
-  count    = try(data.aws_iam_role.github_actions_sso_production.arn, null) == null ? 1 : 0
-  provider = aws.production
-  name     = "GitHubActionsSSOCrossAccountPolicy"
-  role     = aws_iam_role.github_actions_sso_production[0].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = "sts:AssumeRole"
-        Resource = [
-          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/OrganizationAccountAccessRole",
-          "arn:aws:iam::${local.development_account_id}:role/OrganizationAccountAccessRole"
+        Action = [
+          "sts:AssumeRole"
         ]
-      }
-    ]
-  })
-}
-
-# Create OrganizationAccountAccessRole in Development Account (only if it doesn't exist)
-resource "aws_iam_role" "organization_access_development" {
-  count    = try(data.aws_iam_role.organization_access_development.arn, null) == null && data.aws_caller_identity.current.account_id != local.development_account_id ? 1 : 0
-  provider = aws.development
-  name     = "OrganizationAccountAccessRole"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
+        Resource = [
+          "arn:aws:iam::*:role/OrganizationAccountAccessRole",
+          "arn:aws:iam::*:role/InfrastructureDeploymentRole",
+          "arn:aws:iam::*:role/SESManagerRole"
+        ]
+      },
+      # S3 access for Terraform state
       {
         Effect = "Allow"
-        Principal = {
-          AWS = [
-            "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root",
-            "arn:aws:iam::${local.development_account_id}:role/GitHubActionsSSORole",
-            "arn:aws:iam::${local.production_account_id}:role/GitHubActionsSSORole"
-          ]
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = {
-    Environment = "Development"
-    Purpose     = "AWS Organizations Access"
-    ManagedBy   = "terraform"
-  }
-}
-
-# Attach AdministratorAccess policy to OrganizationAccountAccessRole in Development (only if role was created)
-resource "aws_iam_role_policy_attachment" "organization_access_development_admin" {
-  count      = try(data.aws_iam_role.organization_access_development.arn, null) == null && data.aws_caller_identity.current.account_id != local.development_account_id ? 1 : 0
-  provider   = aws.development
-  role       = aws_iam_role.organization_access_development[0].name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-}
-
-# Create OrganizationAccountAccessRole in Production Account (only if it doesn't exist)
-resource "aws_iam_role" "organization_access_production" {
-  count    = try(data.aws_iam_role.organization_access_production.arn, null) == null && data.aws_caller_identity.current.account_id != local.production_account_id ? 1 : 0
-  provider = aws.production
-  name     = "OrganizationAccountAccessRole"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
+        Action = [
+          "s3:*"
+        ]
+        Resource = [
+          "arn:aws:s3:::magebase-tf-state-*",
+          "arn:aws:s3:::magebase-tf-state-*/*"
+        ]
+      },
+      # DynamoDB access for state locking
       {
         Effect = "Allow"
-        Principal = {
-          AWS = [
-            "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root",
-            "arn:aws:iam::${local.development_account_id}:role/GitHubActionsSSORole",
-            "arn:aws:iam::${local.production_account_id}:role/GitHubActionsSSORole"
-          ]
-        }
-        Action = "sts:AssumeRole"
+        Action = [
+          "dynamodb:*"
+        ]
+        Resource = "arn:aws:dynamodb:*:*:table/magebase-terraform-locks*"
+      },
+      # CloudWatch for monitoring
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:*",
+          "logs:*"
+        ]
+        Resource = "*"
+      },
+      # EC2 for infrastructure management
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:*",
+          "elasticloadbalancing:*"
+        ]
+        Resource = "*"
+      },
+      # Route53 for DNS management
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:*"
+        ]
+        Resource = "*"
       }
     ]
   })
 
-  tags = {
-    Environment = "Production"
-    Purpose     = "AWS Organizations Access"
-    ManagedBy   = "terraform"
+  lifecycle {
+    create_before_destroy = true
   }
-}
-
-# Attach AdministratorAccess policy to OrganizationAccountAccessRole in Production (only if role was created)
-resource "aws_iam_role_policy_attachment" "organization_access_production_admin" {
-  count      = try(data.aws_iam_role.organization_access_production.arn, null) == null && data.aws_caller_identity.current.account_id != local.production_account_id ? 1 : 0
-  provider   = aws.production
-  role       = aws_iam_role.organization_access_production[0].name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
 # Outputs
@@ -809,22 +697,13 @@ output "sso_start_url" {
   value       = local.sso_enabled ? "https://${local.identity_store_id}.awsapps.com/start" : null
 }
 
-output "github_actions_sso_role_development_arn" {
-  description = "ARN of the GitHubActionsSSORole in the development account"
-  value       = try(aws_iam_role.github_actions_sso_development[0].arn, data.aws_iam_role.github_actions_sso_development.arn)
-}
-
-output "github_actions_sso_role_production_arn" {
-  description = "ARN of the GitHubActionsSSORole in the production account"
-  value       = try(aws_iam_role.github_actions_sso_production[0].arn, data.aws_iam_role.github_actions_sso_production.arn)
-}
-
-output "organization_access_role_development_arn" {
-  description = "ARN of the OrganizationAccountAccessRole in the development account"
-  value       = try(aws_iam_role.organization_access_development[0].arn, data.aws_iam_role.organization_access_development.arn)
-}
-
-output "organization_access_role_production_arn" {
-  description = "ARN of the OrganizationAccountAccessRole in the production account"
-  value       = try(aws_iam_role.organization_access_production[0].arn, data.aws_iam_role.organization_access_production.arn)
+output "github_actions_sso_roles" {
+  description = "GitHub Actions SSO roles created in each account"
+  value = {
+    for k, v in aws_iam_role.github_actions_sso :
+    k => {
+      arn  = v.arn
+      name = v.name
+    }
+  }
 }

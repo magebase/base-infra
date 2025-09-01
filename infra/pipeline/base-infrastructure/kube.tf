@@ -2,12 +2,13 @@
 terraform {
   required_version = ">= 1.8.0"
 
-  # Backend configuration using S3 bucket created by bootstrap
+  # Backend configuration using environment-specific S3 bucket created by bootstrap-env-account
   backend "s3" {
-    bucket         = "magebase-tf-state-bootstrap-ap-southeast-1"
-    region         = "ap-southeast-1"
-    dynamodb_table = "magebase-terraform-locks-bootstrap"
-    encrypt        = true
+    bucket      = "magebase-tf-state-bootstrap-dev-ap-southeast-1"
+    key         = "magebase/base-infrastructure/dev/terraform.tfstate"
+    region      = "ap-southeast-1"
+    use_lockfile = true
+    encrypt     = true
   }
 
   required_providers {

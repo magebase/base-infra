@@ -2,12 +2,13 @@
 terraform {
   required_version = ">= 1.8.0"
 
-  # Backend configuration using S3 bucket created by bootstrap in current account
+    # Backend configuration using environment-specific S3 bucket created by bootstrap-env-account
   backend "s3" {
-    bucket         = "magebase-tf-state-ap-southeast-1"
-    region         = "ap-southeast-1"
-    dynamodb_table = "magebase-terraform-locks"
-    encrypt        = true
+    bucket      = "magebase-tf-state-bootstrap-dev-ap-southeast-1"
+    key         = "magebase/site-infrastructure/dev/terraform.tfstate"
+    region      = "ap-southeast-1"
+    use_lockfile = true
+    encrypt     = true
   }
 
   required_providers {
@@ -41,13 +42,13 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
-# AWS Provider (for Route53 operations) - assumes GitHubActionsSSORole from current account
+# AWS Provider (for Route53 operations) - assumes the respective account's GitHubActionsSSORole
 provider "aws" {
   alias  = "route53"
   region = "us-east-1" # Route53 is a global service, but provider needs a region
 
   assume_role {
-    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
+    role_arn = local.github_actions_role_arn
   }
 }
 
@@ -62,7 +63,10 @@ resource "aws_iam_role" "ses_manager" {
       {
         Effect = "Allow"
         Principal = {
-          AWS = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
+          AWS = [
+            "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole",
+            "arn:aws:sts::${var.aws_ses_account_id}:assumed-role/GitHubActionsSSORole/*"
+          ]
         }
         Action = "sts:AssumeRole"
       }
@@ -120,13 +124,13 @@ resource "aws_iam_role_policy" "ses_manager_policy" {
   }
 }
 
-# AWS Provider (for SES only) - now uses the role created above
+# AWS Provider (for SES only) - now uses the respective account's GitHubActionsSSORole
 provider "aws" {
   alias  = "ses"
   region = "ap-southeast-1" # Singapore region for SES
 
   assume_role {
-    role_arn = aws_iam_role.ses_manager.arn
+    role_arn = local.github_actions_role_arn
   }
 }
 
@@ -134,11 +138,23 @@ provider "aws" {
 data "terraform_remote_state" "base_infrastructure" {
   backend = "s3"
   config = {
-    bucket         = "magebase-tf-state-ap-southeast-1"
+    bucket         = "magebase-tf-state-bootstrap-ap-southeast-1"
     key            = "magebase/base-infrastructure/${var.environment}/terraform.tfstate"
     region         = "ap-southeast-1"
-    dynamodb_table = "magebase-terraform-locks"
+    dynamodb_table = "magebase-terraform-locks-bootstrap"
     encrypt        = true
+  }
+}
+
+# Data source for org-sso remote state to get GitHubActionsSSORole ARN
+data "terraform_remote_state" "org_sso" {
+  backend = "s3"
+  config = {
+    bucket      = "magebase-tf-state-bootstrap-ap-southeast-1"
+    key         = "magebase/org-sso/terraform.tfstate"
+    region      = "ap-southeast-1"
+    use_lockfile = true
+    encrypt     = true
   }
 }
 
@@ -147,6 +163,12 @@ locals {
   cluster_name        = "${var.environment}-magebase"
   singapore_locations = ["sin"] # Singapore location
   location            = "fsn1"  # Falkenstein for all environments
+  account_type        = var.environment == "prod" ? "production" : "development"
+  github_actions_role_arn = lookup(
+    data.terraform_remote_state.org_sso.outputs.github_actions_sso_roles,
+    local.account_type,
+    ""
+  ).arn
 }
 
 # Cloudflare DNS Configuration
@@ -213,6 +235,10 @@ provider "aws" {
   endpoints {
     s3 = var.hetzner_object_storage_endpoint != "" ? "https://${var.hetzner_object_storage_endpoint}" : "https://fsn1.${var.domain_name}"
   }
+
+  assume_role {
+    role_arn = local.github_actions_role_arn
+  }
 }
 
 # Hetzner Object Storage Configuration
@@ -250,28 +276,6 @@ output "hetzner_object_storage_endpoint" {
 output "active_storage_cdn_url" {
   value       = "https://cdn.${var.domain_name}"
   description = "Cloudflare CDN URL for Active Storage files"
-}
-
-# Bootstrap setup for the current account (where site-infrastructure is running)
-module "bootstrap_current_account" {
-  source  = "../bootstrap"
-
-  region        = "ap-southeast-1"
-  account_alias = "${var.environment}-magebase"
-
-  # Enable additional security features
-  create_account_alias = true
-}
-
-# Outputs for bootstrap resources
-output "site_state_bucket" {
-  description = "Name of the S3 bucket for site infrastructure Terraform state"
-  value       = "magebase-tf-state-ap-southeast-1"
-}
-
-output "site_dynamodb_table" {
-  description = "Name of the DynamoDB table for site infrastructure Terraform state locking"
-  value       = "magebase-terraform-locks"
 }
 
 # AWS Organization Outputs (moved to separate org-sso step)
