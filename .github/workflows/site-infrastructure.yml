@@ -326,18 +326,18 @@ jobs:
         run: |
           echo "🚀 Applying site infrastructure changes..."
 
-          # Check if tfplan exists, if not create it
-          if [ ! -f "tfplan" ]; then
-            echo "📋 No tfplan file found, creating plan first..."
-            terraform plan -no-color -out=tfplan
-          fi
-
           # Retry logic for state lock conflicts
           MAX_RETRIES=3
           RETRY_COUNT=0
 
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "📋 Apply attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+
+            # Always regenerate plan on retry to avoid stale plan issues
+            if [ $RETRY_COUNT -gt 0 ]; then
+              echo "🔄 Regenerating plan for retry attempt..."
+              terraform plan -no-color -out=tfplan
+            fi
 
             if terraform apply -auto-approve tfplan; then
               echo "✅ Site infrastructure apply completed successfully"

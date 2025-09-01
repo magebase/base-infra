@@ -149,9 +149,28 @@ resource "cloudflare_record" "ses_dkim" {
   proxied = false
 }
 
-# SES SPF Record
+# Get all DNS records to check for existing SES records
+data "cloudflare_records" "existing" {
+  zone_id = data.cloudflare_zone.main.id
+}
+
+locals {
+  # Check if SES SPF record already exists
+  ses_spf_exists = var.ses_spf_record != null ? anytrue([
+    for record in data.cloudflare_records.existing.records :
+    record.name == var.ses_spf_record.name && record.type == var.ses_spf_record.type
+  ]) : false
+
+  # Check if SES MX record already exists
+  ses_mx_exists = var.ses_mx_record != null ? anytrue([
+    for record in data.cloudflare_records.existing.records :
+    record.name == var.ses_mx_record.name && record.type == var.ses_mx_record.type
+  ]) : false
+}
+
+# SES SPF Record - only create if it doesn't exist
 resource "cloudflare_record" "ses_spf" {
-  count   = var.ses_spf_record != null ? 1 : 0
+  count   = var.ses_spf_record != null && !local.ses_spf_exists ? 1 : 0
   zone_id = data.cloudflare_zone.main.id
   name    = trimsuffix(var.ses_spf_record.name, ".${var.domain_name}")
   content = var.ses_spf_record.content
@@ -160,9 +179,9 @@ resource "cloudflare_record" "ses_spf" {
   proxied = false
 }
 
-# SES MX Record
+# SES MX Record - only create if it doesn't exist
 resource "cloudflare_record" "ses_mx" {
-  count    = var.ses_mx_record != null ? 1 : 0
+  count    = var.ses_mx_record != null && !local.ses_mx_exists ? 1 : 0
   zone_id  = data.cloudflare_zone.main.id
   name     = trimsuffix(var.ses_mx_record.name, ".${var.domain_name}")
   content  = var.ses_mx_record.content

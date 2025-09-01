@@ -16,6 +16,12 @@ terraform {
 }
 
 locals {
+  cluster_name = var.cluster_name
+  # Use custom endpoint if provided, otherwise use default Hetzner Object Storage endpoint
+  object_storage_endpoint = var.hetzner_object_storage_endpoint != "" ? "https://${var.hetzner_object_storage_endpoint}" : "https://fsn1.your-storagebox.de"
+}
+
+locals {
   cluster_name            = var.cluster_name
   object_storage_endpoint = var.hetzner_object_storage_endpoint != "" ? "https://${var.hetzner_object_storage_endpoint}" : "https://${var.location}.${var.domain_name}"
 }
