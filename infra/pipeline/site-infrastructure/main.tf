@@ -2,14 +2,13 @@
 terraform {
   required_version = ">= 1.8.0"
 
-  # Temporary local backend for testing - replace with S3 backend once permissions are resolved
-  # backend "s3" {
-  #   bucket      = "magebase-tf-state-management-ap-southeast-1"
-  #   key         = "magebase/site-infrastructure/dev/terraform.tfstate"
-  #   region      = "ap-southeast-1"
-  #   encrypt     = true
-  #   dynamodb_table = "magebase-terraform-locks-management"
-  # }
+  backend "s3" {
+    bucket         = "magebase-tf-state-management-ap-southeast-1"
+    key            = "magebase/site-infrastructure/dev/terraform.tfstate"
+    region         = "ap-southeast-1"
+    encrypt        = true
+    dynamodb_table = "magebase-terraform-locks-management"
+  }
 
   required_providers {
     hcloud = {
