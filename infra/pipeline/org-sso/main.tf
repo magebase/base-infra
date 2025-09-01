@@ -36,6 +36,7 @@ provider "cloudflare" {
 
 # Create Development Account (only if not importing and not already exists)
 resource "aws_organizations_account" "development" {
+  count = local.development_account_exists ? 0 : 1
 
   name      = "Magebase Development"
   email     = var.development_email
@@ -52,6 +53,7 @@ resource "aws_organizations_account" "development" {
 
 # Create Production Account (only if not importing and not already exists)
 resource "aws_organizations_account" "production" {
+  count = local.production_account_exists ? 0 : 1
 
   name      = "Magebase Production"
   email     = var.production_email
@@ -88,8 +90,8 @@ locals {
   production_account_exists  = length(local.existing_production_account) > 0
 
   # Determine account IDs
-  development_account_id = local.development_account_exists ? local.existing_development_account[0].id : (var.development_account_id != "" ? var.development_account_id : try(aws_organizations_account.development.id, ""))
-  production_account_id  = local.production_account_exists ? local.existing_production_account[0].id : (var.production_account_id != "" ? var.production_account_id : try(aws_organizations_account.production.id, ""))
+  development_account_id = local.development_account_exists ? local.existing_development_account[0].id : (var.development_account_id != "" ? var.development_account_id : try(aws_organizations_account.development[0].id, ""))
+  production_account_id  = local.production_account_exists ? local.existing_production_account[0].id : (var.production_account_id != "" ? var.production_account_id : try(aws_organizations_account.production[0].id, ""))
 }
 
 resource "aws_organizations_organizational_unit" "development" {
