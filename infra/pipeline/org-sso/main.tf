@@ -513,11 +513,25 @@ resource "aws_ssoadmin_account_assignment" "main" {
   depends_on = [aws_identitystore_group.main]
 }
 
-# GitHub Actions SSO Role for CI/CD Pipeline
-resource "aws_iam_role" "github_actions_sso" {
+# Data source to check if GitHubActionsSSORole exists
+data "aws_iam_role" "github_actions_sso_existing" {
   for_each = {
     development = local.development_account_id
     production  = local.production_account_id
+  }
+
+  provider = aws
+  name     = "GitHubActionsSSORole"
+}
+
+# GitHub Actions SSO Role for CI/CD Pipeline
+resource "aws_iam_role" "github_actions_sso" {
+  for_each = {
+    for k, v in {
+      development = local.development_account_id
+      production  = local.production_account_id
+    } : k => v
+    if try(data.aws_iam_role.github_actions_sso_existing[k], null) == null
   }
 
   provider = aws
@@ -556,13 +570,107 @@ resource "aws_iam_role" "github_actions_sso" {
   }
 }
 
-# IAM Policy for GitHub Actions SSO Role
+# IAM Policy for GitHub Actions SSO Role (only for newly created roles)
 resource "aws_iam_role_policy" "github_actions_sso_policy" {
   for_each = aws_iam_role.github_actions_sso
 
   provider = aws
   name     = "GitHubActionsSSOPolicy"
   role     = each.value.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      # Administrative access for infrastructure management
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:*",
+          "organizations:*",
+          "sso:*",
+          "sso-admin:*",
+          "identitystore:*"
+        ]
+        Resource = "*"
+      },
+      # Cross-account role assumption
+      {
+        Effect = "Allow"
+        Action = [
+          "sts:AssumeRole"
+        ]
+        Resource = [
+          "arn:aws:iam::*:role/OrganizationAccountAccessRole",
+          "arn:aws:iam::*:role/InfrastructureDeploymentRole",
+          "arn:aws:iam::*:role/SESManagerRole"
+        ]
+      },
+      # S3 access for Terraform state
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:*"
+        ]
+        Resource = [
+          "arn:aws:s3:::magebase-tf-state-*",
+          "arn:aws:s3:::magebase-tf-state-*/*"
+        ]
+      },
+      # DynamoDB access for state locking
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:*"
+        ]
+        Resource = "arn:aws:dynamodb:*:*:table/magebase-terraform-locks*"
+      },
+      # CloudWatch for monitoring
+      {
+        Effect = "Allow"
+        Action = [
+          "cloudwatch:*",
+          "logs:*"
+        ]
+        Resource = "*"
+      },
+      # EC2 for infrastructure management
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:*",
+          "elasticloadbalancing:*"
+        ]
+        Resource = "*"
+      },
+      # Route53 for DNS management
+      {
+        Effect = "Allow"
+        Action = [
+          "route53:*"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# IAM Policy attachment for existing GitHub Actions SSO Role
+resource "aws_iam_role_policy" "github_actions_sso_policy_existing" {
+  for_each = {
+    for k, v in {
+      development = local.development_account_id
+      production  = local.production_account_id
+    } : k => v
+    if try(data.aws_iam_role.github_actions_sso_existing[k], null) != null
+  }
+
+  provider = aws
+  name     = "GitHubActionsSSOPolicy"
+  role     = data.aws_iam_role.github_actions_sso_existing[each.key].id
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -697,12 +805,14 @@ output "sso_start_url" {
 }
 
 output "github_actions_sso_roles" {
-  description = "GitHub Actions SSO roles created in each account"
+  description = "GitHub Actions SSO roles in each account (created or existing)"
   value = {
-    for k, v in aws_iam_role.github_actions_sso :
-    k => {
-      arn  = v.arn
-      name = v.name
+    for k, v in {
+      development = local.development_account_id
+      production  = local.production_account_id
+    } : k => {
+      arn  = try(aws_iam_role.github_actions_sso[k].arn, data.aws_iam_role.github_actions_sso_existing[k].arn)
+      name = "GitHubActionsSSORole"
     }
   }
 }
