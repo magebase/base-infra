@@ -2,10 +2,10 @@
 terraform {
   required_version = ">= 1.8.0"
 
-    # Backend configuration using environment-specific S3 bucket created by bootstrap-env-account
+    # Backend configuration using management account S3 bucket
   backend "s3" {
-    bucket      = "magebase-tf-state-bootstrap-dev-ap-southeast-1"
-    key         = "magebase/site-infrastructure/dev/terraform.tfstate"
+    bucket      = "magebase-tf-state-management"
+    key         = "magebase/site-infrastructure/${var.environment}/terraform.tfstate"
     region      = "ap-southeast-1"
     encrypt     = true
   }
@@ -41,20 +41,20 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
-# AWS Provider (for Route53 operations) - assumes the respective account's GitHubActionsSSORole
+# AWS Provider (for Route53 operations) - assumes AWS_PIPELINE_ROLE from management account
 provider "aws" {
   alias  = "route53"
   region = "us-east-1" # Route53 is a global service, but provider needs a region
 
   assume_role {
-    role_arn = local.github_actions_role_arn
+    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/AWS_PIPELINE_ROLE"
   }
 }
 
-# IAM Role for SES Management (created outside module to avoid cycle)
+# IAM Role for SES Management (created in management account)
 resource "aws_iam_role" "ses_manager" {
   provider = aws.route53
-  name     = "SESManagerRole"
+  name     = "SESManagerRole-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -62,10 +62,7 @@ resource "aws_iam_role" "ses_manager" {
       {
         Effect = "Allow"
         Principal = {
-          AWS = [
-            "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole",
-            "arn:aws:sts::${var.aws_ses_account_id}:assumed-role/GitHubActionsSSORole/*"
-          ]
+          AWS = "arn:aws:iam::${var.aws_ses_account_id}:role/AWS_PIPELINE_ROLE"
         }
         Action = "sts:AssumeRole"
       }
@@ -123,13 +120,13 @@ resource "aws_iam_role_policy" "ses_manager_policy" {
   }
 }
 
-# AWS Provider (for SES only) - now uses the respective account's GitHubActionsSSORole
+# AWS Provider (for SES only) - assumes AWS_PIPELINE_ROLE from management account
 provider "aws" {
   alias  = "ses"
   region = "ap-southeast-1" # Singapore region for SES
 
   assume_role {
-    role_arn = local.github_actions_role_arn
+    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/AWS_PIPELINE_ROLE"
   }
 }
 
@@ -137,22 +134,11 @@ provider "aws" {
 data "terraform_remote_state" "base_infrastructure" {
   backend = "s3"
   config = {
-    bucket         = "magebase-tf-state-bootstrap-ap-southeast-1"
+    bucket         = "magebase-tf-state-management"
     key            = "magebase/base-infrastructure/${var.environment}/terraform.tfstate"
     region         = "ap-southeast-1"
-    dynamodb_table = "magebase-terraform-locks-bootstrap"
+    dynamodb_table = "magebase-terraform-locks-management"
     encrypt        = true
-  }
-}
-
-# Data source for org-sso remote state to get GitHubActionsSSORole ARN
-data "terraform_remote_state" "org_sso" {
-  backend = "s3"
-  config = {
-    bucket      = "magebase-tf-state-bootstrap-ap-southeast-1"
-    key         = "magebase/org-sso/terraform.tfstate"
-    region      = "ap-southeast-1"
-    encrypt     = true
   }
 }
 
@@ -162,11 +148,6 @@ locals {
   singapore_locations = ["sin"] # Singapore location
   location            = "fsn1"  # Falkenstein for all environments
   account_type        = var.environment == "prod" ? "production" : "development"
-  github_actions_role_arn = lookup(
-    data.terraform_remote_state.org_sso.outputs.github_actions_sso_roles,
-    local.account_type,
-    ""
-  ).arn
 }
 
 # Cloudflare DNS Configuration
@@ -235,7 +216,7 @@ provider "aws" {
   }
 
   assume_role {
-    role_arn = local.github_actions_role_arn
+    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/AWS_PIPELINE_ROLE"
   }
 }
 

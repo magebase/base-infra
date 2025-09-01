@@ -323,557 +323,557 @@ jobs:
       #     echo "✅ Bootstrap Terratest completed successfully"
 
   # ===== AWS ORGANIZATIONS & SSO SETUP =====
-  sso-setup:
-    name: "AWS Organizations & SSO Setup"
-    runs-on: self-hosted
-    needs: [bootstrap]
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: write
-    outputs:
-      development_account_id: ${{ steps.get-dev-account.outputs.account_id }}
-      production_account_id: ${{ steps.get-prod-account.outputs.account_id }}
-      aws_access_key_id: ${{ steps.get-aws-credentials.outputs.access_key_id }}
-      aws_secret_access_key: ${{ steps.get-aws-credentials.outputs.secret_access_key }}
-    # Skip SSO setup if explicitly requested
-    if: github.event.inputs.skip_sso != true
-    defaults:
-      run:
-        working-directory: infra/pipeline/org-sso
+  # sso-setup:
+  #   name: "AWS Organizations & SSO Setup"
+  #   runs-on: self-hosted
+  #   needs: [bootstrap]
+  #   permissions:
+  #     id-token: write
+  #     contents: read
+  #     pull-requests: write
+  #   outputs:
+  #     development_account_id: ${{ steps.get-dev-account.outputs.account_id }}
+  #     production_account_id: ${{ steps.get-prod-account.outputs.account_id }}
+  #     aws_access_key_id: ${{ steps.get-aws-credentials.outputs.access_key_id }}
+  #     aws_secret_access_key: ${{ steps.get-aws-credentials.outputs.secret_access_key }}
+  #   # Skip SSO setup if explicitly requested
+  #   if: github.event.inputs.skip_sso != true
+  #   defaults:
+  #     run:
+  #       working-directory: infra/pipeline/org-sso
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
+  #     - name: Setup Terraform
+  #       uses: hashicorp/setup-terraform@v3
+  #       with:
+  #         terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Validate Variables
-        run: |
-          if [ -z "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
-            echo "❌ Error: MANAGEMENT_ACCOUNT_ID variable is not set"
-            echo "📋 Please set the MANAGEMENT_ACCOUNT_ID variable in your repository settings"
-            echo "📖 See infra/pipeline/org-sso/sso-README.md for detailed setup instructions"
-            exit 1
-          fi
-          echo "✅ MANAGEMENT_ACCOUNT_ID variable is configured"
-          echo "🔍 Account ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+  #     - name: Validate Variables
+  #       run: |
+  #         if [ -z "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
+  #           echo "❌ Error: MANAGEMENT_ACCOUNT_ID variable is not set"
+  #           echo "📋 Please set the MANAGEMENT_ACCOUNT_ID variable in your repository settings"
+  #           echo "📖 See infra/pipeline/org-sso/sso-README.md for detailed setup instructions"
+  #           exit 1
+  #         fi
+  #         echo "✅ MANAGEMENT_ACCOUNT_ID variable is configured"
+  #         echo "🔍 Account ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
-          aws-region: ${{ env.AWS_REGION }}
-        timeout-minutes: 5
+  #     - name: Configure AWS Credentials
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+  #         aws-region: ${{ env.AWS_REGION }}
+  #       timeout-minutes: 5
 
-      - name: Configure AWS Credentials for SSO Region
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
-          aws-region: ${{ env.SSO_REGION }}
-          role-session-name: SSOConfig
-        timeout-minutes: 5
+  #     - name: Configure AWS Credentials for SSO Region
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+  #         aws-region: ${{ env.SSO_REGION }}
+  #         role-session-name: SSOConfig
+  #       timeout-minutes: 5
 
-      - name: Validate AWS Credentials
-        run: |
-          echo "Validating AWS credentials..."
-          aws sts get-caller-identity
-          echo "AWS credentials configured successfully"
+  #     - name: Validate AWS Credentials
+  #       run: |
+  #         echo "Validating AWS credentials..."
+  #         aws sts get-caller-identity
+  #         echo "AWS credentials configured successfully"
 
-      - name: Validate Account Creation Prerequisites
-        run: |
-          echo "🔍 Validating prerequisites for AWS account creation..."
+  #     - name: Validate Account Creation Prerequisites
+  #       run: |
+  #         echo "🔍 Validating prerequisites for AWS account creation..."
 
-          # Check if organization already exists
-          if aws organizations describe-organization >/dev/null 2>&1; then
-            echo "✅ AWS Organization already exists"
-            aws organizations describe-organization | jq '.Organization.Id'
-          else
-            echo "ℹ️  AWS Organization will be created"
-          fi
+  #         # Check if organization already exists
+  #         if aws organizations describe-organization >/dev/null 2>&1; then
+  #           echo "✅ AWS Organization already exists"
+  #           aws organizations describe-organization | jq '.Organization.Id'
+  #         else
+  #           echo "ℹ️  AWS Organization will be created"
+  #         fi
 
-          # Check if SSO is already enabled
-          if aws sso-admin list-instances --region ${{ env.SSO_REGION }} >/dev/null 2>&1; then
-            echo "✅ AWS SSO is already enabled"
-          else
-            echo "ℹ️  AWS SSO will be enabled during deployment"
-          fi
+  #         # Check if SSO is already enabled
+  #         if aws sso-admin list-instances --region ${{ env.SSO_REGION }} >/dev/null 2>&1; then
+  #           echo "✅ AWS SSO is already enabled"
+  #         else
+  #           echo "ℹ️  AWS SSO will be enabled during deployment"
+  #         fi
 
-      - name: Terraform Format
-        id: fmt
-        working-directory: infra/pipeline/org-sso
-        run: |
-          terraform fmt -check -recursive
-        continue-on-error: true
+  #     - name: Terraform Format
+  #       id: fmt
+  #       working-directory: infra/pipeline/org-sso
+  #       run: |
+  #         terraform fmt -check -recursive
+  #       continue-on-error: true
 
-      - name: Handle State Locks
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-        working-directory: infra/pipeline/org-sso
-        run: |
-          echo "🔍 Checking for existing Terraform state locks..."
+  #     - name: Handle State Locks
+  #       if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+  #       working-directory: infra/pipeline/org-sso
+  #       run: |
+  #         echo "🔍 Checking for existing Terraform state locks..."
 
-          # Scan DynamoDB table for any existing locks
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-bootstrap" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
+  #         # Scan DynamoDB table for any existing locks
+  #         LOCK_ITEMS=$(aws dynamodb scan \
+  #           --table-name "magebase-terraform-locks-bootstrap" \
+  #           --region ${{ env.INFRA_REGION }} \
+  #           --query 'Items[?attribute_exists(LockID)]' \
+  #           --output json 2>/dev/null || echo "[]")
 
-          # Check if we found any lock items
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+  #         # Check if we found any lock items
+  #         LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
 
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
+  #         if [ "$LOCK_COUNT" -gt 0 ]; then
+  #           echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
 
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+  #           # Process each lock item
+  #           for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+  #             LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+  #             LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
 
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Force unlocking state with ID: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
+  #             if [ -n "$LOCK_ID" ]; then
+  #               echo "🔓 Force unlocking state with ID: $LOCK_ID"
+  #               echo "Lock info: $LOCK_INFO"
 
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID"; then
-                  echo "✅ Successfully unlocked: $LOCK_ID"
-                else
-                  echo "⚠️  Force unlock failed for: $LOCK_ID"
-                  # Continue anyway - sometimes locks are stale and will be overwritten
-                fi
-              else
-                echo "⚠️  Could not extract lock ID from item $i"
-              fi
-            done
-          else
-            echo "✅ No state locks found"
-          fi
+  #               # Attempt force unlock
+  #               if terraform force-unlock -force "$LOCK_ID"; then
+  #                 echo "✅ Successfully unlocked: $LOCK_ID"
+  #               else
+  #                 echo "⚠️  Force unlock failed for: $LOCK_ID"
+  #                 # Continue anyway - sometimes locks are stale and will be overwritten
+  #               fi
+  #             else
+  #               echo "⚠️  Could not extract lock ID from item $i"
+  #             fi
+  #           done
+  #         else
+  #           echo "✅ No state locks found"
+  #         fi
 
-          echo "🔄 Proceeding with Terraform operations..."
+  #         echo "🔄 Proceeding with Terraform operations..."
 
-      - name: Terraform Init
-        working-directory: infra/pipeline/org-sso
-        run: |
-          terraform init -input=false -upgrade
+  #     - name: Terraform Init
+  #       working-directory: infra/pipeline/org-sso
+  #       run: |
+  #         terraform init -input=false -upgrade
 
-      - name: Terraform Validate
-        id: validate
-        working-directory: infra/pipeline/org-sso
-        run: |
-          terraform validate -no-color
+  #     - name: Terraform Validate
+  #       id: validate
+  #       working-directory: infra/pipeline/org-sso
+  #       run: |
+  #         terraform validate -no-color
 
-      - name: Terraform Plan
-        id: sso-tf-plan
-        if: github.event_name == 'pull_request'
-        working-directory: infra/pipeline/org-sso
-        env:
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || 'dummy' }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID || 'dummy' }}
-        run: |
-          terraform plan -no-color -input=false \
-            -var-file="terraform.tfvars" \
-            -var="hcloud_token=dummy" \
-            -var="aws_ses_account_id=dummy" \
-            -var="secret_key_base=dummy" \
-            -var="ruby_llm_api_key=dummy" \
-            -var="aws_ses_access_key_id=dummy" \
-            -var="aws_ses_secret_access_key=dummy" \
-            -var="hetzner_object_storage_access_key=dummy" \
-            -var="hetzner_object_storage_secret_key=dummy" \
-            -var="stripe_api_key=dummy" \
-            -var="stripe_webhook_secret=dummy" \
-            -var="ssh_private_key=dummy" \
-            -var="_key=dummy"
-        continue-on-error: true
+  #     - name: Terraform Plan
+  #       id: sso-tf-plan
+  #       if: github.event_name == 'pull_request'
+  #       working-directory: infra/pipeline/org-sso
+  #       env:
+  #         TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || 'dummy' }}
+  #         TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID || 'dummy' }}
+  #       run: |
+  #         terraform plan -no-color -input=false \
+  #           -var-file="terraform.tfvars" \
+  #           -var="hcloud_token=dummy" \
+  #           -var="aws_ses_account_id=dummy" \
+  #           -var="secret_key_base=dummy" \
+  #           -var="ruby_llm_api_key=dummy" \
+  #           -var="aws_ses_access_key_id=dummy" \
+  #           -var="aws_ses_secret_access_key=dummy" \
+  #           -var="hetzner_object_storage_access_key=dummy" \
+  #           -var="hetzner_object_storage_secret_key=dummy" \
+  #           -var="stripe_api_key=dummy" \
+  #           -var="stripe_webhook_secret=dummy" \
+  #           -var="ssh_private_key=dummy" \
+  #           -var="_key=dummy"
+  #       continue-on-error: true
 
-      - name: Update Pull Request
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.sso-tf-plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### AWS Organizations & SSO Setup 🏗️
-            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.sso-tf-plan.outcome }}\`
+  #     - name: Update Pull Request
+  #       uses: actions/github-script@v7
+  #       if: github.event_name == 'pull_request'
+  #       env:
+  #         PLAN: "terraform\n${{ steps.sso-tf-plan.outputs.stdout }}"
+  #       with:
+  #         github-token: ${{ secrets.GITHUB_TOKEN }}
+  #         script: |
+  #           const output = `#### AWS Organizations & SSO Setup 🏗️
+  #           #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
+  #           #### Terraform Plan 📖\`${{ steps.sso-tf-plan.outcome }}\`
 
-            <details><summary>Show Plan</summary>
+  #           <details><summary>Show Plan</summary>
 
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
+  #           \`\`\`\n
+  #           ${process.env.PLAN}
+  #           \`\`\`
 
-            </details>
+  #           </details>
 
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+  #           *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
+  #           github.rest.issues.createComment({
+  #             issue_number: context.issue.number,
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             body: output
+  #           })
 
-      - name: Validate Terraform Plan
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "🔍 Validating Terraform plan for account creation and SSO assignments..."
+  #     - name: Validate Terraform Plan
+  #       if: github.event_name == 'pull_request'
+  #       run: |
+  #         echo "🔍 Validating Terraform plan for account creation and SSO assignments..."
 
-          # Check if plan contains expected resources
-          if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q "aws_organizations_account"; then
-            echo "✅ Plan contains AWS account creation"
-          else
-            echo "⚠️  No AWS account creation found in plan"
-          fi
+  #         # Check if plan contains expected resources
+  #         if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q "aws_organizations_account"; then
+  #           echo "✅ Plan contains AWS account creation"
+  #         else
+  #           echo "⚠️  No AWS account creation found in plan"
+  #         fi
 
-          if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q "aws_ssoadmin_account_assignment"; then
-            echo "✅ Plan contains SSO account assignments"
-          else
-            echo "⚠️  No SSO account assignments found in plan"
-          fi
+  #         if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q "aws_ssoadmin_account_assignment"; then
+  #           echo "✅ Plan contains SSO account assignments"
+  #         else
+  #           echo "⚠️  No SSO account assignments found in plan"
+  #         fi
 
-          # Check for empty account IDs (the original error)
-          if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q 'target_id.*""'; then
-            echo "❌ ERROR: Found empty account IDs in plan - this will cause SSO assignment failures"
-            exit 1
-          else
-            echo "✅ No empty account IDs found in plan"
-          fi
+  #         # Check for empty account IDs (the original error)
+  #         if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q 'target_id.*""'; then
+  #           echo "❌ ERROR: Found empty account IDs in plan - this will cause SSO assignment failures"
+  #           exit 1
+  #         else
+  #           echo "✅ No empty account IDs found in plan"
+  #         fi
 
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: infra/pipeline/org-sso
-        env:
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-        run: |
-          echo "🚀 Applying AWS Organizations and SSO configuration..."
+  #     - name: Terraform Apply
+  #       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #       working-directory: infra/pipeline/org-sso
+  #       env:
+  #         TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+  #         TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  #         TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+  #         TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+  #       run: |
+  #         echo "🚀 Applying AWS Organizations and SSO configuration..."
 
-          # Apply with dummy values for non-AWS variables
-          terraform apply -auto-approve -input=false \
-            -var-file="terraform.tfvars"
+  #         # Apply with dummy values for non-AWS variables
+  #         terraform apply -auto-approve -input=false \
+  #           -var-file="terraform.tfvars"
 
-          echo "✅ AWS Organizations and SSO configuration applied successfully"
+  #         echo "✅ AWS Organizations and SSO configuration applied successfully"
 
-          # Get the development account ID for SES configuration
-          echo "📋 Getting development account ID for SES..."
-          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
-          echo "Using account ID for SES: $DEV_ACCOUNT_ID"
+  #         # Get the development account ID for SES configuration
+  #         echo "📋 Getting development account ID for SES..."
+  #         DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
+  #         echo "Using account ID for SES: $DEV_ACCOUNT_ID"
 
-          # Export the development account ID for use in subsequent steps
-          echo "DEV_ACCOUNT_ID=$DEV_ACCOUNT_ID" >> $GITHUB_ENV
+  #         # Export the development account ID for use in subsequent steps
+  #         echo "DEV_ACCOUNT_ID=$DEV_ACCOUNT_ID" >> $GITHUB_ENV
 
-          # Show the created account IDs (only if outputs exist)
-          echo "📋 Created AWS Account IDs:"
-          if terraform output development_account_id >/dev/null 2>&1; then
-            terraform output -json | jq '.development_account_id.value, .production_account_id.value' 2>/dev/null || echo "Some outputs not available yet"
-          else
-            echo "Account outputs not available - accounts may still be creating"
-          fi
+  #         # Show the created account IDs (only if outputs exist)
+  #         echo "📋 Created AWS Account IDs:"
+  #         if terraform output development_account_id >/dev/null 2>&1; then
+  #           terraform output -json | jq '.development_account_id.value, .production_account_id.value' 2>/dev/null || echo "Some outputs not available yet"
+  #         else
+  #           echo "Account outputs not available - accounts may still be creating"
+  #         fi
 
-      - name: Force Unlock on Failure
-        if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
-        working-directory: infra/pipeline/org-sso
-        run: |
-          echo "🔍 Attempting to force unlock Terraform state after failure..."
+  #     - name: Force Unlock on Failure
+  #       if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
+  #       working-directory: infra/pipeline/org-sso
+  #       run: |
+  #         echo "🔍 Attempting to force unlock Terraform state after failure..."
 
-          # Try to extract lock ID from previous step's output (if available)
-          # This is a best-effort attempt - the lock ID might not be in the logs
+  #         # Try to extract lock ID from previous step's output (if available)
+  #         # This is a best-effort attempt - the lock ID might not be in the logs
 
-          # First, try to scan DynamoDB for any existing locks
-          echo "🔍 Scanning DynamoDB for existing locks..."
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-bootstrap" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
+  #         # First, try to scan DynamoDB for any existing locks
+  #         echo "🔍 Scanning DynamoDB for existing locks..."
+  #         LOCK_ITEMS=$(aws dynamodb scan \
+  #           --table-name "magebase-terraform-locks-bootstrap" \
+  #           --region ${{ env.INFRA_REGION }} \
+  #           --query 'Items[?attribute_exists(LockID)]' \
+  #           --output json 2>/dev/null || echo "[]")
 
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+  #         LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
 
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
+  #         if [ "$LOCK_COUNT" -gt 0 ]; then
+  #           echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
 
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+  #           # Process each lock item
+  #           for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+  #             LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+  #             LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
 
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Attempting to force unlock: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
+  #             if [ -n "$LOCK_ID" ]; then
+  #               echo "🔓 Attempting to force unlock: $LOCK_ID"
+  #               echo "Lock info: $LOCK_INFO"
 
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
-                  echo "✅ Successfully force unlocked: $LOCK_ID"
-                  break
-                else
-                  echo "⚠️  Force unlock failed for: $LOCK_ID"
-                fi
-              fi
-            done
-          else
-            echo "ℹ️  No locks found in DynamoDB table"
-          fi
+  #               # Attempt force unlock
+  #               if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+  #                 echo "✅ Successfully force unlocked: $LOCK_ID"
+  #                 break
+  #               else
+  #                 echo "⚠️  Force unlock failed for: $LOCK_ID"
+  #               fi
+  #             fi
+  #           done
+  #         else
+  #           echo "ℹ️  No locks found in DynamoDB table"
+  #         fi
 
-          # If we couldn't find locks in DynamoDB, provide manual instructions
-          echo ""
-          echo "📋 If the automatic unlock failed, please manually force-unlock the state:"
-          echo "1. Find the lock ID from the failed 'Terraform Apply' step logs above"
-          echo "2. Look for: 'Lock Info: ID: <lock_id>'"
-          echo "3. Run: terraform force-unlock -force <lock_id>"
-          echo "4. Re-run the workflow"
-          echo ""
-          echo "Example lock ID from your error: 533db39e-ed09-5a60-b296-223c142784e5"
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ env.INFRA_REGION }}
+  #         # If we couldn't find locks in DynamoDB, provide manual instructions
+  #         echo ""
+  #         echo "📋 If the automatic unlock failed, please manually force-unlock the state:"
+  #         echo "1. Find the lock ID from the failed 'Terraform Apply' step logs above"
+  #         echo "2. Look for: 'Lock Info: ID: <lock_id>'"
+  #         echo "3. Run: terraform force-unlock -force <lock_id>"
+  #         echo "4. Re-run the workflow"
+  #         echo ""
+  #         echo "Example lock ID from your error: 533db39e-ed09-5a60-b296-223c142784e5"
+  #       env:
+  #         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         AWS_REGION: ${{ env.INFRA_REGION }}
 
-      - name: Get Development Account ID
-        id: get-dev-account
-        working-directory: infra/pipeline/org-sso
-        run: |
-          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
-          echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
-          echo "Using development account ID: $DEV_ACCOUNT_ID"
+  #     - name: Get Development Account ID
+  #       id: get-dev-account
+  #       working-directory: infra/pipeline/org-sso
+  #       run: |
+  #         DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
+  #         echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
+  #         echo "Using development account ID: $DEV_ACCOUNT_ID"
 
-      - name: Get Production Account ID
-        id: get-prod-account
-        working-directory: infra/pipeline/org-sso
-        run: |
-          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
-          echo "account_id=$PROD_ACCOUNT_ID" >> $GITHUB_OUTPUT
-          echo "Using production account ID: $PROD_ACCOUNT_ID"
+  #     - name: Get Production Account ID
+  #       id: get-prod-account
+  #       working-directory: infra/pipeline/org-sso
+  #       run: |
+  #         PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
+  #         echo "account_id=$PROD_ACCOUNT_ID" >> $GITHUB_OUTPUT
+  #         echo "Using production account ID: $PROD_ACCOUNT_ID"
 
-      - name: Get AWS Credentials
-        id: get-aws-credentials
-        run: |
-          echo "access_key_id=$AWS_ACCESS_KEY_ID" >> $GITHUB_OUTPUT
-          echo "secret_access_key=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_OUTPUT
+  #     - name: Get AWS Credentials
+  #       id: get-aws-credentials
+  #       run: |
+  #         echo "access_key_id=$AWS_ACCESS_KEY_ID" >> $GITHUB_OUTPUT
+  #         echo "secret_access_key=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_OUTPUT
 
-      - name: Verify SSO Configuration
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: infra/pipeline/org-sso
-        run: |
-          echo "🔍 Verifying SSO configuration..."
+  #     - name: Verify SSO Configuration
+  #       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  #       working-directory: infra/pipeline/org-sso
+  #       run: |
+  #         echo "🔍 Verifying SSO configuration..."
 
-          # Check if SSO instances exist and get instance ARN
-          if aws sso-admin list-instances --region ${{ env.SSO_REGION }} >/dev/null 2>&1; then
-            echo "✅ AWS SSO is properly configured"
-            SSO_INSTANCE_ARN=$(aws sso-admin list-instances --region ${{ env.SSO_REGION }} | jq -r '.Instances[0].InstanceArn')
-            echo "SSO Instance ARN: $SSO_INSTANCE_ARN"
-            aws sso-admin list-instances --region ${{ env.SSO_REGION }} | jq '.Instances[] | {InstanceArn, IdentityStoreId}'
-          else
-            echo "⚠️  AWS SSO configuration may be incomplete"
-            SSO_INSTANCE_ARN=""
-          fi
+  #         # Check if SSO instances exist and get instance ARN
+  #         if aws sso-admin list-instances --region ${{ env.SSO_REGION }} >/dev/null 2>&1; then
+  #           echo "✅ AWS SSO is properly configured"
+  #           SSO_INSTANCE_ARN=$(aws sso-admin list-instances --region ${{ env.SSO_REGION }} | jq -r '.Instances[0].InstanceArn')
+  #           echo "SSO Instance ARN: $SSO_INSTANCE_ARN"
+  #           aws sso-admin list-instances --region ${{ env.SSO_REGION }} | jq '.Instances[] | {InstanceArn, IdentityStoreId}'
+  #         else
+  #           echo "⚠️  AWS SSO configuration may be incomplete"
+  #           SSO_INSTANCE_ARN=""
+  #         fi
 
-          # Check account assignments for development account
-          echo "📋 SSO Account Assignments (Development):"
-          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "")
-          if [ -n "$DEV_ACCOUNT_ID" ] && [ -n "$SSO_INSTANCE_ARN" ]; then
-            aws sso-admin list-account-assignments --region ${{ env.SSO_REGION }} \
-              --instance-arn "$SSO_INSTANCE_ARN" \
-              --account-id "$DEV_ACCOUNT_ID" \
-              --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} --instance-arn "$SSO_INSTANCE_ARN" | jq -r '.PermissionSets[0]' 2>/dev/null) 2>/dev/null || echo "No assignments found for development account"
-          else
-            echo "Missing DEV_ACCOUNT_ID or SSO_INSTANCE_ARN for development account check"
-          fi
+  #         # Check account assignments for development account
+  #         echo "📋 SSO Account Assignments (Development):"
+  #         DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "")
+  #         if [ -n "$DEV_ACCOUNT_ID" ] && [ -n "$SSO_INSTANCE_ARN" ]; then
+  #           aws sso-admin list-account-assignments --region ${{ env.SSO_REGION }} \
+  #             --instance-arn "$SSO_INSTANCE_ARN" \
+  #             --account-id "$DEV_ACCOUNT_ID" \
+  #             --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} --instance-arn "$SSO_INSTANCE_ARN" | jq -r '.PermissionSets[0]' 2>/dev/null) 2>/dev/null || echo "No assignments found for development account"
+  #         else
+  #           echo "Missing DEV_ACCOUNT_ID or SSO_INSTANCE_ARN for development account check"
+  #         fi
 
-          # Check account assignments for production account
-          echo "📋 SSO Account Assignments (Production):"
-          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null || echo "")
-          if [ -n "$PROD_ACCOUNT_ID" ] && [ -n "$SSO_INSTANCE_ARN" ]; then
-            aws sso-admin list-account-assignments --region ${{ env.SSO_REGION }} \
-              --instance-arn "$SSO_INSTANCE_ARN" \
-              --account-id "$PROD_ACCOUNT_ID" \
-              --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} --instance-arn "$SSO_INSTANCE_ARN" | jq -r '.PermissionSets[0]' 2>/dev/null) 2>/dev/null || echo "No assignments found for production account"
-          else
-            echo "Missing PROD_ACCOUNT_ID or SSO_INSTANCE_ARN for production account check"
-          fi
+  #         # Check account assignments for production account
+  #         echo "📋 SSO Account Assignments (Production):"
+  #         PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null || echo "")
+  #         if [ -n "$PROD_ACCOUNT_ID" ] && [ -n "$SSO_INSTANCE_ARN" ]; then
+  #           aws sso-admin list-account-assignments --region ${{ env.SSO_REGION }} \
+  #             --instance-arn "$SSO_INSTANCE_ARN" \
+  #             --account-id "$PROD_ACCOUNT_ID" \
+  #             --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} --instance-arn "$SSO_INSTANCE_ARN" | jq -r '.PermissionSets[0]' 2>/dev/null) 2>/dev/null || echo "No assignments found for production account"
+  #         else
+  #           echo "Missing PROD_ACCOUNT_ID or SSO_INSTANCE_ARN for production account check"
+  #         fi
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.23"
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v4
+  #       with:
+  #         go-version: "1.23"
 
-      # - name: Run SSO Terratest
-      #   working-directory: infra/tests
-      #   env:
-      #     AWS_REGION: ${{ env.AWS_REGION }}
-      #     MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-      #     TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      #     TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-      #     TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-      #   run: |
-      #     echo "🧪 Running SSO Terratest..."
+  # - name: Run SSO Terratest
+  #   working-directory: infra/tests
+  #   env:
+  #     AWS_REGION: ${{ env.AWS_REGION }}
+  #     MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+  #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+  #     TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  #     TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+  #     TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+  #   run: |
+  #     echo "🧪 Running SSO Terratest..."
 
-      #     # Install dependencies
-      #     go mod download
+  #     # Install dependencies
+  #     go mod download
 
-      #     # Run SSO test
-      #     go test -v -run TestSSOInfrastructure ./*.go
+  #     # Run SSO test
+  #     go test -v -run TestSSOInfrastructure ./*.go
 
-      #     echo "✅ SSO Terratest completed successfully"
+  #     echo "✅ SSO Terratest completed successfully"
 
   # ===== ENVIRONMENT ACCOUNT BOOTSTRAP (DEPENDS ON SSO) =====
-  bootstrap-env-account:
-    name: "Environment Account Bootstrap"
-    runs-on: self-hosted
-    needs: sso-setup
-    permissions:
-      id-token: write
-      contents: read
-    # Only run if SSO setup was successful
-    if: needs.sso-setup.result == 'success' && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
-    outputs:
-      dev_bootstrap_complete: ${{ steps.dev-bootstrap.outputs.bootstrap_complete }}
-      prod_bootstrap_complete: ${{ steps.prod-bootstrap.outputs.bootstrap_complete }}
-    defaults:
-      run:
-        working-directory: infra/pipeline/bootstrap-env-account
+  # bootstrap-env-account:
+  #   name: "Environment Account Bootstrap"
+  #   runs-on: self-hosted
+  #   needs: sso-setup
+  #   permissions:
+  #     id-token: write
+  #     contents: read
+  #   # Only run if SSO setup was successful
+  #   if: needs.sso-setup.result == 'success' && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
+  #   outputs:
+  #     dev_bootstrap_complete: ${{ steps.dev-bootstrap.outputs.bootstrap_complete }}
+  #     prod_bootstrap_complete: ${{ steps.prod-bootstrap.outputs.bootstrap_complete }}
+  #   defaults:
+  #     run:
+  #       working-directory: infra/pipeline/bootstrap-env-account
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
+  #     - name: Set up Terraform
+  #       uses: hashicorp/setup-terraform@v3
+  #       with:
+  #         terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
-          aws-region: ${{ env.INFRA_REGION }}
+  #     - name: Configure AWS credentials via OIDC
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+  #         aws-region: ${{ env.INFRA_REGION }}
 
-      - name: Bootstrap Development Account
-        id: dev-bootstrap
-        env:
-          TF_VAR_environment: "dev"
-        run: |
-          echo "🚀 Bootstrapping development account..."
+  #     - name: Bootstrap Development Account
+  #       id: dev-bootstrap
+  #       env:
+  #         TF_VAR_environment: "dev"
+  #       run: |
+  #         echo "🚀 Bootstrapping development account..."
 
-          # Get development account ID from SSO setup
-          DEV_ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
-          if [ -z "$DEV_ACCOUNT_ID" ]; then
-            echo "❌ Development account ID not found from SSO setup"
-            exit 1
-          fi
-          echo "Using development account: $DEV_ACCOUNT_ID"
+  #         # Get development account ID from SSO setup
+  #         DEV_ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
+  #         if [ -z "$DEV_ACCOUNT_ID" ]; then
+  #           echo "❌ Development account ID not found from SSO setup"
+  #           exit 1
+  #         fi
+  #         echo "Using development account: $DEV_ACCOUNT_ID"
 
-          # Assume role into development account
-          echo "🔄 Assuming GitHubActionsSSORole in development account..."
-          ASSUMED_CREDS=$(aws sts assume-role \
-            --role-arn "arn:aws:iam::${DEV_ACCOUNT_ID}:role/GitHubActionsSSORole" \
-            --role-session-name "dev-bootstrap-${{ github.run_id }}" \
-            --region ${{ env.INFRA_REGION }})
+  #         # Assume role into development account
+  #         echo "🔄 Assuming GitHubActionsSSORole in development account..."
+  #         ASSUMED_CREDS=$(aws sts assume-role \
+  #           --role-arn "arn:aws:iam::${DEV_ACCOUNT_ID}:role/GitHubActionsSSORole" \
+  #           --role-session-name "dev-bootstrap-${{ github.run_id }}" \
+  #           --region ${{ env.INFRA_REGION }})
 
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to assume role in development account"
-            echo "This might be because the GitHubActionsSSORole doesn't exist in account $DEV_ACCOUNT_ID"
-            echo "or the role doesn't have the correct trust policy."
-            exit 1
-          fi
+  #         if [ $? -ne 0 ]; then
+  #           echo "❌ Failed to assume role in development account"
+  #           echo "This might be because the GitHubActionsSSORole doesn't exist in account $DEV_ACCOUNT_ID"
+  #           echo "or the role doesn't have the correct trust policy."
+  #           exit 1
+  #         fi
 
-          # Extract temporary credentials
-          export AWS_ACCESS_KEY_ID=$(echo $ASSUMED_CREDS | jq -r '.Credentials.AccessKeyId')
-          export AWS_SECRET_ACCESS_KEY=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SecretAccessKey')
-          export AWS_SESSION_TOKEN=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SessionToken')
+  #         # Extract temporary credentials
+  #         export AWS_ACCESS_KEY_ID=$(echo $ASSUMED_CREDS | jq -r '.Credentials.AccessKeyId')
+  #         export AWS_SECRET_ACCESS_KEY=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SecretAccessKey')
+  #         export AWS_SESSION_TOKEN=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SessionToken')
 
-          # Initialize Terraform
-          terraform init -upgrade
+  #         # Initialize Terraform
+  #         terraform init -upgrade
 
-          # Check if bootstrap resources already exist
-          STATE_BUCKET="magebase-tf-state-bootstrap-dev-${{ env.INFRA_REGION }}"
-          DYNAMODB_TABLE="magebase-terraform-locks-dev"
+  #         # Check if bootstrap resources already exist
+  #         STATE_BUCKET="magebase-tf-state-bootstrap-dev-${{ env.INFRA_REGION }}"
+  #         DYNAMODB_TABLE="magebase-terraform-locks-dev"
 
-          echo "🔍 Checking for existing bootstrap resources in development account..."
-          if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
-            echo "✅ Development account bootstrap resources already exist"
-            echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
-          else
-            echo "ℹ️  Creating bootstrap resources for development account..."
+  #         echo "🔍 Checking for existing bootstrap resources in development account..."
+  #         if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+  #           echo "✅ Development account bootstrap resources already exist"
+  #           echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "ℹ️  Creating bootstrap resources for development account..."
 
-            # Apply bootstrap
-            terraform apply -auto-approve \
-              -var="environment=dev" \
-              -var="region=${{ env.INFRA_REGION }}"
+  #           # Apply bootstrap
+  #           terraform apply -auto-approve \
+  #             -var="environment=dev" \
+  #             -var="region=${{ env.INFRA_REGION }}"
 
-            echo "✅ Development account bootstrap completed"
-            echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
-          fi
+  #           echo "✅ Development account bootstrap completed"
+  #           echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
+  #         fi
 
-      - name: Bootstrap Production Account
-        id: prod-bootstrap
-        env:
-          TF_VAR_environment: "prod"
-        run: |
-          echo "🚀 Bootstrapping production account..."
+  #     - name: Bootstrap Production Account
+  #       id: prod-bootstrap
+  #       env:
+  #         TF_VAR_environment: "prod"
+  #       run: |
+  #         echo "🚀 Bootstrapping production account..."
 
-          # Get production account ID from SSO setup
-          PROD_ACCOUNT_ID="${{ needs.sso-setup.outputs.production_account_id }}"
-          if [ -z "$PROD_ACCOUNT_ID" ]; then
-            echo "❌ Production account ID not found from SSO setup"
-            exit 1
-          fi
-          echo "Using production account: $PROD_ACCOUNT_ID"
+  #         # Get production account ID from SSO setup
+  #         PROD_ACCOUNT_ID="${{ needs.sso-setup.outputs.production_account_id }}"
+  #         if [ -z "$PROD_ACCOUNT_ID" ]; then
+  #           echo "❌ Production account ID not found from SSO setup"
+  #           exit 1
+  #         fi
+  #         echo "Using production account: $PROD_ACCOUNT_ID"
 
-          # Assume role into production account
-          echo "🔄 Assuming GitHubActionsSSORole in production account..."
-          ASSUMED_CREDS=$(aws sts assume-role \
-            --role-arn "arn:aws:iam::${PROD_ACCOUNT_ID}:role/GitHubActionsSSORole" \
-            --role-session-name "prod-bootstrap-${{ github.run_id }}" \
-            --region ${{ env.INFRA_REGION }})
+  #         # Assume role into production account
+  #         echo "🔄 Assuming GitHubActionsSSORole in production account..."
+  #         ASSUMED_CREDS=$(aws sts assume-role \
+  #           --role-arn "arn:aws:iam::${PROD_ACCOUNT_ID}:role/GitHubActionsSSORole" \
+  #           --role-session-name "prod-bootstrap-${{ github.run_id }}" \
+  #           --region ${{ env.INFRA_REGION }})
 
-          if [ $? -ne 0 ]; then
-            echo "❌ Failed to assume role in production account"
-            echo "This might be because the GitHubActionsSSORole doesn't exist in account $PROD_ACCOUNT_ID"
-            echo "or the role doesn't have the correct trust policy."
-            exit 1
-          fi
+  #         if [ $? -ne 0 ]; then
+  #           echo "❌ Failed to assume role in production account"
+  #           echo "This might be because the GitHubActionsSSORole doesn't exist in account $PROD_ACCOUNT_ID"
+  #           echo "or the role doesn't have the correct trust policy."
+  #           exit 1
+  #         fi
 
-          # Extract temporary credentials
-          export AWS_ACCESS_KEY_ID=$(echo $ASSUMED_CREDS | jq -r '.Credentials.AccessKeyId')
-          export AWS_SECRET_ACCESS_KEY=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SecretAccessKey')
-          export AWS_SESSION_TOKEN=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SessionToken')
+  #         # Extract temporary credentials
+  #         export AWS_ACCESS_KEY_ID=$(echo $ASSUMED_CREDS | jq -r '.Credentials.AccessKeyId')
+  #         export AWS_SECRET_ACCESS_KEY=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SecretAccessKey')
+  #         export AWS_SESSION_TOKEN=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SessionToken')
 
-          # Initialize Terraform
-          terraform init -upgrade
+  #         # Initialize Terraform
+  #         terraform init -upgrade
 
-          # Check if bootstrap resources already exist
-          STATE_BUCKET="magebase-tf-state-bootstrap-prod-${{ env.INFRA_REGION }}"
-          DYNAMODB_TABLE="magebase-terraform-locks-prod"
+  #         # Check if bootstrap resources already exist
+  #         STATE_BUCKET="magebase-tf-state-bootstrap-prod-${{ env.INFRA_REGION }}"
+  #         DYNAMODB_TABLE="magebase-terraform-locks-prod"
 
-          echo "🔍 Checking for existing bootstrap resources in production account..."
-          if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
-            echo "✅ Production account bootstrap resources already exist"
-            echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
-          else
-            echo "ℹ️  Creating bootstrap resources for production account..."
+  #         echo "🔍 Checking for existing bootstrap resources in production account..."
+  #         if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
+  #           echo "✅ Production account bootstrap resources already exist"
+  #           echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "ℹ️  Creating bootstrap resources for production account..."
 
-            # Apply bootstrap
-            terraform apply -auto-approve \
-              -var="environment=prod" \
-              -var="region=${{ env.INFRA_REGION }}"
+  #           # Apply bootstrap
+  #           terraform apply -auto-approve \
+  #             -var="environment=prod" \
+  #             -var="region=${{ env.INFRA_REGION }}"
 
-            echo "✅ Production account bootstrap completed"
-            echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
-          fi
+  #           echo "✅ Production account bootstrap completed"
+  #           echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
+  #         fi
 
   # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON BOOTSTRAP & SSO) =====
   base-infrastructure-deploy:
     name: "Base Infrastructure Deployment (k3s Cluster)"
     runs-on: self-hosted
-    needs: [sso-setup, bootstrap, bootstrap-env-account]
+    needs: [bootstrap]
     permissions:
       id-token: write
       contents: read
@@ -1369,7 +1369,7 @@ jobs:
   notify:
     name: Deployment Results
     runs-on: self-hosted
-    needs: [sso-setup, bootstrap, security-scan]
+    needs: [bootstrap, security-scan]
     if: always()
 
     steps:

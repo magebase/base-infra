@@ -25,8 +25,9 @@ variable "account_id" {
 }
 
 variable "ses_manager_role_arn" {
-  description = "ARN of the SES Manager IAM role"
+  description = "ARN of the SES Manager IAM role (optional when using direct credentials)"
   type        = string
+  default     = ""
 }
 
 # SES Domain Identity
@@ -59,7 +60,7 @@ output "mail_from_domain" {
 }
 
 output "ses_manager_role_arn" {
-  value = var.ses_manager_role_arn
+  value = var.ses_manager_role_arn != "" ? var.ses_manager_role_arn : null
 }
 
 # DNS Record outputs for Cloudflare
