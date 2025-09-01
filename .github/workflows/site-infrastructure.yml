@@ -59,10 +59,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    # Skip planning if base infrastructure status is not confirmed
-    if: >
-      (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan' || github.event.inputs.base_infrastructure_status == 'completed') &&
-      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     defaults:
       run:
         working-directory: infra/pipeline/site-infrastructure
