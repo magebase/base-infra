@@ -133,19 +133,6 @@ jobs:
             ACCOUNT_ID="$DEV_ACCOUNT_ID"
           fi
 
-          # Check if ACCOUNT_ID is set, if not use MANAGEMENT_ACCOUNT_ID as fallback
-          if [ -z "$ACCOUNT_ID" ]; then
-            echo "⚠️  Account ID not found, using MANAGEMENT_ACCOUNT_ID as fallback"
-            ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-          fi
-
-          # Validate that we have an account ID
-          if [ -z "$ACCOUNT_ID" ]; then
-            echo "❌ Error: No account ID available. Please set DEVELOPMENT_ACCOUNT_ID, PRODUCTION_ACCOUNT_ID, or MANAGEMENT_ACCOUNT_ID repository variables."
-            exit 1
-          fi
-
-          echo "✅ Using account ID: $ACCOUNT_ID"
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
           echo "ses_access_key_id=" >> $GITHUB_OUTPUT
           echo "ses_secret_access_key=" >> $GITHUB_OUTPUT
