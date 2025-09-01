@@ -47,9 +47,6 @@ provider "aws" {
   alias  = "route53"
   region = "us-east-1" # Route53 is a global service, but provider needs a region
 
-  assume_role {
-    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
-  }
 }
 
 # IAM Role for SES Management (created in management account)
@@ -126,9 +123,6 @@ provider "aws" {
   alias  = "ses"
   region = "ap-southeast-1" # Singapore region for SES
 
-  assume_role {
-    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
-  }
 }
 
 # Data source for base infrastructure remote state
@@ -216,9 +210,7 @@ provider "aws" {
     s3 = var.hetzner_object_storage_endpoint != "" ? "https://${var.hetzner_object_storage_endpoint}" : "https://fsn1.${var.domain_name}"
   }
 
-  assume_role {
-    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
-  }
+
 }
 
 # Hetzner Object Storage Configuration
