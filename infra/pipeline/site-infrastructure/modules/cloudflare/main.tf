@@ -206,48 +206,6 @@ resource "cloudflare_record" "ses_mx" {
   }
 }
 
-# SES SPF Record
-resource "cloudflare_record" "ses_spf" {
-  count   = var.ses_spf_record != null && length(try(data.cloudflare_records.ses_spf_existing[0].records, [])) == 0 ? 1 : 0
-  zone_id = data.cloudflare_zone.main.id
-  name    = trimsuffix(var.ses_spf_record.name, ".${var.domain_name}")
-  content = var.ses_spf_record.content
-  type    = var.ses_spf_record.type
-  ttl     = var.ses_spf_record.ttl
-  proxied = false
-
-  lifecycle {
-    create_before_destroy = true
-    ignore_changes = [
-      name,    # Allow existing records to be preserved
-      content, # Allow existing records to be preserved
-      ttl,
-    ]
-  }
-}
-
-# SES MX Record
-resource "cloudflare_record" "ses_mx" {
-  count    = var.ses_mx_record != null && length(try(data.cloudflare_records.ses_mx_existing[0].records, [])) == 0 ? 1 : 0
-  zone_id  = data.cloudflare_zone.main.id
-  name     = trimsuffix(var.ses_mx_record.name, ".${var.domain_name}")
-  content  = var.ses_mx_record.content
-  type     = var.ses_mx_record.type
-  ttl      = var.ses_mx_record.ttl
-  priority = var.ses_mx_record.priority
-  proxied  = false
-
-  lifecycle {
-    create_before_destroy = true
-    ignore_changes = [
-      name,    # Allow existing records to be preserved
-      content, # Allow existing records to be preserved
-      ttl,
-      priority,
-    ]
-  }
-}
-
 # Advanced Cloudflare features commented out due to provider syntax issues
 # These can be re-enabled once the Cloudflare provider syntax is resolved
 
