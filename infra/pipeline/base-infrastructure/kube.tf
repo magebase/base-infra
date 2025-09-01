@@ -296,7 +296,7 @@ module "kube-hetzner" {
   # easier, as all public traffic passes through a single strongly secured node. It does
   # however also introduce a single point of failure, so if you need high-availability on your
   # egress, you should consider other configurations.
-  # 
+  #
   #
   # nat_router = null
   # nat_router = {
@@ -1192,4 +1192,3 @@ output "lb_ipv4" {
   value       = module.kube-hetzner.ingress_public_ipv4
   description = "IPv4 address of the load balancer"
 }
-
