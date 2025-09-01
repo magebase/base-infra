@@ -42,13 +42,13 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
-# AWS Provider (for Route53 operations) - assumes AWS_PIPELINE_ROLE from management account
+# AWS Provider (for Route53 operations) - assumes GitHubActionsSSORole from management account
 provider "aws" {
   alias  = "route53"
   region = "us-east-1" # Route53 is a global service, but provider needs a region
 
   assume_role {
-    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/AWS_PIPELINE_ROLE"
+    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
   }
 }
 
@@ -63,7 +63,7 @@ resource "aws_iam_role" "ses_manager" {
       {
         Effect = "Allow"
         Principal = {
-          AWS = "arn:aws:iam::${var.aws_ses_account_id}:role/AWS_PIPELINE_ROLE"
+          AWS = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
         }
         Action = "sts:AssumeRole"
       }
@@ -121,13 +121,13 @@ resource "aws_iam_role_policy" "ses_manager_policy" {
   }
 }
 
-# AWS Provider (for SES only) - assumes AWS_PIPELINE_ROLE from management account
+# AWS Provider (for SES only) - assumes GitHubActionsSSORole from management account
 provider "aws" {
   alias  = "ses"
   region = "ap-southeast-1" # Singapore region for SES
 
   assume_role {
-    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/AWS_PIPELINE_ROLE"
+    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
   }
 }
 
@@ -217,7 +217,7 @@ provider "aws" {
   }
 
   assume_role {
-    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/AWS_PIPELINE_ROLE"
+    role_arn = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
   }
 }
 
