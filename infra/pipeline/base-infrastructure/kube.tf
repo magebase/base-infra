@@ -2,9 +2,9 @@
 terraform {
   required_version = ">= 1.8.0"
 
-  # Backend configuration using environment-specific S3 bucket created by bootstrap-env-account
+  # Backend configuration using management account
   backend "s3" {
-    bucket      = "magebase-tf-state-bootstrap-dev-ap-southeast-1"
+    bucket      = "magebase-tf-state-management"
     key         = "magebase/base-infrastructure/dev/terraform.tfstate"
     region      = "ap-southeast-1"
     encrypt     = true

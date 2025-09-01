@@ -156,7 +156,7 @@ jobs:
 
           while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
             LOCK_ITEMS=$(aws dynamodb scan \
-              --table-name "magebase-terraform-locks-bootstrap" \
+              --table-name "magebase-terraform-locks-management" \
               --region ${{ env.INFRA_REGION }} \
               --query 'Items[?attribute_exists(LockID)]' \
               --output json 2>/dev/null || echo "[]")
@@ -211,7 +211,7 @@ jobs:
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
           terraform init -upgrade \
-            -backend-config="bucket=magebase-tf-state-bootstrap-${ENVIRONMENT}-ap-southeast-1" \
+            -backend-config="bucket=magebase-tf-state-management" \
             -backend-config="key=magebase/site-infrastructure/${ENVIRONMENT}/terraform.tfstate"
 
       - name: Terraform Validate
@@ -408,7 +408,7 @@ jobs:
           # Try to scan DynamoDB for any existing locks
           echo "🔍 Scanning DynamoDB for existing site infrastructure locks..."
           LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-bootstrap" \
+            --table-name "magebase-terraform-locks-management" \
             --region ${{ env.INFRA_REGION }} \
             --query 'Items[?attribute_exists(LockID)]' \
             --output json 2>/dev/null || echo "[]")
