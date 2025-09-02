@@ -36,6 +36,7 @@ on:
           - plan
           - apply
           - destroy
+          - cleanup
 
 env:
   TF_VERSION: "1.8.0"
@@ -79,12 +80,36 @@ jobs:
           echo "🔧 Initializing Terraform..."
           terraform init -reconfigure
 
-      - name: Select/Create Terraform Workspace
+      - name: Clean Orphaned Resources
+        if: github.event.inputs.action == 'cleanup' || contains(github.event.inputs.action, 'cleanup')
         working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          AWS_REGION: ${{ env.INFRA_REGION }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_stripe_api_key: ${{ secrets.STRIPE_API_KEY }}
+          TF_VAR_stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_ruby_llm_api_key: ${{ secrets.RUBY_LLM_API_KEY }}
+          TF_VAR_environment_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+          AWS_SSO_REGION: ${{ env.SSO_REGION }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
         run: |
           ENVIRONMENT="${{ steps.get-env.outputs.environment }}"
-          echo "📁 Selecting workspace: $ENVIRONMENT"
-          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT
+          echo "🧹 Cleaning up orphaned resources from state..."
+
+          # Remove orphaned Hetzner Object Storage resources
+          terraform state rm module.hetzner_object_storage.minio_s3_bucket_versioning.active_storage || echo "Resource not found"
+          terraform state rm module.hetzner_object_storage.minio_s3_bucket.active_storage || echo "Resource not found"
+          terraform state rm module.hetzner_object_storage.minio_s3_bucket_versioning.postgres_backups || echo "Resource not found"
+          terraform state rm module.hetzner_object_storage.minio_s3_bucket.postgres_backups || echo "Resource not found"
+          terraform state rm module.hetzner_object_storage.aws_s3_bucket.postgres_backups || echo "Resource not found"
+
+          echo "✅ Orphaned resources cleaned up"
 
       - name: Terraform Plan
         if: github.event.inputs.action == 'plan' || github.event_name == 'pull_request'
