@@ -2,18 +2,6 @@
 terraform {
   required_version = ">= 1.8.0"
 
-  # Backend configuration - this will be overridden by the workflow
-  # The actual backend is configured dynamically based on environment
-  backend "s3" {
-    # These values are set by the GitHub Actions workflow
-    # bucket, key, region, and dynamodb_table are configured per environment
-    bucket         = "magebase-tf-state-placeholder"
-    key            = "magebase/site-infrastructure/terraform.tfstate"
-    region         = "ap-southeast-1"
-    encrypt        = true
-    dynamodb_table = "magebase-terraform-locks-placeholder"
-  }
-
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
