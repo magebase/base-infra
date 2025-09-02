@@ -33,91 +33,15 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
-# AWS Provider (for Route53 operations) - uses environment-specific account
+# Default AWS Provider (uses environment account credentials from OIDC)
+provider "aws" {
+  region = "ap-southeast-1"
+}
+
+# AWS Provider (for Route53 operations) - uses environment account credentials
 provider "aws" {
   alias  = "route53"
   region = "us-east-1" # Route53 is a global service, but provider needs a region
-  assume_role {
-    role_arn = "arn:aws:iam::${var.environment_account_id}:role/${var.pipeline_role_name}"
-  }
-}
-
-# IAM Role for SES Management (created in environment account)
-resource "aws_iam_role" "ses_manager" {
-  provider = aws.route53
-  name     = "SESManagerRole-${var.environment}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::${var.environment_account_id}:role/${var.pipeline_role_name}"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = {
-    Environment = var.environment
-    Purpose     = "SES Management"
-  }
-
-  lifecycle {
-    create_before_destroy = true
-    ignore_changes = [
-      assume_role_policy, # Allow manual changes to the policy
-    ]
-  }
-}
-
-# IAM Policy for SES Management
-resource "aws_iam_role_policy" "ses_manager_policy" {
-  provider = aws.route53
-  name     = "SESManagerPolicy"
-  role     = aws_iam_role.ses_manager.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "ses:*"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "route53:GetChange",
-          "route53:ListHostedZones",
-          "route53:GetHostedZone",
-          "route53:ListResourceRecordSets",
-          "route53:ChangeResourceRecordSets"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-
-  lifecycle {
-    create_before_destroy = true
-    ignore_changes = [
-      policy, # Allow manual changes to the policy
-    ]
-  }
-}
-
-# AWS Provider (for SES only) - assumes GitHubActionsSSORole from management account
-provider "aws" {
-  alias  = "ses"
-  region = "ap-southeast-1" # Singapore region for SES
-  assume_role {
-    role_arn = "arn:aws:iam::${var.environment_account_id}:role/${var.pipeline_role_name}"
-  }
 }
 
 # AWS Provider for accessing management account (for base infrastructure remote state)
@@ -182,14 +106,10 @@ module "cloudflare_dns" {
 # AWS SES Configuration (always enabled)
 module "aws_ses" {
   source = "./modules/aws-ses"
-  providers = {
-    aws = aws.ses
-  }
 
-  domain_name          = var.domain_name
-  environment          = var.environment
-  account_id           = var.environment_account_id
-  ses_manager_role_arn = aws_iam_role.ses_manager.arn
+  domain_name = var.domain_name
+  environment = var.environment
+  account_id  = var.environment_account_id
 }
 
 # MinIO Provider for Hetzner Object Storage (recommended approach)
