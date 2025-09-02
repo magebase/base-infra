@@ -29,32 +29,6 @@ provider "aws" {
   skip_credentials_validation = true
 }
 
-# Development Account Provider
-provider "aws" {
-  alias  = "development"
-  region = var.region
-
-  assume_role {
-    role_arn = "arn:aws:iam::${local.development_account_id}:role/OrganizationAccountAccessRole"
-  }
-
-  skip_metadata_api_check     = true
-  skip_credentials_validation = true
-}
-
-# Production Account Provider
-provider "aws" {
-  alias  = "production"
-  region = var.region
-
-  assume_role {
-    role_arn = "arn:aws:iam::${local.production_account_id}:role/OrganizationAccountAccessRole"
-  }
-
-  skip_metadata_api_check     = true
-  skip_credentials_validation = true
-}
-
 # Cloudflare Provider
 provider "cloudflare" {
   api_token = var.cloudflare_api_token
@@ -95,27 +69,22 @@ resource "aws_organizations_account" "production" {
 }
 
 # Reference existing organization (don't create if it exists)
-data "aws_organizations_organization" "main" {
-  count = var.management_account_id != "" ? 1 : 0
-}
+data "aws_organizations_organization" "main" {}
 
 # Create Organizational Units (or reference existing ones)
 data "aws_organizations_organizational_units" "existing" {
-  count = var.management_account_id != "" ? 1 : 0
-
-  parent_id = data.aws_organizations_organization.main[0].roots[0].id
+  parent_id = data.aws_organizations_organization.main.roots[0].id
 }
 
 locals {
-  # Only use data sources if management account is provided
-  existing_ou_names = var.management_account_id != "" ? toset([for ou in data.aws_organizations_organizational_units.existing[0].children : ou.name]) : toset([])
+  existing_ou_names = toset([for ou in data.aws_organizations_organizational_units.existing.children : ou.name])
 
-  development_ou_id = var.management_account_id != "" && contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : (length(aws_organizations_organizational_unit.development) > 0 ? aws_organizations_organizational_unit.development[0].id : "")
-  production_ou_id  = var.management_account_id != "" && contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : (length(aws_organizations_organizational_unit.production) > 0 ? aws_organizations_organizational_unit.production[0].id : "")
+  development_ou_id = contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : (length(aws_organizations_organizational_unit.development) > 0 ? aws_organizations_organizational_unit.development[0].id : "")
+  production_ou_id  = contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : (length(aws_organizations_organizational_unit.production) > 0 ? aws_organizations_organizational_unit.production[0].id : "")
 
-  # Check for existing accounts by email (only if management account is provided)
-  existing_development_account = var.management_account_id != "" ? [for acc in data.aws_organizations_organization.main[0].accounts : acc if acc.email == var.development_email] : []
-  existing_production_account  = var.management_account_id != "" ? [for acc in data.aws_organizations_organization.main[0].accounts : acc if acc.email == var.production_email] : []
+  # Check for existing accounts by email
+  existing_development_account = [for acc in data.aws_organizations_organization.main.accounts : acc if acc.email == var.development_email]
+  existing_production_account  = [for acc in data.aws_organizations_organization.main.accounts : acc if acc.email == var.production_email]
 
   development_account_exists = length(local.existing_development_account) > 0 || var.development_account_id != ""
   production_account_exists  = length(local.existing_production_account) > 0 || var.production_account_id != ""
@@ -123,51 +92,35 @@ locals {
   # Determine account IDs - prioritize explicit variables over discovery
   development_account_id = var.development_account_id != "" ? var.development_account_id : (length(local.existing_development_account) > 0 ? local.existing_development_account[0].id : (length(aws_organizations_account.development) > 0 ? aws_organizations_account.development[0].id : ""))
   production_account_id  = var.production_account_id != "" ? var.production_account_id : (length(local.existing_production_account) > 0 ? local.existing_production_account[0].id : (length(aws_organizations_account.production) > 0 ? aws_organizations_account.production[0].id : ""))
-
-  # IAM Users Configuration
-  iam_users = {
-    admin = {
-      name    = "admin"
-      purpose = "Administrative access"
-    }
-    developer = {
-      name    = "developer"
-      purpose = "Application development"
-    }
-    auditor = {
-      name    = "auditor"
-      purpose = "Read-only access for auditing"
-    }
-  }
 }
 
 resource "aws_organizations_organizational_unit" "development" {
-  count = var.management_account_id != "" && contains(local.existing_ou_names, "Development") ? 0 : (var.management_account_id != "" ? 1 : 0)
+  count = contains(local.existing_ou_names, "Development") ? 0 : 1
 
-  name      = data.aws_organizations_organization.main[0].roots[0].id
-  parent_id = data.aws_organizations_organization.main[0].roots[0].id
+  name      = "Development"
+  parent_id = data.aws_organizations_organization.main.roots[0].id
 }
 
 resource "aws_organizations_organizational_unit" "production" {
-  count = var.management_account_id != "" && contains(local.existing_ou_names, "Production") ? 0 : (var.management_account_id != "" ? 1 : 0)
+  count = contains(local.existing_ou_names, "Production") ? 0 : 1
 
   name      = "Production"
-  parent_id = data.aws_organizations_organization.main[0].roots[0].id
+  parent_id = data.aws_organizations_organization.main.roots[0].id
 }
 
 # Data sources for existing OUs
 data "aws_organizations_organizational_unit" "development" {
-  count = var.management_account_id != "" && contains(local.existing_ou_names, "Development") ? 1 : 0
+  count = contains(local.existing_ou_names, "Development") ? 1 : 0
 
   name      = "Development"
-  parent_id = data.aws_organizations_organization.main[0].roots[0].id
+  parent_id = data.aws_organizations_organization.main.roots[0].id
 }
 
 data "aws_organizations_organizational_unit" "production" {
-  count = var.management_account_id != "" && contains(local.existing_ou_names, "Production") ? 1 : 0
+  count = contains(local.existing_ou_names, "Production") ? 1 : 0
 
   name      = "Production"
-  parent_id = data.aws_organizations_organization.main[0].roots[0].id
+  parent_id = data.aws_organizations_organization.main.roots[0].id
 }
 
 # Output the account IDs for use in SSO configuration
@@ -717,416 +670,6 @@ resource "aws_ssoadmin_account_assignment" "main" {
   ]
 }
 
-# IAM Users in Development Account
-resource "aws_iam_user" "development" {
-  for_each = local.iam_users
-
-  provider = aws.development
-  name     = each.value.name
-
-  tags = {
-    Environment = "development"
-    Purpose     = each.value.purpose
-    ManagedBy   = "terraform"
-  }
-}
-
-# IAM Access Keys for Development Users
-resource "aws_iam_access_key" "development" {
-  for_each = aws_iam_user.development
-
-  provider = aws.development
-  user     = each.value.name
-}
-
-# IAM Users in Production Account
-resource "aws_iam_user" "production" {
-  for_each = local.iam_users
-
-  provider = aws.production
-  name     = each.value.name
-
-  tags = {
-    Environment = "production"
-    Purpose     = each.value.purpose
-    ManagedBy   = "terraform"
-  }
-}
-
-# IAM Access Keys for Production Users
-resource "aws_iam_access_key" "production" {
-  for_each = aws_iam_user.production
-
-  provider = aws.production
-  user     = each.value.name
-}
-
-# GitHub Actions OIDC Provider for Development Account
-resource "aws_iam_openid_connect_provider" "github_development" {
-  count = 1
-
-  provider = aws.development
-  url      = "https://token.actions.githubusercontent.com"
-
-  client_id_list = [
-    "sts.amazonaws.com"
-  ]
-
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1" # GitHub's OIDC thumbprint
-  ]
-
-  tags = {
-    Name        = "GitHubActionsOIDC"
-    Environment = "development"
-    Purpose     = "GitHub Actions CI/CD OIDC Provider"
-    ManagedBy   = "terraform"
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# GitHub Actions OIDC Provider for Production Account
-resource "aws_iam_openid_connect_provider" "github_production" {
-  count = 1
-
-  provider = aws.production
-  url      = "https://token.actions.githubusercontent.com"
-
-  client_id_list = [
-    "sts.amazonaws.com"
-  ]
-
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1" # GitHub's OIDC thumbprint
-  ]
-
-  tags = {
-    Name        = "GitHubActionsOIDC"
-    Environment = "production"
-    Purpose     = "GitHub Actions CI/CD OIDC Provider"
-    ManagedBy   = "terraform"
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# Data source to check if GitHubActionsSSORole exists - Development
-data "aws_iam_role" "github_actions_sso_existing_development" {
-  count    = 0 # Temporarily disabled to avoid errors when role doesn't exist
-  provider = aws.development
-  name     = "GitHubActionsSSORole"
-}
-
-# Data source to check if GitHubActionsSSORole exists - Production
-data "aws_iam_role" "github_actions_sso_existing_production" {
-  count    = 0 # Temporarily disabled to avoid errors when role doesn't exist
-  provider = aws.production
-  name     = "GitHubActionsSSORole"
-}
-
-# GitHub Actions SSO Role for Development Account
-resource "aws_iam_role" "github_actions_sso_development" {
-  count = 1 # Always create since data source is disabled
-
-  provider = aws.development
-  name     = "GitHubActionsSSORole"
-
-  # Trust policy allowing GitHub Actions OIDC provider to assume this role
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = "arn:aws:iam::${local.development_account_id}:oidc-provider/token.actions.githubusercontent.com"
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:magebase/site:*"
-          }
-        }
-      },
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::308488080915:role/GitHubActionsSSORole"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = {
-    Environment = "development"
-    Purpose     = "GitHub Actions CI/CD"
-    ManagedBy   = "terraform"
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# GitHub Actions SSO Role for Production Account
-resource "aws_iam_role" "github_actions_sso_production" {
-  count = 1 # Always create since data source is disabled
-
-  provider = aws.production
-  name     = "GitHubActionsSSORole"
-
-  # Trust policy allowing GitHub Actions OIDC provider to assume this role
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = "arn:aws:iam::${local.production_account_id}:oidc-provider/token.actions.githubusercontent.com"
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:magebase/site:*"
-          }
-        }
-      },
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::308488080915:role/GitHubActionsSSORole"
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = {
-    Environment = "production"
-    Purpose     = "GitHub Actions CI/CD"
-    ManagedBy   = "terraform"
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# IAM Policy for GitHub Actions SSO Role - Development (only for newly created roles)
-resource "aws_iam_role_policy" "github_actions_sso_policy_development" {
-  count = 1 # Always create since data source is disabled
-
-  provider = aws.development
-  name     = "GitHubActionsSSOPolicy"
-  role     = aws_iam_role.github_actions_sso_development[0].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      # Administrative access for infrastructure management
-      {
-        Effect = "Allow"
-        Action = [
-          "iam:*",
-          "organizations:*",
-          "sso:*",
-          "sso-admin:*",
-          "identitystore:*"
-        ]
-        Resource = "*"
-      },
-      # Cross-account role assumption
-      {
-        Effect = "Allow"
-        Action = [
-          "sts:AssumeRole"
-        ]
-        Resource = [
-          "arn:aws:iam::*:role/OrganizationAccountAccessRole",
-          "arn:aws:iam::*:role/InfrastructureDeploymentRole",
-          "arn:aws:iam::*:role/SESManagerRole"
-        ]
-      },
-      # S3 access for Terraform state
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:*"
-        ]
-        Resource = [
-          "arn:aws:s3:::magebase-tf-state-*",
-          "arn:aws:s3:::magebase-tf-state-*/*"
-        ]
-      },
-      # DynamoDB access for state locking
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:*"
-        ]
-        Resource = "arn:aws:dynamodb:*:*:table/magebase-terraform-locks*"
-      },
-      # CloudWatch for monitoring
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudwatch:*",
-          "logs:*"
-        ]
-        Resource = "*"
-      },
-      # EC2 for infrastructure management
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:*",
-          "elasticloadbalancing:*"
-        ]
-        Resource = "*"
-      },
-      # Route53 for DNS management
-      {
-        Effect = "Allow"
-        Action = [
-          "route53:*"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# IAM Policy for GitHub Actions SSO Role - Production (only for newly created roles)
-resource "aws_iam_role_policy" "github_actions_sso_policy_production" {
-  count = 1 # Always create since data source is disabled
-
-  provider = aws.production
-  name     = "GitHubActionsSSOPolicy"
-  role     = aws_iam_role.github_actions_sso_production[0].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      # Administrative access for infrastructure management
-      {
-        Effect = "Allow"
-        Action = [
-          "iam:*",
-          "organizations:*",
-          "sso:*",
-          "sso-admin:*",
-          "identitystore:*"
-        ]
-        Resource = "*"
-      },
-      # Cross-account role assumption
-      {
-        Effect = "Allow"
-        Action = [
-          "sts:AssumeRole"
-        ]
-        Resource = [
-          "arn:aws:iam::*:role/OrganizationAccountAccessRole",
-          "arn:aws:iam::*:role/InfrastructureDeploymentRole",
-          "arn:aws:iam::*:role/SESManagerRole"
-        ]
-      },
-      # S3 access for Terraform state
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:*"
-        ]
-        Resource = [
-          "arn:aws:s3:::magebase-tf-state-*",
-          "arn:aws:s3:::magebase-tf-state-*/*"
-        ]
-      },
-      # DynamoDB access for state locking
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:*"
-        ]
-        Resource = "arn:aws:dynamodb:*:*:table/magebase-terraform-locks*"
-      },
-      # CloudWatch for monitoring
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudwatch:*",
-          "logs:*"
-        ]
-        Resource = "*"
-      },
-      # EC2 for infrastructure management
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:*",
-          "elasticloadbalancing:*"
-        ]
-        Resource = "*"
-      },
-      # Route53 for DNS management
-      {
-        Effect = "Allow"
-        Action = [
-          "route53:*"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-
-
-
-
-
-
-# Attach AdministratorAccess policy to GitHub Actions SSO Role - Development
-resource "aws_iam_role_policy_attachment" "github_actions_sso_admin_development" {
-  count = 1 # Always create since data source is disabled
-
-  provider   = aws.development
-  role       = aws_iam_role.github_actions_sso_development[0].name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-
-  depends_on = [aws_iam_role.github_actions_sso_development]
-}
-
-# Attach AdministratorAccess policy to GitHub Actions SSO Role - Production
-resource "aws_iam_role_policy_attachment" "github_actions_sso_admin_production" {
-  count = 1 # Always create since data source is disabled
-
-  provider   = aws.production
-  role       = aws_iam_role.github_actions_sso_production[0].name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-
-  depends_on = [aws_iam_role.github_actions_sso_production]
-}
-
 # Outputs
 output "sso_enabled" {
   description = "Whether AWS SSO is enabled"
@@ -1196,76 +739,4 @@ output "account_assignments" {
 output "sso_start_url" {
   description = "AWS SSO start URL"
   value       = local.effective_sso_enabled ? "https://${local.effective_identity_store_id}.awsapps.com/start" : null
-}
-
-output "github_actions_sso_roles" {
-  description = "GitHub Actions SSO roles in each account (created or existing)"
-  value = {
-    development = {
-      arn  = aws_iam_role.github_actions_sso_development[0].arn
-      name = "GitHubActionsSSORole"
-    }
-    production = {
-      arn  = aws_iam_role.github_actions_sso_production[0].arn
-      name = "GitHubActionsSSORole"
-    }
-  }
-}
-
-output "github_actions_oidc_providers" {
-  description = "GitHub Actions OIDC providers in each account (created or existing)"
-  value = {
-    development = {
-      arn = aws_iam_openid_connect_provider.github_development[0].arn
-      url = "https://token.actions.githubusercontent.com"
-    }
-    production = {
-      arn = aws_iam_openid_connect_provider.github_production[0].arn
-      url = "https://token.actions.githubusercontent.com"
-    }
-  }
-}
-
-output "iam_users_development" {
-  description = "IAM users created in the development account"
-  value = {
-    for k, v in aws_iam_user.development :
-    k => {
-      name = v.name
-      arn  = v.arn
-    }
-  }
-}
-
-output "iam_users_production" {
-  description = "IAM users created in the production account"
-  value = {
-    for k, v in aws_iam_user.production :
-    k => {
-      name = v.name
-      arn  = v.arn
-    }
-  }
-}
-
-output "iam_access_keys_development" {
-  description = "IAM access key IDs for users in the development account"
-  value = {
-    for k, v in aws_iam_access_key.development :
-    k => {
-      user          = v.user
-      access_key_id = v.id
-    }
-  }
-}
-
-output "iam_access_keys_production" {
-  description = "IAM access key IDs for users in the production account"
-  value = {
-    for k, v in aws_iam_access_key.production :
-    k => {
-      user          = v.user
-      access_key_id = v.id
-    }
-  }
 }
