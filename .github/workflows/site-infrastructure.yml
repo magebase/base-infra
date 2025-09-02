@@ -1,8 +1,8 @@
 name: Site Infrastructure Deployment
 
 # This workflow handles the deployment of site-specific infrastructure resources
-# including SES, Cloudflare DNS/CDN, and Hetzner object storage.
-# It depends on the base infrastructure (k3s cluster) being deployed first.
+# including SES users, Cloudflare DNS/CDN, and Hetzner object storage.
+# It uses dedicated AWS IAM users for SES instead of assuming roles in different accounts.
 
 on:
   push:
@@ -15,10 +15,6 @@ on:
     paths:
       - "infra/pipeline/site-infrastructure/**"
       - ".github/workflows/site-infrastructure.yml"
-  workflow_run:
-    workflows: ["Unified Infrastructure & SSO Pipeline"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
@@ -40,598 +36,126 @@ on:
           - plan
           - apply
           - destroy
-      base_infrastructure_status:
-        description: "Status of base infrastructure deployment (use 'completed' if base infra is ready)"
-        required: false
-        default: "unknown"
-        type: string
-      cluster_ipv4:
-        description: "IPv4 address of the cluster load balancer from base infrastructure"
-        required: true
-        type: string
 
 env:
   TF_VERSION: "1.8.0"
-  AWS_REGION: us-east-1 # Organizations must be in us-east-1
-  SSO_REGION: ap-southeast-1
+  TF_WORKING_DIR: infra/pipeline/site-infrastructure
   INFRA_REGION: ap-southeast-1
 
 jobs:
-  bootstrap-env-account:
-    name: "Bootstrap Environment Account"
-    runs-on: self-hosted
-    permissions:
-      id-token: write
-      contents: read
-    outputs:
-      account_id: ${{ steps.get-env-account.outputs.account_id }}
-      bootstrap_complete: ${{ steps.bootstrap-check.outputs.complete }}
+  site-infrastructure:
+    name: "Site Infrastructure (${{ github.event.inputs.environment || 'dev' }})"
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Determine Environment Account
-        id: get-env-account
-        run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-
-          # Get account ID from repository variables (set by unified-infrastructure workflow)
-          case $ENVIRONMENT in
-            "dev")
-              ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID || '' }}"
-              ;;
-            "prod")
-              ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID || '' }}"
-              ;;
-            "qa")
-              ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID || '' }}"
-              ;;
-            "uat")
-              ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID || '' }}"
-              ;;
-            *)
-              echo "❌ Unknown environment: $ENVIRONMENT"
-              exit 1
-              ;;
-          esac
-
-          if [ -z "$ACCOUNT_ID" ]; then
-            echo "⚠️  Environment account ID not found for $ENVIRONMENT, falling back to management account"
-            ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-            if [ -z "$ACCOUNT_ID" ]; then
-              echo "❌ Could not determine account ID for environment: $ENVIRONMENT"
-              echo "📋 This workflow requires AWS account IDs to be configured."
-              echo ""
-              echo "🔧 Solutions:"
-              echo "1. **For dev/prod environments**: Run the unified-infrastructure workflow first to create accounts"
-              echo "2. **For qa/uat environments**: Set the account IDs in repository variables:"
-              echo "   - QA_ACCOUNT_ID"
-              echo "   - UAT_ACCOUNT_ID"
-              echo "   - DEVELOPMENT_ACCOUNT_ID"
-              echo "   - PRODUCTION_ACCOUNT_ID"
-              echo "   - MANAGEMENT_ACCOUNT_ID"
-              echo ""
-              echo "3. **Repository Settings > Variables** to configure these values"
-              echo ""
-              echo "💡 Alternatively, this workflow should be triggered automatically by the unified-infrastructure workflow"
-              exit 1
-            fi
-            echo "✅ Using management account as fallback: $ACCOUNT_ID"
-          fi
-
-          echo "🌍 Using $ENVIRONMENT account for bootstrap"
-          echo "🔐 Account ID: $ACCOUNT_ID"
-          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-
-      - name: Configure AWS credentials for bootstrap
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ steps.get-env-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
-          aws-region: ${{ env.INFRA_REGION }}
-
-      - name: Check if bootstrap is needed
-        id: bootstrap-check
-        run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-
-          # Check if bootstrap resources exist
-          # The bootstrap creates buckets with "bootstrap" in the name
-          echo "🔍 Checking for existing bootstrap resources..."
-
-          # Check main state bucket
-          if aws s3 ls s3://magebase-${ENVIRONMENT}-tf-state-bootstrap-${ENVIRONMENT}-${{ env.INFRA_REGION }} --region ${{ env.INFRA_REGION }} >/dev/null 2>&1; then
-            echo "✅ Main state bucket exists: magebase-${ENVIRONMENT}-tf-state-bootstrap-${ENVIRONMENT}-${{ env.INFRA_REGION }}"
-            BUCKET_EXISTS="true"
-          else
-            echo "❌ Main state bucket does not exist"
-            BUCKET_EXISTS=""
-          fi
-
-          # Check DynamoDB table
-          if aws dynamodb describe-table --table-name magebase-terraform-locks-${ENVIRONMENT} --region ${{ env.INFRA_REGION }} >/dev/null 2>&1; then
-            echo "✅ DynamoDB table exists: magebase-terraform-locks-${ENVIRONMENT}"
-            TABLE_EXISTS="true"
-          else
-            echo "❌ DynamoDB table does not exist"
-            TABLE_EXISTS=""
-          fi
-
-          # Check account alias
-          if aws iam list-account-aliases --query 'AccountAliases' --output text | grep -q "magebase-${ENVIRONMENT}"; then
-            echo "✅ Account alias exists: magebase-${ENVIRONMENT}"
-            ALIAS_EXISTS="true"
-          else
-            echo "❌ Account alias does not exist"
-            ALIAS_EXISTS=""
-          fi
-
-          if [ -n "$BUCKET_EXISTS" ] && [ -n "$TABLE_EXISTS" ] && [ -n "$ALIAS_EXISTS" ]; then
-            echo "✅ All bootstrap resources already exist for $ENVIRONMENT - skipping bootstrap"
-            echo "complete=true" >> $GITHUB_OUTPUT
-          else
-            echo "🔧 Bootstrap needed for $ENVIRONMENT environment"
-            echo "complete=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Run Bootstrap for Environment
-        if: steps.bootstrap-check.outputs.complete == 'false'
-        working-directory: infra/pipeline/bootstrap-env-account
-        run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-
-          echo "🚀 Running bootstrap for $ENVIRONMENT environment..."
-
-          # Initialize Terraform
-          terraform init
-
-          # Plan the bootstrap
-          terraform plan \
-            -var="environment=$ENVIRONMENT" \
-            -var="region=${{ env.INFRA_REGION }}" \
-            -var="account_alias=magebase-$ENVIRONMENT" \
-            -var="dynamodb_table_name=magebase-terraform-locks-$ENVIRONMENT" \
-            -var="create_account_alias=true" \
-            -out=tfplan
-
-          # Apply the bootstrap
-          terraform apply tfplan
-
-          echo "✅ Bootstrap completed for $ENVIRONMENT"
-
-  site-infrastructure-deploy:
-    name: "Site Infrastructure Deployment"
-    runs-on: self-hosted
-    needs: bootstrap-env-account
-    permissions:
-      id-token: write
-      contents: read
-    defaults:
-      run:
-        working-directory: infra/pipeline/site-infrastructure
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Extract Environment from Triggering Workflow
-        if: github.event_name == 'workflow_run'
-        run: |
-          # Extract environment from the triggering workflow
-          TRIGGERING_WORKFLOW="${{ github.event.workflow_run.name }}"
-          echo "🔗 Triggered by workflow: $TRIGGERING_WORKFLOW"
-
-          # Try to extract environment from workflow inputs or outputs
-          # For now, default to dev, but this can be enhanced to parse the triggering workflow's inputs
-          ENVIRONMENT="dev"
-          echo "🌍 Inferred environment: $ENVIRONMENT"
-          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Validate Base Infrastructure Status
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          if [ "${{ github.event.inputs.base_infrastructure_status }}" != "completed" ]; then
-            echo "❌ Base infrastructure deployment status not confirmed"
-            echo "📋 Please ensure base infrastructure (k3s cluster) is deployed before running site infrastructure"
-            echo "💡 Set base_infrastructure_status to 'completed' when ready"
-            exit 1
-          fi
-          echo "✅ Base infrastructure status confirmed"
-
-      - name: Get Infrastructure Account ID
-        id: get-infra-account
-        run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-
-          # Get account ID from repository variables (set by unified-infrastructure workflow)
-          case $ENVIRONMENT in
-            "dev")
-              ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID || '' }}"
-              ;;
-            "prod")
-              ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID || '' }}"
-              ;;
-            "qa")
-              ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID || '' }}"
-              ;;
-            "uat")
-              ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID || '' }}"
-              ;;
-            *)
-              echo "❌ Unknown environment: $ENVIRONMENT"
-              exit 1
-              ;;
-          esac
-
-          if [ -z "$ACCOUNT_ID" ]; then
-            echo "❌ Could not determine account ID for environment: $ENVIRONMENT"
-            echo "📋 This workflow requires AWS account IDs to be configured."
-            echo ""
-            echo "🔧 Solutions:"
-            echo "1. **For dev/prod environments**: Run the unified-infrastructure workflow first to create accounts"
-            echo "2. **For qa/uat environments**: Set the account IDs in repository variables:"
-            echo "   - QA_ACCOUNT_ID"
-            echo "   - UAT_ACCOUNT_ID"
-            echo "   - DEVELOPMENT_ACCOUNT_ID (if running manually)"
-            echo "   - PRODUCTION_ACCOUNT_ID (if running manually)"
-            echo ""
-            echo "3. **Repository Settings > Variables** to configure these values"
-            echo ""
-            echo "💡 Alternatively, this workflow should be triggered automatically by the unified-infrastructure workflow"
-            exit 1
-          fi
-
-          echo "🌍 Using $ENVIRONMENT account for site infrastructure"
-          echo "🔐 Account ID: $ACCOUNT_ID"
-          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-
-      - name: Configure Terraform Backend
-        run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-
-          # Use environment-specific state bucket created by bootstrap
-          cat > backend.tf << EOF
-          terraform {
-            backend "s3" {
-              bucket         = "magebase-${ENVIRONMENT}-tf-state-bootstrap-${ENVIRONMENT}-${{ env.INFRA_REGION }}"
-              key            = "magebase/site-infrastructure/${ENVIRONMENT}/terraform.tfstate"
-              region         = "${{ env.INFRA_REGION }}"
-              encrypt        = true
-              dynamodb_table = "magebase-terraform-locks-${ENVIRONMENT}"
-            }
-          }
-          EOF
-
-          echo "✅ Configured Terraform backend for $ENVIRONMENT environment"
-
-      - name: Configure AWS credentials via OIDC
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ steps.get-infra-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.INFRA_REGION }}
 
-      - name: Handle State Locks
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply') || github.event_name == 'workflow_run'
+      - name: Get Environment
+        id: get-env
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-          echo "🔍 Checking for existing Terraform state locks..."
+          echo "🌍 Environment: $ENVIRONMENT"
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
 
-          # Wait for any existing locks to be released (with timeout)
-          MAX_WAIT=300  # 5 minutes
-          WAIT_COUNT=0
-
-          while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-            LOCK_ITEMS=$(aws dynamodb scan \
-              --table-name "magebase-terraform-locks-${ENVIRONMENT}" \
-              --region ${{ env.INFRA_REGION }} \
-              --query 'Items[?attribute_exists(LockID)]' \
-              --output json 2>/dev/null || echo "[]")
-
-            LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-            if [ "$LOCK_COUNT" -eq 0 ]; then
-              echo "✅ No state locks found - proceeding with Terraform operations"
-              break
-            else
-              echo "🔒 Found $LOCK_COUNT existing state lock(s), waiting..."
-              for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-                LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-                LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-                if [ -n "$LOCK_ID" ]; then
-                  echo "  Lock ID: $LOCK_ID"
-                  echo "  Info: $LOCK_INFO"
-                fi
-              done
-
-              WAIT_COUNT=$((WAIT_COUNT + 30))
-              if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
-                echo "⏳ Waiting 30 seconds before checking again... ($WAIT_COUNT/$MAX_WAIT seconds)"
-                sleep 30
-              fi
-            fi
-          done
-
-          if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
-            echo "❌ Timeout waiting for state locks to be released"
-            echo "🔓 Attempting to force unlock existing locks..."
-
-            # Force unlock any remaining locks
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Force unlocking: $LOCK_ID"
-                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
-                  echo "✅ Successfully force unlocked: $LOCK_ID"
-                  break
-                else
-                  echo "⚠️  Force unlock failed for: $LOCK_ID"
-                fi
-              fi
-            done
-          fi
-
-          echo "🔄 Proceeding with Terraform operations..."
-
-      - name: Terraform Init
-        id: init
+      - name: Initialize Terraform
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-          terraform init -upgrade
+          echo "🔧 Initializing Terraform..."
+          terraform init -reconfigure
 
-      - name: Terraform Validate
-        id: validate
+      - name: Select/Create Terraform Workspace
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          terraform validate
-
-      - name: Terraform Format Check
-        id: fmt
-        run: |
-          terraform fmt -check -recursive
+          ENVIRONMENT="${{ steps.get-env.outputs.environment }}"
+          echo "📁 Selecting workspace: $ENVIRONMENT"
+          terraform workspace select $ENVIRONMENT || terraform workspace new $ENVIRONMENT
 
       - name: Terraform Plan
-        id: tf-plan
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || github.event_name == 'workflow_run'
-        env:
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
-          TF_VAR_cluster_ipv4: ${{ github.event.inputs.cluster_ipv4 }}
-          TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-          TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
-          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
-          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
-          TF_VAR_hetzner_object_storage_access_key: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}
-          TF_VAR_hetzner_object_storage_secret_key: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_stripe_api_key: ${{ secrets.STRIPE_API_KEY }}
-          TF_VAR_stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+        if: github.event.inputs.action == 'plan' || github.event_name == 'pull_request'
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          terraform plan -no-color -out=tfplan
-        continue-on-error: true
+          ENVIRONMENT="${{ steps.get-env.outputs.environment }}"
+          echo "📋 Planning infrastructure for $ENVIRONMENT environment..."
 
-      - name: Terraform Plan (Push to Main)
-        id: tf-plan-main
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_run'
-        env:
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
-          TF_VAR_cluster_ipv4: ${{ github.event.inputs.cluster_ipv4 }}
-          TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-          TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
-          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
-          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
-          TF_VAR_hetzner_object_storage_access_key: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY || '' }}
-          TF_VAR_hetzner_object_storage_secret_key: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY || '' }}
-          TF_VAR_stripe_api_key: ${{ secrets.STRIPE_API_KEY || '' }}
-          TF_VAR_stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET || '' }}
-        run: |
-          echo "🚀 Running Terraform plan for site infrastructure deployment..."
+          terraform plan \
+            -var="management_account_id=${{ vars.MANAGEMENT_ACCOUNT_ID }}" \
+            -var-file="${ENVIRONMENT}.tfvars" \
+            -out=tfplan
 
-          # Debug: Check if secrets are being passed
-          echo "🔍 Debug: Checking environment variables..."
-          if [ -z "$TF_VAR_stripe_api_key" ]; then
-            echo "⚠️  TF_VAR_stripe_api_key is empty or not set"
-          else
-            echo "✅ TF_VAR_stripe_api_key is set (length: ${#TF_VAR_stripe_api_key})"
-          fi
-
-          # Retry logic for state lock conflicts
-          MAX_RETRIES=3
-          RETRY_COUNT=0
-
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "📋 Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
-
-            if terraform plan -no-color -out=tfplan; then
-              echo "✅ Terraform plan completed successfully"
-              echo "📄 Plan file created: tfplan"
-
-              # Verify the plan file was created
-              if [ -f "tfplan" ]; then
-                echo "✅ Plan file verified: $(ls -la tfplan)"
-              else
-                echo "❌ Plan file was not created despite successful plan command"
-                exit 1
-              fi
-              break
-            else
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo "⚠️  Terraform plan failed, retrying in 30 seconds..."
-                sleep 30
-              else
-                echo "❌ Terraform plan failed after $MAX_RETRIES attempts"
-                exit 1
-              fi
-            fi
-          done
-
-      - name: Update Pull Request
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request' && (steps.tf-plan.outcome == 'success' || steps.tf-plan-main.outcome == 'success')
-        env:
-          PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout || steps.tf-plan-main.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const planOutcome = '${{ steps.tf-plan.outcome }}' === 'success' ? '${{ steps.tf-plan.outcome }}' : '${{ steps.tf-plan-main.outcome }}';
-            const output = `#### Site Infrastructure Deployment 🏗️
-            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Plan 📖\`${planOutcome}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
+          echo "✅ Plan completed successfully"
 
       - name: Terraform Apply
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-        env:
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
-          TF_VAR_cluster_ipv4: ${{ github.event.inputs.cluster_ipv4 }}
-          TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-          TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_aws_ses_account_id: ${{ steps.get-infra-account.outputs.account_id }}
-          TF_VAR_aws_ses_access_key_id: ${{ steps.get-infra-account.outputs.ses_access_key_id }}
-          TF_VAR_aws_ses_secret_access_key: ${{ steps.get-infra-account.outputs.ses_secret_access_key }}
-          TF_VAR_stripe_api_key: ${{ secrets.STRIPE_API_KEY || '' }}
-          TF_VAR_stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET || '' }}
+        if: github.event.inputs.action == 'apply' || github.event_name == 'push'
+        id: apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          echo "🚀 Applying site infrastructure changes..."
+          ENVIRONMENT="${{ steps.get-env.outputs.environment }}"
+          echo "🚀 Applying infrastructure for $ENVIRONMENT environment..."
 
-          # Retry logic for state lock conflicts
-          MAX_RETRIES=3
-          RETRY_COUNT=0
+          terraform apply \
+            -var="management_account_id=${{ vars.MANAGEMENT_ACCOUNT_ID }}" \
+            -var-file="${ENVIRONMENT}.tfvars" \
+            -auto-approve
 
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "📋 Apply attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+          echo "✅ Apply completed successfully"
 
-            # Always regenerate plan on retry to avoid stale plan issues
-            if [ $RETRY_COUNT -gt 0 ]; then
-              echo "🔄 Regenerating plan for retry attempt..."
-              terraform plan -no-color -out=tfplan
-            fi
+          # Capture SES user credentials from Terraform outputs
+          echo "🔑 Capturing SES user credentials..."
 
-            if terraform apply -auto-approve tfplan; then
-              echo "✅ Site infrastructure apply completed successfully"
-              break
-            else
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo "⚠️  Site infrastructure apply failed, retrying in 30 seconds..."
-                sleep 30
-              else
-                echo "❌ Site infrastructure apply failed after $MAX_RETRIES attempts"
-                exit 1
-              fi
-            fi
-          done
-
-      - name: Output Database Connection Information
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-        run: |
-          echo "🗄️ **Database Connection Information**"
-          echo ""
-          echo "The database URL is dynamically generated by CloudNativePG and stored in a Kubernetes Secret."
-          echo ""
-          echo "To retrieve the database connection string after deployment:"
-          echo ""
-          echo "1. **Get kubeconfig from workflow artifacts** (download from this run)"
-          echo "2. **Set up kubectl access**:"
-          echo "   export KUBECONFIG=/path/to/downloaded/kubeconfig"
-          echo ""
-          echo "3. **Retrieve the database URL**:"
-          echo "   kubectl get secret magebase-db-creds -n magebase -o jsonpath='{.data.connection_string}' | base64 -d"
-          echo ""
-          echo "4. **View all database connection details**:"
-          echo "   kubectl get secret magebase-db-creds -n magebase -o yaml"
-          echo ""
-          echo "The application deployment automatically uses this Secret for DATABASE_URL."
-
-      - name: Force Unlock Site Infrastructure on Failure
-        if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply') || github.event_name == 'workflow_run')
-        run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-          echo "🔍 Attempting to force unlock site infrastructure Terraform state after failure..."
-
-          # Try to scan DynamoDB for any existing locks
-          echo "🔍 Scanning DynamoDB for existing site infrastructure locks..."
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-${ENVIRONMENT}" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
-
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing site infrastructure state lock(s), attempting to force unlock..."
-
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Attempting to force unlock site infrastructure: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
-
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
-                  echo "✅ Successfully force unlocked site infrastructure: $LOCK_ID"
-                  break
-                else
-                  echo "⚠️  Force unlock failed for site infrastructure: $LOCK_ID"
-                fi
-              fi
-            done
-          else
-            echo "ℹ️  No site infrastructure locks found in DynamoDB table"
+          # Get SES user name
+          SES_USER_NAME=$(terraform output -raw ses_user_name 2>/dev/null || echo "")
+          if [ -n "$SES_USER_NAME" ]; then
+            echo "SES_USER_NAME=$SES_USER_NAME" >> $GITHUB_ENV
+            echo "✅ SES User Name: $SES_USER_NAME"
           fi
 
-          # Provide manual instructions
-          echo ""
-          echo "📋 If the automatic unlock failed, please manually force-unlock the site infrastructure state:"
-          echo "1. Find the lock ID from the failed site infrastructure deployment step logs above"
-          echo "2. Run: cd infra/pipeline/site-infrastructure && terraform force-unlock -force <lock_id>"
-          echo "3. Re-run the workflow"
-        env:
-          AWS_REGION: ${{ env.INFRA_REGION }}
+          # Get SES access key ID
+          SES_ACCESS_KEY_ID=$(terraform output -raw ses_access_key_id 2>/dev/null || echo "")
+          if [ -n "$SES_ACCESS_KEY_ID" ]; then
+            echo "SES_ACCESS_KEY_ID=$SES_ACCESS_KEY_ID" >> $GITHUB_ENV
+            echo "✅ SES Access Key ID captured"
+          fi
+
+          # Get SES secret access key
+          SES_SECRET_ACCESS_KEY=$(terraform output -raw ses_secret_access_key 2>/dev/null || echo "")
+          if [ -n "$SES_SECRET_ACCESS_KEY" ]; then
+            echo "SES_SECRET_ACCESS_KEY=$SES_SECRET_ACCESS_KEY" >> $GITHUB_ENV
+            echo "✅ SES Secret Access Key captured"
+          fi
 
       - name: Terraform Destroy
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+        if: github.event.inputs.action == 'destroy'
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
-          terraform destroy -auto-approve
+          ENVIRONMENT="${{ steps.get-env.outputs.environment }}"
+          echo "🗑️ Destroying infrastructure for $ENVIRONMENT environment..."
+
+          terraform destroy \
+            -var="management_account_id=${{ vars.MANAGEMENT_ACCOUNT_ID }}" \
+            -var-file="${ENVIRONMENT}.tfvars" \
+            -auto-approve
+
+          echo "✅ Destroy completed successfully"
+
+      - name: Display SES Credentials (for debugging)
+        if: env.SES_USER_NAME
+        run: |
+          echo "🔐 SES User Credentials Generated:"
+          echo "User Name: ${{ env.SES_USER_NAME }}"
+          echo "Access Key ID: ${{ env.SES_ACCESS_KEY_ID }}"
+          echo "Secret Access Key: ***masked***"
+          echo ""
+          echo "⚠️  These credentials should be stored securely in your deployment environment"
+          echo "   Consider using GitHub Secrets or your secret management system"

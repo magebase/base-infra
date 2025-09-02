@@ -33,15 +33,21 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
-# Default AWS Provider (uses environment account credentials from OIDC)
+# Default AWS Provider (uses management account OIDC role)
 provider "aws" {
   region = "ap-southeast-1"
+  assume_role {
+    role_arn = "arn:aws:iam::${var.management_account_id}:role/${var.pipeline_role_name}"
+  }
 }
 
-# AWS Provider (for Route53 operations) - uses environment account credentials
+# AWS Provider (for Route53 operations) - uses management account OIDC role
 provider "aws" {
   alias  = "route53"
   region = "us-east-1" # Route53 is a global service, but provider needs a region
+  assume_role {
+    role_arn = "arn:aws:iam::${var.management_account_id}:role/${var.pipeline_role_name}"
+  }
 }
 
 # Local values
@@ -61,7 +67,7 @@ module "cloudflare_dns" {
   cluster_ipv6 = null # IPv6 not currently available from base infrastructure
 
   # SES configuration
-  aws_ses_account_id = var.environment_account_id
+  aws_ses_account_id = var.management_account_id
 
   # SES DNS Records - SES is always enabled
   ses_verification_record = module.aws_ses.ses_verification_record
@@ -89,7 +95,15 @@ module "aws_ses" {
 
   domain_name = var.domain_name
   environment = var.environment
-  account_id  = var.environment_account_id
+  account_id  = var.management_account_id
+}
+
+# AWS SES Users (creates IAM users for each environment)
+module "aws_ses_users" {
+  source = "./modules/aws-ses-users"
+
+  environment = var.environment
+  account_id  = var.management_account_id
 }
 
 # MinIO Provider for Hetzner Object Storage (recommended approach)
@@ -175,3 +189,26 @@ output "active_storage_cdn_url" {
 #   description = "ARN of the AWS SSO instance"
 #   value       = module.sso.sso_instance_arn
 # }
+
+# SES User Outputs
+output "ses_user_name" {
+  description = "Name of the SES IAM user for this environment"
+  value       = module.aws_ses_users.ses_user_name
+}
+
+output "ses_access_key_id" {
+  description = "Access Key ID for the SES user"
+  value       = module.aws_ses_users.ses_access_key_id
+  sensitive   = true
+}
+
+output "ses_secret_access_key" {
+  description = "Secret Access Key for the SES user"
+  value       = module.aws_ses_users.ses_secret_access_key
+  sensitive   = true
+}
+
+output "ses_user_arn" {
+  description = "ARN of the SES IAM user"
+  value       = module.aws_ses_users.ses_user_arn
+}

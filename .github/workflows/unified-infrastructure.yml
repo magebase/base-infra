@@ -1,21 +1,10 @@
-name: Unified Infrastructure & SSO Pipeline
+name: Unified Infrastructure Pipeline
 
 # This pipeline manages the complete infrastructure deployment with proper dependency ordering:
 # 1. Terraform State Backend Bootstrap (creates S3 + DynamoDB for state management)
-# 2. AWS Organizations & SSO (creates accounts and SSO configuration)
-# 3. Environment Accounts (creates IAM users, OIDC providers, and SSO roles)
-# 4. Infrastructure Deployment (Hetzner k3s, Cloudflare, etc.)
-# 5. Validation & Testing
-# 6. Security Scanning
-#
-# What it does:
-# 1. Creates S3 bucket and DynamoDB table for Terraform state management
-# 2. Sets up AWS Organization accounts (Development & Production)
-# 3. Configures AWS SSO with permission sets and user groups
-# 4. Deploys Hetzner k3s infrastructure
-# 5. Configures Cloudflare DNS and CDN
-# 6. Validates and tests the complete setup
-# 7. Performs security scanning
+# 2. Infrastructure Deployment (Hetzner k3s, Cloudflare, etc.)
+# 3. Validation & Testing
+# 4. Security Scanning
 
 on:
   push:
@@ -51,20 +40,13 @@ on:
           - plan
           - apply
           - destroy
-      skip_sso:
-        description: "Skip AWS SSO setup (for faster deployments when SSO is already configured)"
-        required: false
-        default: false
-        type: boolean
 
 env:
   TF_VERSION: "1.8.0"
-  AWS_REGION: us-east-1 # Organizations must be in us-east-1
-  SSO_REGION: ap-southeast-1
   INFRA_REGION: ap-southeast-1
 
 jobs:
-  # ===== TERRAFORM STATE BACKEND BOOTSTRAP (MUST RUN FIRST) =====
+  # ===== TERRAFORM STATE BACKEND BOOTSTRAP =====
   bootstrap:
     name: "Terraform State Backend Bootstrap"
     runs-on: self-hosted
@@ -73,7 +55,6 @@ jobs:
       contents: write
     env:
       TF_WORKING_DIR: infra/pipeline
-    # Skip if we're not doing a full deployment
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan'
     outputs:
       state_bucket: ${{ steps.bootstrap.outputs.state_bucket }}
@@ -87,51 +68,19 @@ jobs:
         run: |
           if [ -z "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
             echo "❌ Error: MANAGEMENT_ACCOUNT_ID variable is not set"
-            echo "📋 Please set the MANAGEMENT_ACCOUNT_ID variable in your repository settings"
-            echo "📖 This should be the AWS account ID where bootstrap resources will be created"
             exit 1
           fi
-          echo "✅ MANAGEMENT_ACCOUNT_ID variable is configured"
-          echo "🔍 Account ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+          echo "✅ MANAGEMENT_ACCOUNT_ID configured"
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Get Account ID for Bootstrap
-        id: get-bootstrap-account
-        run: |
-          # For bootstrap, we need to determine which account to use
-          # If development account exists (after SSO setup), use it
-          # Otherwise, use management account as fallback
-
-          # First, check if MANAGEMENT_ACCOUNT_ID is set
-          if [ -z "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
-            echo "❌ Error: MANAGEMENT_ACCOUNT_ID is not set"
-            exit 1
-          fi
-
-          # For initial bootstrap, always use management account
-          # The development account won't exist until after SSO setup
-          ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-          echo "Using management account for bootstrap: $ACCOUNT_ID"
-          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-
-      - name: Configure AWS credentials via OIDC
-        id: oidc-auth
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ steps.get-bootstrap-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
-          aws-region: ${{ env.INFRA_REGION }}
-        continue-on-error: true
-
-      - name: Configure AWS credentials via static credentials (fallback)
-        if: steps.oidc-auth.outcome == 'failure'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}"
           aws-region: ${{ env.INFRA_REGION }}
 
       - name: Bootstrap Terraform State Backend
@@ -140,1075 +89,33 @@ jobs:
           cd ${{ env.TF_WORKING_DIR }}/bootstrap
           echo "🚀 Bootstrapping Terraform state backend..."
 
-          # Expected resource names based on bootstrap configuration
           STATE_BUCKET="magebase-tf-state-management-ap-southeast-1"
-          LOGS_BUCKET="magebase-tf-state-management-log-ap-southeast-1"
           DYNAMODB_TABLE="magebase-terraform-locks-management"
 
-          echo "📋 Expected resources:"
-          echo "  - State Bucket: $STATE_BUCKET"
-          echo "  - Logs Bucket: $LOGS_BUCKET"
-          echo "  - DynamoDB Table: $DYNAMODB_TABLE"
-
-          # Check if bootstrap resources already exist in AWS
-          echo "🔍 Checking for existing bootstrap resources in AWS..."
-
-          STATE_BUCKET_EXISTS=false
-          LOGS_BUCKET_EXISTS=false
-          DYNAMODB_TABLE_EXISTS=false
-
-          # Check S3 state bucket
-          if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
-            echo "✅ State bucket $STATE_BUCKET exists"
-            STATE_BUCKET_EXISTS=true
+          # Check if resources exist
+          if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1 && aws dynamodb describe-table --table-name "$DYNAMODB_TABLE" >/dev/null 2>&1; then
+            echo "✅ Bootstrap resources already exist"
           else
-            echo "ℹ️  State bucket $STATE_BUCKET does not exist"
-          fi
-
-          # Check S3 logs bucket
-          if aws s3 ls "s3://$LOGS_BUCKET" >/dev/null 2>&1; then
-            echo "✅ Logs bucket $LOGS_BUCKET exists"
-            LOGS_BUCKET_EXISTS=true
-          else
-            echo "ℹ️  Logs bucket $LOGS_BUCKET does not exist"
-          fi
-
-          # Check DynamoDB table
-          if aws dynamodb describe-table --table-name "$DYNAMODB_TABLE" >/dev/null 2>&1; then
-            echo "✅ DynamoDB table $DYNAMODB_TABLE exists"
-            DYNAMODB_TABLE_EXISTS=true
-          else
-            echo "ℹ️  DynamoDB table $DYNAMODB_TABLE does not exist"
-          fi
-
-          # If all resources exist, skip bootstrap entirely
-          if [ "$STATE_BUCKET_EXISTS" = true ] && [ "$LOGS_BUCKET_EXISTS" = true ] && [ "$DYNAMODB_TABLE_EXISTS" = true ]; then
-            echo "✅ All bootstrap resources already exist - skipping bootstrap module"
-            echo "⏭️  Bootstrap resources are ready for use"
-
-            # Set outputs for existing resources
-            STATE_BUCKET="$STATE_BUCKET"
-            DYNAMODB_TABLE="$DYNAMODB_TABLE"
-
-          else
-            echo "ℹ️  Some bootstrap resources missing, running bootstrap module..."
-
-            # Initialize Terraform
             terraform init -upgrade
-
-            # Apply bootstrap module to create missing resources
             terraform apply -auto-approve -var-file=terraform.tfvars
-
-            # Get outputs from newly created resources
-            STATE_BUCKET=$(terraform output -raw state_bucket 2>/dev/null || echo "$STATE_BUCKET")
-            DYNAMODB_TABLE=$(terraform output -raw dynamodb_table 2>/dev/null || echo "$DYNAMODB_TABLE")
           fi
-
-          echo "✅ Terraform state backend ready"
 
           echo "state_bucket=$STATE_BUCKET" >> $GITHUB_OUTPUT
           echo "dynamodb_table=$DYNAMODB_TABLE" >> $GITHUB_OUTPUT
 
-          echo "📋 Bootstrap outputs:"
-          echo "  - State Bucket: $STATE_BUCKET"
-          echo "  - DynamoDB Table: $DYNAMODB_TABLE"
-
-      - name: Force Unlock Bootstrap on Failure
-        if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
-        run: |
-          cd ${{ env.TF_WORKING_DIR }}/bootstrap
-          echo "🔍 Attempting to force unlock bootstrap Terraform state after failure..."
-
-          # For bootstrap, we use the management DynamoDB table
-          DYNAMODB_TABLE="magebase-terraform-locks-management"
-
-          # Try to scan DynamoDB for any existing locks
-          echo "🔍 Scanning DynamoDB for existing bootstrap locks..."
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "$DYNAMODB_TABLE" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
-
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing bootstrap state lock(s), attempting to force unlock..."
-
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Attempting to force unlock bootstrap: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
-
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
-                  echo "✅ Successfully force unlocked bootstrap: $LOCK_ID"
-                  break
-                else
-                  echo "⚠️  Force unlock failed for bootstrap: $LOCK_ID"
-                fi
-              fi
-            done
-          else
-            echo "ℹ️  No bootstrap locks found in DynamoDB table"
-          fi
-
-          # Provide manual instructions
-          echo ""
-          echo "📋 If the automatic unlock failed, please manually force-unlock the bootstrap state:"
-          echo "1. Find the lock ID from the failed bootstrap step logs above"
-          echo "2. Run: cd infra/pipeline/bootstrap && terraform force-unlock -force <lock_id>"
-          echo "3. Re-run the workflow"
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ env.INFRA_REGION }}
-
-      - name: Commit Bootstrap State
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          cd ${{ env.TF_WORKING_DIR }}/bootstrap
-
-          # Check if terraform.tfstate exists and has changes
-          if [ -f "terraform.tfstate" ]; then
-            if git diff --quiet terraform.tfstate; then
-              echo "ℹ️  No changes to bootstrap state file"
-            else
-              echo "📝 Committing bootstrap state changes..."
-
-              git config --global user.name "GitHub Actions"
-              git config --global user.email "actions@github.com"
-
-              git add terraform.tfstate
-              git commit -m "🤖 Bootstrap: Update Terraform state backend
-
-                - S3 bucket: ${{ steps.bootstrap.outputs.state_bucket }}
-                - DynamoDB table: ${{ steps.bootstrap.outputs.dynamodb_table }}
-                - Auto-generated by GitHub Actions workflow"
-
-              git push origin main
-
-              echo "✅ Bootstrap state committed to repository"
-            fi
-          else
-            echo "ℹ️  No bootstrap state file found to commit"
-          fi
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.23"
-
-      # - name: Run Bootstrap Terratest
-      #   working-directory: infra/tests
-      #   env:
-      #     AWS_REGION: ${{ env.INFRA_REGION }}
-      #     MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-      #   run: |
-      #     echo "🧪 Running Bootstrap Terratest..."
-
-      #     # Install dependencies
-      #     go mod download
-
-      #     # Run bootstrap test
-      #     go test -v -run TestBootstrapInfrastructure ./*.go
-
-      #     echo "✅ Bootstrap Terratest completed successfully"
-
-  # ===== AWS ORGANIZATIONS & SSO SETUP =====
-  sso-setup:
-    name: "AWS Organizations & SSO Setup"
+  # ===== SITE INFRASTRUCTURE DEPLOYMENT =====
+  site-infrastructure:
+    name: "Site Infrastructure Deployment"
     runs-on: self-hosted
     needs: [bootstrap]
     permissions:
       id-token: write
       contents: read
       pull-requests: write
-    outputs:
-      development_account_id: ${{ steps.get-dev-account.outputs.account_id }}
-      production_account_id: ${{ steps.get-prod-account.outputs.account_id }}
-      aws_access_key_id: ${{ steps.get-aws-credentials.outputs.access_key_id }}
-      aws_secret_access_key: ${{ steps.get-aws-credentials.outputs.secret_access_key }}
-    # Skip SSO setup if explicitly requested
-    if: github.event.inputs.skip_sso != true
+    if: needs.bootstrap.result == 'success' && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
     defaults:
       run:
-        working-directory: infra/pipeline/org-sso
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Validate Variables
-        run: |
-          if [ -z "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
-            echo "❌ Error: MANAGEMENT_ACCOUNT_ID variable is not set"
-            echo "📋 Please set the MANAGEMENT_ACCOUNT_ID variable in your repository settings"
-            echo "📖 See infra/pipeline/org-sso/sso-README.md for detailed setup instructions"
-            exit 1
-          fi
-          echo "✅ MANAGEMENT_ACCOUNT_ID variable is configured"
-          echo "🔍 Account ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
-          aws-region: ${{ env.AWS_REGION }}
-        timeout-minutes: 5
-
-      - name: Configure AWS Credentials for SSO Region
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
-          aws-region: ${{ env.SSO_REGION }}
-          role-session-name: SSOConfig
-        timeout-minutes: 5
-
-      - name: Validate AWS Credentials
-        run: |
-          echo "Validating AWS credentials..."
-          aws sts get-caller-identity
-          echo "AWS credentials configured successfully"
-
-      - name: Validate Account Creation Prerequisites
-        run: |
-          echo "🔍 Validating prerequisites for AWS account creation..."
-
-          # Check if organization already exists
-          if aws organizations describe-organization >/dev/null 2>&1; then
-            echo "✅ AWS Organization already exists"
-            aws organizations describe-organization | jq '.Organization.Id'
-          else
-            echo "ℹ️  AWS Organization will be created"
-          fi
-
-          # Check if SSO is already enabled
-          if aws sso-admin list-instances --region ${{ env.SSO_REGION }} >/dev/null 2>&1; then
-            echo "✅ AWS SSO is already enabled"
-          else
-            echo "ℹ️  AWS SSO will be enabled during deployment"
-          fi
-
-      - name: Terraform Format
-        id: fmt
-        working-directory: infra/pipeline/org-sso
-        run: |
-          terraform fmt -check -recursive
-        continue-on-error: true
-
-      - name: Handle State Locks
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-        working-directory: infra/pipeline/org-sso
-        run: |
-          echo "🔍 Checking for existing Terraform state locks..."
-
-          # Scan DynamoDB table for any existing locks
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-bootstrap" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
-
-          # Check if we found any lock items
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
-
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Force unlocking state with ID: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
-
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID"; then
-                  echo "✅ Successfully unlocked: $LOCK_ID"
-                else
-                  echo "⚠️  Force unlock failed for: $LOCK_ID"
-                  # Continue anyway - sometimes locks are stale and will be overwritten
-                fi
-              else
-                echo "⚠️  Could not extract lock ID from item $i"
-              fi
-            done
-          else
-            echo "✅ No state locks found"
-          fi
-
-          echo "🔄 Proceeding with Terraform operations..."
-
-      - name: Terraform Init
-        working-directory: infra/pipeline/org-sso
-        run: |
-          terraform init -input=false -upgrade
-
-      - name: Terraform Validate
-        id: validate
-        working-directory: infra/pipeline/org-sso
-        run: |
-          terraform validate -no-color
-
-      - name: Terraform Plan
-        id: sso-tf-plan
-        if: github.event_name == 'pull_request'
-        working-directory: infra/pipeline/org-sso
-        env:
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN || 'dummy' }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID || 'dummy' }}
-        run: |
-          terraform plan -no-color -input=false \
-            -var-file="terraform.tfvars" \
-            -var="hcloud_token=dummy" \
-            -var="aws_ses_account_id=dummy" \
-            -var="secret_key_base=dummy" \
-            -var="ruby_llm_api_key=dummy" \
-            -var="aws_ses_access_key_id=dummy" \
-            -var="aws_ses_secret_access_key=dummy" \
-            -var="hetzner_object_storage_access_key=dummy" \
-            -var="hetzner_object_storage_secret_key=dummy" \
-            -var="stripe_api_key=dummy" \
-            -var="stripe_webhook_secret=dummy" \
-            -var="ssh_private_key=dummy" \
-            -var="_key=dummy"
-        continue-on-error: true
-
-      - name: Update Pull Request
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.sso-tf-plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### AWS Organizations & SSO Setup 🏗️
-            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.sso-tf-plan.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
-
-      - name: Validate Terraform Plan
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "🔍 Validating Terraform plan for account creation and SSO assignments..."
-
-          # Check if plan contains expected resources
-          if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q "aws_organizations_account"; then
-            echo "✅ Plan contains AWS account creation"
-          else
-            echo "⚠️  No AWS account creation found in plan"
-          fi
-
-          if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q "aws_ssoadmin_account_assignment"; then
-            echo "✅ Plan contains SSO account assignments"
-          else
-            echo "⚠️  No SSO account assignments found in plan"
-          fi
-
-          # Check for empty account IDs (the original error)
-          if echo "${{ steps.sso-tf-plan.outputs.stdout }}" | grep -q 'target_id.*""'; then
-            echo "❌ ERROR: Found empty account IDs in plan - this will cause SSO assignment failures"
-            exit 1
-          else
-            echo "✅ No empty account IDs found in plan"
-          fi
-
-      - name: Remove Orphaned Resources from State
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: infra/pipeline/org-sso
-        run: |
-          echo "🧹 Removing orphaned resources from Terraform state..."
-
-          # List of orphaned resources to remove from state
-          ORPHANED_RESOURCES=(
-            "aws_iam_openid_connect_provider.github_development"
-            "aws_iam_openid_connect_provider.github_production"
-            "aws_iam_role.github_actions_sso_development"
-            "aws_iam_role.github_actions_sso_production"
-            "aws_iam_role_policy.github_actions_sso_policy_development"
-            "aws_iam_role_policy.github_actions_sso_policy_production"
-            "aws_iam_role_policy_attachment.github_actions_sso_admin_development"
-            "aws_iam_role_policy_attachment.github_actions_sso_admin_production"
-          )
-
-          # Remove each orphaned resource from state
-          for resource in "${ORPHANED_RESOURCES[@]}"; do
-            echo "Removing orphaned resource: $resource"
-            if terraform state list | grep -q "^${resource}"; then
-              terraform state rm "$resource" || echo "⚠️  Failed to remove $resource from state"
-            else
-              echo "ℹ️  Resource $resource not found in state (already removed)"
-            fi
-          done
-
-          echo "✅ Orphaned resources cleanup completed"
-
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: infra/pipeline/org-sso
-        env:
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-        run: |
-          echo "🚀 Applying AWS Organizations and SSO configuration..."
-
-          # Apply with dummy values for non-AWS variables
-          terraform apply -auto-approve -input=false \
-            -var-file="terraform.tfvars"
-
-          echo "✅ AWS Organizations and SSO configuration applied successfully"
-
-          # Get the development account ID for SES configuration
-          echo "📋 Getting development account ID for SES..."
-          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
-          echo "Using account ID for SES: $DEV_ACCOUNT_ID"
-
-          # Export the development account ID for use in subsequent steps
-          echo "DEV_ACCOUNT_ID=$DEV_ACCOUNT_ID" >> $GITHUB_ENV
-
-          # Show the created account IDs (only if outputs exist)
-          echo "📋 Created AWS Account IDs:"
-          if terraform output development_account_id >/dev/null 2>&1; then
-            terraform output -json | jq '.development_account_id.value, .production_account_id.value' 2>/dev/null || echo "Some outputs not available yet"
-          else
-            echo "Account outputs not available - accounts may still be creating"
-          fi
-
-      - name: Force Unlock on Failure
-        if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
-        working-directory: infra/pipeline/org-sso
-        run: |
-          echo "🔍 Attempting to force unlock Terraform state after failure..."
-
-          # Try to extract lock ID from previous step's output (if available)
-          # This is a best-effort attempt - the lock ID might not be in the logs
-
-          # First, try to scan DynamoDB for any existing locks
-          echo "🔍 Scanning DynamoDB for existing locks..."
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-bootstrap" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
-
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
-
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Attempting to force unlock: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
-
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
-                  echo "✅ Successfully force unlocked: $LOCK_ID"
-                  break
-                else
-                  echo "⚠️  Force unlock failed for: $LOCK_ID"
-                fi
-              fi
-            done
-          else
-            echo "ℹ️  No locks found in DynamoDB table"
-          fi
-
-          # If we couldn't find locks in DynamoDB, provide manual instructions
-          echo ""
-          echo "📋 If the automatic unlock failed, please manually force-unlock the state:"
-          echo "1. Find the lock ID from the failed 'Terraform Apply' step logs above"
-          echo "2. Look for: 'Lock Info: ID: <lock_id>'"
-          echo "3. Run: terraform force-unlock -force <lock_id>"
-          echo "4. Re-run the workflow"
-          echo ""
-          echo "Example lock ID from your error: 533db39e-ed09-5a60-b296-223c142784e5"
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ env.INFRA_REGION }}
-
-      - name: Get Development Account ID
-        id: get-dev-account
-        working-directory: infra/pipeline/org-sso
-        run: |
-          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null)
-          echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
-          echo "Using development account ID: $DEV_ACCOUNT_ID"
-
-      - name: Get Production Account ID
-        id: get-prod-account
-        working-directory: infra/pipeline/org-sso
-        run: |
-          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null)
-          echo "account_id=$PROD_ACCOUNT_ID" >> $GITHUB_OUTPUT
-          echo "Using production account ID: $PROD_ACCOUNT_ID"
-
-      - name: Get AWS Credentials
-        id: get-aws-credentials
-        run: |
-          echo "access_key_id=$AWS_ACCESS_KEY_ID" >> $GITHUB_OUTPUT
-          echo "secret_access_key=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_OUTPUT
-
-      - name: Verify SSO Configuration
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: infra/pipeline/org-sso
-        run: |
-          echo "🔍 Verifying SSO configuration..."
-
-          # Check if SSO instances exist and get instance ARN
-          if aws sso-admin list-instances --region ${{ env.SSO_REGION }} >/dev/null 2>&1; then
-            echo "✅ AWS SSO is properly configured"
-            SSO_INSTANCE_ARN=$(aws sso-admin list-instances --region ${{ env.SSO_REGION }} | jq -r '.Instances[0].InstanceArn')
-            echo "SSO Instance ARN: $SSO_INSTANCE_ARN"
-            aws sso-admin list-instances --region ${{ env.SSO_REGION }} | jq '.Instances[] | {InstanceArn, IdentityStoreId}'
-          else
-            echo "⚠️  AWS SSO configuration may be incomplete"
-            SSO_INSTANCE_ARN=""
-          fi
-
-          # Check account assignments for development account
-          echo "📋 SSO Account Assignments (Development):"
-          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "")
-          if [ -n "$DEV_ACCOUNT_ID" ] && [ -n "$SSO_INSTANCE_ARN" ]; then
-            aws sso-admin list-account-assignments --region ${{ env.SSO_REGION }} \
-              --instance-arn "$SSO_INSTANCE_ARN" \
-              --account-id "$DEV_ACCOUNT_ID" \
-              --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} --instance-arn "$SSO_INSTANCE_ARN" | jq -r '.PermissionSets[0]' 2>/dev/null) 2>/dev/null || echo "No assignments found for development account"
-          else
-            echo "Missing DEV_ACCOUNT_ID or SSO_INSTANCE_ARN for development account check"
-          fi
-
-          # Check account assignments for production account
-          echo "📋 SSO Account Assignments (Production):"
-          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null || echo "")
-          if [ -n "$PROD_ACCOUNT_ID" ] && [ -n "$SSO_INSTANCE_ARN" ]; then
-            aws sso-admin list-account-assignments --region ${{ env.SSO_REGION }} \
-              --instance-arn "$SSO_INSTANCE_ARN" \
-              --account-id "$PROD_ACCOUNT_ID" \
-              --permission-set-arn $(aws sso-admin list-permission-sets --region ${{ env.SSO_REGION }} --instance-arn "$SSO_INSTANCE_ARN" | jq -r '.PermissionSets[0]' 2>/dev/null) 2>/dev/null || echo "No assignments found for production account"
-          else
-            echo "Missing PROD_ACCOUNT_ID or SSO_INSTANCE_ARN for production account check"
-          fi
-
-      - name: Set Repository Variables for Account IDs
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: infra/pipeline/org-sso
-        run: |
-          echo "🔧 Setting repository variables for account IDs..."
-
-          # Get account IDs from Terraform outputs
-          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "")
-          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null || echo "")
-
-          if [ -n "$DEV_ACCOUNT_ID" ]; then
-            echo "📋 Setting DEVELOPMENT_ACCOUNT_ID repository variable to: $DEV_ACCOUNT_ID"
-            # Use GitHub CLI to set repository variable
-            gh variable set DEVELOPMENT_ACCOUNT_ID --body "$DEV_ACCOUNT_ID"
-            echo "✅ Development account ID set as repository variable"
-          else
-            echo "⚠️  Development account ID not found in Terraform outputs"
-          fi
-
-          if [ -n "$PROD_ACCOUNT_ID" ]; then
-            echo "📋 Setting PRODUCTION_ACCOUNT_ID repository variable to: $PROD_ACCOUNT_ID"
-            # Use GitHub CLI to set repository variable
-            gh variable set PRODUCTION_ACCOUNT_ID --body "$PROD_ACCOUNT_ID"
-            echo "✅ Production account ID set as repository variable"
-          else
-            echo "⚠️  Production account ID not found in Terraform outputs"
-          fi
-
-          echo "🎉 Repository variables updated for site-infrastructure workflow"
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.23"
-
-      # - name: Run SSO Terratest
-      #   working-directory: infra/tests
-      #   env:
-      #     AWS_REGION: ${{ env.AWS_REGION }}
-      #     MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-      #     TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      #     TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-      #     TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-      #   run: |
-      #     echo "🧪 Running SSO Terratest..."
-
-      #     # Install dependencies
-      #     go mod download
-
-      #     # Run SSO test
-      #     go test -v -run TestSSOInfrastructure ./*.go
-
-      #     echo "✅ SSO Terratest completed successfully"
-
-  # ===== ENVIRONMENT ACCOUNTS DEPLOYMENT (DEPENDS ON SSO) =====
-  env-accounts:
-    name: "Environment Accounts Deployment"
-    runs-on: self-hosted
-    needs: [sso-setup]
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: write
-    # Skip if we're not doing a full deployment
-    if: needs.sso-setup.result == 'success' && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
-    defaults:
-      run:
-        working-directory: infra/pipeline/env-accounts
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Validate Variables
-        run: |
-          if [ -z "${{ vars.MANAGEMENT_ACCOUNT_ID }}" ]; then
-            echo "❌ Error: MANAGEMENT_ACCOUNT_ID variable is not set"
-            echo "📋 Please set the MANAGEMENT_ACCOUNT_ID variable in your repository settings"
-            echo "📖 This should be the AWS account ID where environment account resources will be created"
-            exit 1
-          fi
-          echo "✅ MANAGEMENT_ACCOUNT_ID variable is configured"
-          echo "🔍 Account ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
-          aws-region: ${{ env.AWS_REGION }}
-        timeout-minutes: 5
-
-      - name: Configure AWS Credentials for Infra Region
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
-          aws-region: ${{ env.INFRA_REGION }}
-          role-session-name: EnvAccountsConfig
-        timeout-minutes: 5
-
-      - name: Validate AWS Credentials
-        run: |
-          echo "Validating AWS credentials..."
-          aws sts get-caller-identity
-          echo "AWS credentials configured successfully"
-
-      - name: Handle State Locks
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-        working-directory: infra/pipeline/env-accounts
-        run: |
-          echo "🔍 Checking for existing Terraform state locks..."
-
-          # Scan DynamoDB table for any existing locks
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-env-accounts" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
-
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
-
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Attempting to force unlock: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
-
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
-                  echo "✅ Successfully force unlocked: $LOCK_ID"
-                  break
-                else
-                  echo "⚠️  Force unlock failed for: $LOCK_ID"
-                fi
-              fi
-            done
-          else
-            echo "✅ No state locks found"
-          fi
-
-          echo "🔄 Proceeding with Terraform operations..."
-
-      - name: Terraform Init
-        working-directory: infra/pipeline/env-accounts
-        run: |
-          terraform init -input=false -upgrade
-
-      - name: Terraform Validate
-        id: validate
-        working-directory: infra/pipeline/env-accounts
-        run: |
-          terraform validate -no-color
-
-      - name: Terraform Format
-        id: fmt
-        working-directory: infra/pipeline/env-accounts
-        run: |
-          terraform fmt -check -recursive
-        continue-on-error: true
-
-      - name: Terraform Plan
-        id: env-accounts-tf-plan
-        if: github.event_name == 'pull_request'
-        working-directory: infra/pipeline/env-accounts
-        run: |
-          terraform plan -no-color -input=false \
-            -var-file="terraform.tfvars"
-        continue-on-error: true
-
-      - name: Update Pull Request
-        uses: actions/github-script@v7
-        if: github.event_name == 'pull_request'
-        env:
-          PLAN: "terraform\n${{ steps.env-accounts-tf-plan.outputs.stdout }}"
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const output = `#### Environment Accounts Deployment 🏗️
-            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Plan 📖\`${{ steps.env-accounts-tf-plan.outcome }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-
-            </details>
-
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
-
-      - name: Validate Terraform Plan
-        if: github.event_name == 'pull_request'
-        run: |
-          echo "🔍 Validating Terraform plan for environment accounts..."
-
-          # Check if plan contains expected resources
-          if echo "${{ steps.env-accounts-tf-plan.outputs.stdout }}" | grep -q "aws_iam_user"; then
-            echo "✅ Plan contains IAM user creation"
-          else
-            echo "⚠️  No IAM user creation found in plan"
-          fi
-
-          if echo "${{ steps.env-accounts-tf-plan.outputs.stdout }}" | grep -q "aws_iam_openid_connect_provider"; then
-            echo "✅ Plan contains OIDC provider setup"
-          else
-            echo "⚠️  No OIDC provider setup found in plan"
-          fi
-
-      - name: Terraform Apply
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: infra/pipeline/env-accounts
-        run: |
-          echo "🚀 Applying environment accounts configuration..."
-
-          # Apply with terraform.tfvars
-          terraform apply -auto-approve -input=false \
-            -var-file="terraform.tfvars"
-
-          echo "✅ Environment accounts configuration applied successfully"
-
-          # Show the created resources
-          echo "📋 Environment Accounts Resources:"
-          if terraform output -json >/dev/null 2>&1; then
-            terraform output -json | jq '.' 2>/dev/null || echo "Some outputs not available"
-          else
-            echo "No outputs available from environment accounts configuration"
-          fi
-
-      - name: Force Unlock on Failure
-        if: failure() && (github.ref == 'refs/heads/main' && github.event_name == 'push')
-        working-directory: infra/pipeline/env-accounts
-        run: |
-          echo "🔍 Attempting to force unlock Terraform state after failure..."
-
-          # Try to scan DynamoDB for any existing locks
-          echo "🔍 Scanning DynamoDB for existing locks..."
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-env-accounts" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
-
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing state lock(s), attempting to force unlock..."
-
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Attempting to force unlock: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
-
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
-                  echo "✅ Successfully force unlocked: $LOCK_ID"
-                  break
-                else
-                  echo "⚠️  Force unlock failed for: $LOCK_ID"
-                fi
-              fi
-            done
-          else
-            echo "ℹ️  No locks found in DynamoDB table"
-          fi
-
-          # Provide manual instructions
-          echo ""
-          echo "📋 If the automatic unlock failed, please manually force-unlock the state:"
-          echo "1. Find the lock ID from the failed 'Terraform Apply' step logs above"
-          echo "2. Run: cd infra/pipeline/env-accounts && terraform force-unlock -force <lock_id>"
-          echo "3. Re-run the workflow"
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ env.INFRA_REGION }}
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.23"
-
-      # - name: Run Environment Accounts Terratest
-      #   working-directory: infra/tests
-      #   env:
-      #     AWS_REGION: ${{ env.INFRA_REGION }}
-      #     MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-      #   run: |
-      #     echo "🧪 Running Environment Accounts Terratest..."
-
-      #     # Install dependencies
-      #     go mod download
-
-      #     # Run environment accounts test
-      #     go test -v -run TestEnvironmentAccounts ./*.go
-
-      #     echo "✅ Environment Accounts Terratest completed successfully"
-
-  # ===== ENVIRONMENT ACCOUNT BOOTSTRAP (DEPENDS ON SSO) =====
-  # bootstrap-env-account:
-  #   name: "Environment Account Bootstrap"
-  #   runs-on: self-hosted
-  #   needs: sso-setup
-  #   permissions:
-  #     id-token: write
-  #     contents: read
-  #   # Only run if SSO setup was successful
-  #   if: needs.sso-setup.result == 'success' && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
-  #   outputs:
-  #     dev_bootstrap_complete: ${{ steps.dev-bootstrap.outputs.bootstrap_complete }}
-  #     prod_bootstrap_complete: ${{ steps.prod-bootstrap.outputs.bootstrap_complete }}
-  #   defaults:
-  #     run:
-  #       working-directory: infra/pipeline/bootstrap-env-account
-
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v4
-
-  #     - name: Set up Terraform
-  #       uses: hashicorp/setup-terraform@v3
-  #       with:
-  #         terraform_version: ${{ env.TF_VERSION }}
-
-  #     - name: Configure AWS credentials via OIDC
-  #       uses: aws-actions/configure-aws-credentials@v4
-  #       with:
-  #         role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}
-  #         aws-region: ${{ env.INFRA_REGION }}
-
-  #     - name: Bootstrap Development Account
-  #       id: dev-bootstrap
-  #       env:
-  #         TF_VAR_environment: "dev"
-  #       run: |
-  #         echo "🚀 Bootstrapping development account..."
-
-  #         # Get development account ID from SSO setup
-  #         DEV_ACCOUNT_ID="${{ needs.sso-setup.outputs.development_account_id }}"
-  #         if [ -z "$DEV_ACCOUNT_ID" ]; then
-  #           echo "❌ Development account ID not found from SSO setup"
-  #           exit 1
-  #         fi
-  #         echo "Using development account: $DEV_ACCOUNT_ID"
-
-  #         # Assume role into development account
-  #         echo "🔄 Assuming GitHubActionsSSORole in development account..."
-  #         ASSUMED_CREDS=$(aws sts assume-role \
-  #           --role-arn "arn:aws:iam::${DEV_ACCOUNT_ID}:role/GitHubActionsSSORole" \
-  #           --role-session-name "dev-bootstrap-${{ github.run_id }}" \
-  #           --region ${{ env.INFRA_REGION }})
-
-  #         if [ $? -ne 0 ]; then
-  #           echo "❌ Failed to assume role in development account"
-  #           echo "This might be because the GitHubActionsSSORole doesn't exist in account $DEV_ACCOUNT_ID"
-  #           echo "or the role doesn't have the correct trust policy."
-  #           exit 1
-  #         fi
-
-  #         # Extract temporary credentials
-  #         export AWS_ACCESS_KEY_ID=$(echo $ASSUMED_CREDS | jq -r '.Credentials.AccessKeyId')
-  #         export AWS_SECRET_ACCESS_KEY=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SecretAccessKey')
-  #         export AWS_SESSION_TOKEN=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SessionToken')
-
-  #         # Initialize Terraform
-  #         terraform init -upgrade
-
-  #         # Check if bootstrap resources already exist
-  #         STATE_BUCKET="magebase-tf-state-bootstrap-dev-${{ env.INFRA_REGION }}"
-  #         DYNAMODB_TABLE="magebase-terraform-locks-dev"
-
-  #         echo "🔍 Checking for existing bootstrap resources in development account..."
-  #         if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
-  #           echo "✅ Development account bootstrap resources already exist"
-  #           echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
-  #         else
-  #           echo "ℹ️  Creating bootstrap resources for development account..."
-
-  #           # Apply bootstrap
-  #           terraform apply -auto-approve \
-  #             -var="environment=dev" \
-  #             -var="region=${{ env.INFRA_REGION }}"
-
-  #           echo "✅ Development account bootstrap completed"
-  #           echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
-  #         fi
-
-  #     - name: Bootstrap Production Account
-  #       id: prod-bootstrap
-  #       env:
-  #         TF_VAR_environment: "prod"
-  #       run: |
-  #         echo "🚀 Bootstrapping production account..."
-
-  #         # Get production account ID from SSO setup
-  #         PROD_ACCOUNT_ID="${{ needs.sso-setup.outputs.production_account_id }}"
-  #         if [ -z "$PROD_ACCOUNT_ID" ]; then
-  #           echo "❌ Production account ID not found from SSO setup"
-  #           exit 1
-  #         fi
-  #         echo "Using production account: $PROD_ACCOUNT_ID"
-
-  #         # Assume role into production account
-  #         echo "🔄 Assuming GitHubActionsSSORole in production account..."
-  #         ASSUMED_CREDS=$(aws sts assume-role \
-  #           --role-arn "arn:aws:iam::${PROD_ACCOUNT_ID}:role/GitHubActionsSSORole" \
-  #           --role-session-name "prod-bootstrap-${{ github.run_id }}" \
-  #           --region ${{ env.INFRA_REGION }})
-
-  #         if [ $? -ne 0 ]; then
-  #           echo "❌ Failed to assume role in production account"
-  #           echo "This might be because the GitHubActionsSSORole doesn't exist in account $PROD_ACCOUNT_ID"
-  #           echo "or the role doesn't have the correct trust policy."
-  #           exit 1
-  #         fi
-
-  #         # Extract temporary credentials
-  #         export AWS_ACCESS_KEY_ID=$(echo $ASSUMED_CREDS | jq -r '.Credentials.AccessKeyId')
-  #         export AWS_SECRET_ACCESS_KEY=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SecretAccessKey')
-  #         export AWS_SESSION_TOKEN=$(echo $ASSUMED_CREDS | jq -r '.Credentials.SessionToken')
-
-  #         # Initialize Terraform
-  #         terraform init -upgrade
-
-  #         # Check if bootstrap resources already exist
-  #         STATE_BUCKET="magebase-tf-state-bootstrap-prod-${{ env.INFRA_REGION }}"
-  #         DYNAMODB_TABLE="magebase-terraform-locks-prod"
-
-  #         echo "🔍 Checking for existing bootstrap resources in production account..."
-  #         if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1; then
-  #           echo "✅ Production account bootstrap resources already exist"
-  #           echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
-  #         else
-  #           echo "ℹ️  Creating bootstrap resources for production account..."
-
-  #           # Apply bootstrap
-  #           terraform apply -auto-approve \
-  #             -var="environment=prod" \
-  #             -var="region=${{ env.INFRA_REGION }}"
-
-  #           echo "✅ Production account bootstrap completed"
-  #           echo "bootstrap_complete=true" >> $GITHUB_OUTPUT
-  #         fi
-
-  # ===== INFRASTRUCTURE DEPLOYMENT (DEPENDS ON BOOTSTRAP, SSO & ENV-ACCOUNTS) =====
-  base-infrastructure-deploy:
-    name: "Base Infrastructure Deployment (k3s Cluster)"
-    runs-on: self-hosted
-    needs: [bootstrap, sso-setup, env-accounts]
-    permissions:
-      id-token: write
-      contents: read
-      pull-requests: write
-    # Skip if we're not doing a full deployment (depends on bootstrap, sso-setup, and env-accounts)
-    if: (needs.bootstrap.result == 'success') && (needs.sso-setup.result == 'success') && (needs.env-accounts.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
-    defaults:
-      run:
-        working-directory: infra/pipeline/base-infrastructure
+        working-directory: infra/pipeline/site-infrastructure
 
     steps:
       - name: Checkout code
@@ -1219,169 +126,57 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.23"
-
-      - name: Get Infrastructure Account ID
-        id: get-infra-account
-        run: |
-          # Use management account for base infrastructure (SSO is commented out)
-          ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-          echo "Using management account for base infrastructure: $ACCOUNT_ID"
-          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-
-      - name: Configure AWS credentials via OIDC
-        id: oidc-auth
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ steps.get-infra-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/${{ vars.AWS_PIPELINE_ROLE }}"
           aws-region: ${{ env.INFRA_REGION }}
-        continue-on-error: true
-
-      - name: Handle State Locks
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-        run: |
-          echo "🔍 Checking for existing Terraform state locks..."
-
-          # Wait for any existing locks to be released (with timeout)
-          MAX_WAIT=300  # 5 minutes
-          WAIT_COUNT=0
-
-          while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
-            LOCK_ITEMS=$(aws dynamodb scan \
-              --table-name "magebase-terraform-locks-management" \
-              --region ${{ env.INFRA_REGION }} \
-              --query 'Items[?attribute_exists(LockID)]' \
-              --output json 2>/dev/null || echo "[]")
-
-            LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-            if [ "$LOCK_COUNT" -eq 0 ]; then
-              echo "✅ No state locks found - proceeding with Terraform operations"
-              break
-            else
-              echo "🔒 Found $LOCK_COUNT existing state lock(s), waiting..."
-              for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-                LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-                LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-                if [ -n "$LOCK_ID" ]; then
-                  echo "  Lock ID: $LOCK_ID"
-                  echo "  Info: $LOCK_INFO"
-                fi
-              done
-
-              WAIT_COUNT=$((WAIT_COUNT + 30))
-              if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
-                echo "⏳ Waiting 30 seconds before checking again... ($WAIT_COUNT/$MAX_WAIT seconds)"
-                sleep 30
-              fi
-            fi
-          done
-
-          if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
-            echo "❌ Timeout waiting for state locks to be released"
-            echo "🔓 Attempting to force unlock existing locks..."
-
-            # Force unlock any remaining locks
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Force unlocking: $LOCK_ID"
-                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
-                  echo "✅ Successfully force unlocked: $LOCK_ID"
-                  break
-                else
-                  echo "⚠️  Force unlock failed for: $LOCK_ID"
-                fi
-              fi
-            done
-          fi
-
-          echo "🔄 Proceeding with Terraform operations..."
 
       - name: Terraform Init
-        id: init
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
           terraform init -upgrade \
             -backend-config="bucket=${{ needs.bootstrap.outputs.state_bucket }}" \
-            -backend-config="key=magebase/base-infrastructure/${ENVIRONMENT}/terraform.tfstate"
+            -backend-config="key=magebase/site-infrastructure/${ENVIRONMENT}/terraform.tfstate"
 
       - name: Terraform Validate
-        id: validate
-        run: |
-          terraform validate
+        run: terraform validate
 
       - name: Terraform Format Check
-        id: fmt
-        run: |
-          terraform fmt -check -recursive
+        run: terraform fmt -check -recursive
 
       - name: Terraform Plan
-        id: base-tf-plan
+        id: tf-plan
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-        run: |
-          terraform plan -no-color -out=tfplan
-        continue-on-error: true
+          TF_VAR_aws_ses_access_key_id: ${{ secrets.AWS_SES_ACCESS_KEY_ID }}
+          TF_VAR_aws_ses_secret_access_key: ${{ secrets.AWS_SES_SECRET_ACCESS_KEY }}
+        run: terraform plan -no-color -out=tfplan
 
       - name: Terraform Plan (Push to Main)
-        id: base-tf-plan-main
+        id: tf-plan-main
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_aws_ses_access_key_id: ${{ secrets.AWS_SES_ACCESS_KEY_ID }}
+          TF_VAR_aws_ses_secret_access_key: ${{ secrets.AWS_SES_SECRET_ACCESS_KEY }}
         run: |
-          echo "🚀 Running Terraform plan for base infrastructure deployment..."
-
-          # Retry logic for state lock conflicts
-          MAX_RETRIES=3
-          RETRY_COUNT=0
-
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "📋 Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
-
-            if terraform plan -no-color -out=tfplan; then
-              echo "✅ Terraform plan completed successfully"
-              break
-            else
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo "⚠️  Terraform plan failed, retrying in 30 seconds..."
-                sleep 30
-              else
-                echo "❌ Terraform plan failed after $MAX_RETRIES attempts"
-                exit 1
-              fi
-            fi
-          done
+          terraform plan -no-color -out=tfplan
 
       - name: Update Pull Request
         uses: actions/github-script@v7
-        if: github.event_name == 'pull_request' && (steps.tf-plan.outcome == 'success' || steps.tf-plan-main.outcome == 'success')
+        if: github.event_name == 'pull_request'
         env:
           PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout || steps.tf-plan-main.outputs.stdout }}"
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const planOutcome = '${{ steps.tf-plan.outcome }}' === 'success' ? '${{ steps.tf-plan.outcome }}' : '${{ steps.tf-plan-main.outcome }}';
-            const output = `#### Base Infrastructure Deployment 🏗️ (k3s Cluster)
-            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Plan 📖\`${planOutcome}\`
+            const output = `#### Site Infrastructure Deployment 🏗️
+            #### Terraform Plan 📖
 
             <details><summary>Show Plan</summary>
-
-            \`\`\`\n
-            ${process.env.PLAN}
-            \`\`\`
-
+            \`\`\`\n${process.env.PLAN}\`\`\`
             </details>
 
             *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
@@ -1393,355 +188,51 @@ jobs:
               body: output
             })
 
-      # - name: Run Base Infrastructure Terratest
-      #   if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
-      #   working-directory: infra/tests
-      #   env:
-      #     AWS_REGION: ${{ env.INFRA_REGION }}
-      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-      #   run: |
-      #     echo "🧪 Running Base Infrastructure Terratest..."
-
-      #     # Install dependencies
-      #     go mod download
-
-      #     # Run base infrastructure test
-      #     go test -v -run TestBaseInfrastructure ./*.go
-
-      #     echo "✅ Base Infrastructure Terratest completed successfully"
-
       - name: Terraform Apply
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_aws_ses_access_key_id: ${{ secrets.AWS_SES_ACCESS_KEY_ID }}
+          TF_VAR_aws_ses_secret_access_key: ${{ secrets.AWS_SES_SECRET_ACCESS_KEY }}
         run: |
-          echo "🚀 Applying base infrastructure changes..."
+          terraform apply -auto-approve tfplan
+          echo "✅ Site infrastructure applied successfully"
 
-          # Retry logic for state lock conflicts and resource availability
-          MAX_RETRIES=3
-          RETRY_COUNT=0
+          # Capture SES user credentials for the environment
+          SES_USER_NAME=$(terraform output -raw ses_user_name)
+          SES_ACCESS_KEY=$(terraform output -raw ses_access_key_id)
+          SES_SECRET_KEY=$(terraform output -raw ses_secret_access_key)
 
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-            echo "📋 Apply attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+          echo "SES User: $SES_USER_NAME"
+          echo "Access Key ID: $SES_ACCESS_KEY"
+          echo "Secret Key: [HIDDEN]"
 
-            # Regenerate plan on each attempt to avoid stale plan issues
-            if [ $RETRY_COUNT -gt 0 ]; then
-              echo "🔄 Regenerating plan for retry attempt..."
-              terraform plan -out=tfplan -no-color
-            fi
-
-            if terraform apply -auto-approve tfplan; then
-              echo "✅ Base infrastructure apply completed successfully"
-              break
-            else
-              RETRY_COUNT=$((RETRY_COUNT + 1))
-              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo "⚠️  Base infrastructure apply failed, retrying in 30 seconds..."
-                sleep 30
-              else
-                echo "❌ Base infrastructure apply failed after $MAX_RETRIES attempts"
-                exit 1
-              fi
-            fi
-          done
-
-      # - name: Run Base Infrastructure Terratest
-      #   if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
-      #   working-directory: infra/tests
-      #   env:
-      #     AWS_REGION: ${{ env.INFRA_REGION }}
-      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-      #   run: |
-      #     echo "🧪 Running Base Infrastructure Terratest after apply..."
-
-      #     # Install dependencies
-      #     go mod download
-
-      #     # Run base infrastructure test
-      #     go test -v -run TestBaseInfrastructure ./*.go -timeout 30m
-
-      #     echo "✅ Base Infrastructure Terratest completed successfully"
-
-      # - name: Run Integration Terratest
-      #   if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
-      #   working-directory: infra/tests
-      #   env:
-      #     AWS_REGION: ${{ env.INFRA_REGION }}
-      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
-      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
-      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-      #   run: |
-      #     echo "🧪 Running Integration Terratest after apply..."
-
-      #     # Install dependencies
-      #     go mod download
-
-      #     # Run integration test
-      #     go test -v -run TestIntegration ./*.go -timeout 45m
-
-      #     echo "✅ Integration Terratest completed successfully"
-
-      # - name: Run Unified Terratest
-      #   if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
-      #   working-directory: infra/tests
-      #   env:
-      #     AWS_REGION: ${{ env.INFRA_REGION }}
-      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
-      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
-      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-      #   run: |
-      #     echo "🧪 Running Unified Terratest after apply..."
-
-      #     # Install dependencies
-      #     go mod download
-
-      #     # Run unified test (include all test files)
-      #     go test -v -run TestUnifiedInfrastructure ./*.go -timeout 45m
-
-      #     echo "✅ Unified Terratest completed successfully"
-
-      - name: Force Unlock Base Infrastructure on Failure
-        if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
-        run: |
-          echo "🔍 Attempting to force unlock base infrastructure Terraform state after failure..."
-
-          # Try to scan DynamoDB for any existing locks
-          echo "🔍 Scanning DynamoDB for existing base infrastructure locks..."
-          LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-management" \
-            --region ${{ env.INFRA_REGION }} \
-            --query 'Items[?attribute_exists(LockID)]' \
-            --output json 2>/dev/null || echo "[]")
-
-          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
-
-          if [ "$LOCK_COUNT" -gt 0 ]; then
-            echo "🔒 Found $LOCK_COUNT existing base infrastructure state lock(s), attempting to force unlock..."
-
-            # Process each lock item
-            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
-              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
-              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
-
-              if [ -n "$LOCK_ID" ]; then
-                echo "🔓 Attempting to force unlock base infrastructure: $LOCK_ID"
-                echo "Lock info: $LOCK_INFO"
-
-                # Attempt force unlock
-                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
-                  echo "✅ Successfully force unlocked base infrastructure: $LOCK_ID"
-                  break
-                else
-                  echo "⚠️  Force unlock failed for base infrastructure: $LOCK_ID"
-                fi
-              fi
-            done
-          else
-            echo "ℹ️  No base infrastructure locks found in DynamoDB table"
-          fi
-
-          # Provide manual instructions
-          echo ""
-          echo "📋 If the automatic unlock failed, please manually force-unlock the base infrastructure state:"
-          echo "1. Find the lock ID from the failed base infrastructure deployment step logs above"
-          echo "2. Run: cd infra/pipeline/base-infrastructure && terraform force-unlock -force <lock_id>"
-          echo "3. Re-run the workflow"
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ env.INFRA_REGION }}
-
-      # - name: Run Integration Terratest
-      #   if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-      #   working-directory: infra/tests
-      #   env:
-      #     AWS_REGION: ${{ env.INFRA_REGION }}
-      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
-      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
-      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-      #   run: |
-      #     echo "🧪 Running Integration Terratest..."
-
-      #     # Install dependencies
-      #     go mod download
-
-      #     # Run integration test
-      #     go test -v -run TestIntegration ./*.go
-
-      #     echo "✅ Integration Terratest completed successfully"
-
-      # - name: Run Unified Terratest
-      #   if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-      #   working-directory: infra/tests
-      #   env:
-      #     AWS_REGION: ${{ env.INFRA_REGION }}
-      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
-      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
-      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-      #   run: |
-      #     echo "🧪 Running Unified Terratest..."
-
-      #     # Install dependencies
-      #     go mod download
-
-      #     # Run unified test (include all test files)
-      #     go test -v -run TestUnifiedInfrastructure ./*.go
-
-      #     echo "✅ Unified Terratest completed successfully"
+          # Store credentials as environment variables for subsequent jobs
+          echo "SES_USER_NAME=$SES_USER_NAME" >> $GITHUB_ENV
+          echo "SES_ACCESS_KEY_ID=$SES_ACCESS_KEY" >> $GITHUB_ENV
+          echo "SES_SECRET_ACCESS_KEY=$SES_SECRET_KEY" >> $GITHUB_ENV
 
       - name: Terraform Destroy
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
-        run: |
-          terraform destroy -auto-approve
+        env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_aws_ses_access_key_id: ${{ secrets.AWS_SES_ACCESS_KEY_ID }}
+          TF_VAR_aws_ses_secret_access_key: ${{ secrets.AWS_SES_SECRET_ACCESS_KEY }}
+        run: terraform destroy -auto-approve
 
-  security-scan:
-    name: Security and Compliance Scan
-    runs-on: self-hosted
-    needs: base-infrastructure-deploy
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: "config"
-          scan-ref: "./infra"
-          format: "sarif"
-          output: "trivy-results.sarif"
-
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && env.ADVANCED_SECURITY_ENABLED == 'true'
-        with:
-          sarif_file: "trivy-results.sarif"
-        continue-on-error: true
-
-      - name: Check Advanced Security availability
-        if: always()
-        run: |
-          echo "🔍 Checking GitHub Advanced Security status..."
-          if [ "${{ github.event.repository.private }}" == "true" ] || [ "${{ github.event.repository.visibility }}" == "private" ]; then
-            echo "✅ Private repository - Advanced Security should be available"
-            echo "ADVANCED_SECURITY_ENABLED=true" >> $GITHUB_ENV
-          else
-            echo "ℹ️  Public repository - Advanced Security may not be available for free tier"
-            echo "ADVANCED_SECURITY_ENABLED=false" >> $GITHUB_ENV
-          fi
-
-      - name: Display scan results summary
-        if: always()
-        run: |
-          echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ -f "trivy-results.sarif" ]; then
-            echo "✅ Trivy scan completed successfully" >> $GITHUB_STEP_SUMMARY
-            echo "- SARIF file generated: trivy-results.sarif" >> $GITHUB_STEP_SUMMARY
-
-            if [ "${{ env.ADVANCED_SECURITY_ENABLED }}" == "true" ]; then
-              echo "- Results uploaded to GitHub Security tab" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "- ⚠️  GitHub Advanced Security not available for SARIF upload" >> $GITHUB_STEP_SUMMARY
-              echo "- 📄 SARIF file available for manual review" >> $GITHUB_STEP_SUMMARY
-            fi
-          else
-            echo "❌ Trivy scan failed - no results file generated" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Next Steps:" >> $GITHUB_STEP_SUMMARY
-          echo "- Enable GitHub Advanced Security for automatic vulnerability tracking" >> $GITHUB_STEP_SUMMARY
-          echo "- Review trivy-results.sarif for detailed findings" >> $GITHUB_STEP_SUMMARY
-          echo "- Consider running additional security scans as needed" >> $GITHUB_STEP_SUMMARY
-
+  # ===== NOTIFICATION =====
   notify:
-    name: Deployment Results
+    name: "Pipeline Notification"
     runs-on: self-hosted
-    needs: [bootstrap, sso-setup, env-accounts, security-scan]
+    needs: [bootstrap, site-infrastructure]
     if: always()
-
     steps:
-      - name: Create deployment summary
+      - name: Success
+        if: needs.site-infrastructure.result == 'success'
+        run: echo "✅ Deployment completed successfully"
+
+      - name: Failure
+        if: needs.site-infrastructure.result == 'failure'
         run: |
-          echo "## 🚀 Unified Infrastructure Deployment Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # SSO Setup Results
-          if [ "${{ needs.sso-setup.result }}" == "success" ]; then
-            echo "✅ **AWS Organizations & SSO:** Setup completed successfully" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **AWS Organizations & SSO:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Environment Accounts Results
-          if [ "${{ needs.env-accounts.result }}" == "success" ]; then
-            echo "✅ **Environment Accounts:** IAM users and OIDC providers configured" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Environment Accounts:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Bootstrap Results
-          if [ "${{ needs.bootstrap.result }}" == "success" ]; then
-            echo "✅ **Terraform State Backend:** Bootstrapped successfully" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Terraform State Backend:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Site Infrastructure Deployment handled by separate workflow
-          echo "ℹ️ **Site Infrastructure:** Deployed via separate workflow" >> $GITHUB_STEP_SUMMARY
-
-          # Testing Results (tests are commented out)
-          echo "⏭️ **Terraform Testing:** Not configured (tests commented out)" >> $GITHUB_STEP_SUMMARY
-
-          # Security Scan Results
-          if [ "${{ needs.security-scan.result }}" == "success" ]; then
-            echo "✅ **Security Scan:** Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Security Scan:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📋 Architecture:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Cloud Provider:** Hetzner Cloud (k3s)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Region:** Singapore (ap-southeast-1)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Database:** PostgreSQL (CloudNativePG operator)" >> $GITHUB_STEP_SUMMARY
-          echo "- **AWS Organizations:** Multi-account setup" >> $GITHUB_STEP_SUMMARY
-          echo "- **AWS SSO:** Centralized identity management" >> $GITHUB_STEP_SUMMARY
-          echo "- **Terraform State:** S3 + DynamoDB backend" >> $GITHUB_STEP_SUMMARY
-          echo "- **DNS:** Cloudflare" >> $GITHUB_STEP_SUMMARY
-          echo "- **Container Registry:** GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
-          echo "- **GitOps:** ArgoCD" >> $GITHUB_STEP_SUMMARY
-          echo "- **Monitoring:** Prometheus + Grafana" >> $GITHUB_STEP_SUMMARY
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🔗 Quick Links:" >> $GITHUB_STEP_SUMMARY
-          echo "- [Application](https://magebase.dev)" >> $GITHUB_STEP_SUMMARY
-          echo "- [ArgoCD](https://argocd.magebase.dev)" >> $GITHUB_STEP_SUMMARY
-          echo "- [Grafana](https://grafana.magebase.dev)" >> $GITHUB_STEP_SUMMARY
-          echo "- [Kubeconfig](https://github.com/magebase/site/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Deployment failed"
+          exit 1
