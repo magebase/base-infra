@@ -12,14 +12,10 @@ commonLabels:
 # Namespace for monitoring components
 namespace: monitoring
 
-# Resources to deploy
+# Resources to deploy - Only monitoring components, no ArgoCD, CNPG, or magebase apps
 resources:
   - kube-prometheus-stack.yaml
-  - argocd.yaml
-  - cnpg.yaml
   - kubernetes-dashboard.yaml
-  - magebase-app-dev.yaml
-  - magebase-app-prod.yaml
 
 # Patches for environment-specific configuration
 patchesStrategicMerge:
