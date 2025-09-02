@@ -133,11 +133,37 @@ jobs:
 
           # Check if bootstrap resources exist
           # The bootstrap creates buckets with "bootstrap" in the name
-          BUCKET_EXISTS=$(aws s3 ls s3://magebase-${ENVIRONMENT}-tf-state-bootstrap-${ENVIRONMENT}-${{ env.INFRA_REGION }} 2>/dev/null || echo "")
-          TABLE_EXISTS=$(aws dynamodb describe-table --table-name magebase-terraform-locks-${ENVIRONMENT} --region ${{ env.INFRA_REGION }} 2>/dev/null || echo "")
+          echo "🔍 Checking for existing bootstrap resources..."
 
-          if [ -n "$BUCKET_EXISTS" ] && [ -n "$TABLE_EXISTS" ]; then
-            echo "✅ Bootstrap resources already exist for $ENVIRONMENT"
+          # Check main state bucket
+          if aws s3 ls s3://magebase-${ENVIRONMENT}-tf-state-bootstrap-${ENVIRONMENT}-${{ env.INFRA_REGION }} --region ${{ env.INFRA_REGION }} >/dev/null 2>&1; then
+            echo "✅ Main state bucket exists: magebase-${ENVIRONMENT}-tf-state-bootstrap-${ENVIRONMENT}-${{ env.INFRA_REGION }}"
+            BUCKET_EXISTS="true"
+          else
+            echo "❌ Main state bucket does not exist"
+            BUCKET_EXISTS=""
+          fi
+
+          # Check DynamoDB table
+          if aws dynamodb describe-table --table-name magebase-terraform-locks-${ENVIRONMENT} --region ${{ env.INFRA_REGION }} >/dev/null 2>&1; then
+            echo "✅ DynamoDB table exists: magebase-terraform-locks-${ENVIRONMENT}"
+            TABLE_EXISTS="true"
+          else
+            echo "❌ DynamoDB table does not exist"
+            TABLE_EXISTS=""
+          fi
+
+          # Check account alias
+          if aws iam list-account-aliases --query 'AccountAliases' --output text | grep -q "magebase-${ENVIRONMENT}"; then
+            echo "✅ Account alias exists: magebase-${ENVIRONMENT}"
+            ALIAS_EXISTS="true"
+          else
+            echo "❌ Account alias does not exist"
+            ALIAS_EXISTS=""
+          fi
+
+          if [ -n "$BUCKET_EXISTS" ] && [ -n "$TABLE_EXISTS" ] && [ -n "$ALIAS_EXISTS" ]; then
+            echo "✅ All bootstrap resources already exist for $ENVIRONMENT - skipping bootstrap"
             echo "complete=true" >> $GITHUB_OUTPUT
           else
             echo "🔧 Bootstrap needed for $ENVIRONMENT environment"
