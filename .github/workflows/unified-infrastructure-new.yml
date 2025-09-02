@@ -196,21 +196,6 @@ jobs:
           TF_VAR_aws_ses_secret_access_key: ${{ secrets.AWS_SES_SECRET_ACCESS_KEY }}
         run: |
           terraform apply -auto-approve tfplan
-          echo "✅ Site infrastructure applied successfully"
-
-          # Capture SES user credentials for the environment
-          SES_USER_NAME=$(terraform output -raw ses_user_name)
-          SES_ACCESS_KEY=$(terraform output -raw ses_access_key_id)
-          SES_SECRET_KEY=$(terraform output -raw ses_secret_access_key)
-
-          echo "SES User: $SES_USER_NAME"
-          echo "Access Key ID: $SES_ACCESS_KEY"
-          echo "Secret Key: [HIDDEN]"
-
-          # Store credentials as environment variables for subsequent jobs
-          echo "SES_USER_NAME=$SES_USER_NAME" >> $GITHUB_ENV
-          echo "SES_ACCESS_KEY_ID=$SES_ACCESS_KEY" >> $GITHUB_ENV
-          echo "SES_SECRET_ACCESS_KEY=$SES_SECRET_KEY" >> $GITHUB_ENV
 
       - name: Terraform Destroy
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
