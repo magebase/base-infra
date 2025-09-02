@@ -37,6 +37,7 @@ on:
           - apply
           - destroy
           - cleanup
+          - plan-apply
 
 env:
   TF_VERSION: "1.8.0"
@@ -112,7 +113,7 @@ jobs:
           echo "✅ Orphaned resources cleaned up"
 
       - name: Terraform Plan
-        if: github.event.inputs.action == 'plan' || github.event_name == 'pull_request'
+        if: github.event.inputs.action == 'plan' || github.event_name == 'pull_request' || github.event.inputs.action == 'plan-apply'
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
           AWS_REGION: ${{ env.INFRA_REGION }}
@@ -141,7 +142,7 @@ jobs:
           echo "✅ Plan completed successfully"
 
       - name: Terraform Apply
-        if: github.event.inputs.action == 'apply' || github.event_name == 'push'
+        if: github.event.inputs.action == 'apply' || github.event_name == 'push' || github.event.inputs.action == 'plan-apply'
         id: apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         env:
