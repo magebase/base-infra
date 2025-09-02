@@ -118,6 +118,22 @@ locals {
   # Determine account IDs - prioritize explicit variables over discovery
   development_account_id = var.development_account_id != "" ? var.development_account_id : (length(local.existing_development_account) > 0 ? local.existing_development_account[0].id : (length(aws_organizations_account.development) > 0 ? aws_organizations_account.development[0].id : ""))
   production_account_id  = var.production_account_id != "" ? var.production_account_id : (length(local.existing_production_account) > 0 ? local.existing_production_account[0].id : (length(aws_organizations_account.production) > 0 ? aws_organizations_account.production[0].id : ""))
+
+  # IAM Users Configuration
+  iam_users = {
+    admin = {
+      name    = "admin"
+      purpose = "Administrative access"
+    }
+    developer = {
+      name    = "developer"
+      purpose = "Application development"
+    }
+    auditor = {
+      name    = "auditor"
+      purpose = "Read-only access for auditing"
+    }
+  }
 }
 
 resource "aws_organizations_organizational_unit" "development" {
@@ -696,6 +712,50 @@ resource "aws_ssoadmin_account_assignment" "main" {
   ]
 }
 
+# IAM Users in Development Account
+resource "aws_iam_user" "development" {
+  for_each = local.iam_users
+
+  provider = aws.development
+  name     = each.value.name
+
+  tags = {
+    Environment = "development"
+    Purpose     = each.value.purpose
+    ManagedBy   = "terraform"
+  }
+}
+
+# IAM Access Keys for Development Users
+resource "aws_iam_access_key" "development" {
+  for_each = aws_iam_user.development
+
+  provider = aws.development
+  user     = each.value.name
+}
+
+# IAM Users in Production Account
+resource "aws_iam_user" "production" {
+  for_each = local.iam_users
+
+  provider = aws.production
+  name     = each.value.name
+
+  tags = {
+    Environment = "production"
+    Purpose     = each.value.purpose
+    ManagedBy   = "terraform"
+  }
+}
+
+# IAM Access Keys for Production Users
+resource "aws_iam_access_key" "production" {
+  for_each = aws_iam_user.production
+
+  provider = aws.production
+  user     = each.value.name
+}
+
 # Data source to check if GitHub OIDC provider exists - Development
 data "aws_iam_openid_connect_provider" "github_existing_development" {
   count    = 0 # Temporarily disabled to avoid errors when provider doesn't exist
@@ -1177,6 +1237,50 @@ output "github_actions_oidc_providers" {
     production = {
       arn = aws_iam_openid_connect_provider.github_production[0].arn
       url = "https://token.actions.githubusercontent.com"
+    }
+  }
+}
+
+output "iam_users_development" {
+  description = "IAM users created in the development account"
+  value = {
+    for k, v in aws_iam_user.development :
+    k => {
+      name = v.name
+      arn  = v.arn
+    }
+  }
+}
+
+output "iam_users_production" {
+  description = "IAM users created in the production account"
+  value = {
+    for k, v in aws_iam_user.production :
+    k => {
+      name = v.name
+      arn  = v.arn
+    }
+  }
+}
+
+output "iam_access_keys_development" {
+  description = "IAM access key IDs for users in the development account"
+  value = {
+    for k, v in aws_iam_access_key.development :
+    k => {
+      user          = v.user
+      access_key_id = v.id
+    }
+  }
+}
+
+output "iam_access_keys_production" {
+  description = "IAM access key IDs for users in the production account"
+  value = {
+    for k, v in aws_iam_access_key.production :
+    k => {
+      user          = v.user
+      access_key_id = v.id
     }
   }
 }
