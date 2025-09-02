@@ -1,4 +1,4 @@
-name: Unified Infrastructure Pipeline
+name: Base Infrastructure Pipeline
 
 # This pipeline manages the complete infrastructure deployment with proper dependency ordering:
 # 1. Terraform State Backend Bootstrap (creates S3 + DynamoDB for state management)

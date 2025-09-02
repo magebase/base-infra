@@ -10,7 +10,8 @@ variable "company_name" {
   default     = "Magebase"
 }
 
-variable "support_email" {
-  description = "Support email for customer communications"
+variable "cloudflare_region" {
+  description = "Cloudflare region for operations"
   type        = string
+  default     = "EU"
 }

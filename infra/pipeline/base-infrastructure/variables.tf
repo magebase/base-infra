@@ -36,3 +36,16 @@ variable "hetzner_region" {
     error_message = "Hetzner region must be one of: fsn1 (Falkenstein), nbg1 (Nuremberg), hel1 (Helsinki), ash (Ashburn), sin (Singapore)"
   }
 }
+
+variable "domain" {
+  description = "Domain name for the cluster (used for ArgoCD ingress)"
+  type        = string
+  default     = ""
+}
+
+variable "argocd_admin_password" {
+  description = "ArgoCD admin password (bcrypt hashed)"
+  type        = string
+  default     = ""
+  sensitive   = true
+}

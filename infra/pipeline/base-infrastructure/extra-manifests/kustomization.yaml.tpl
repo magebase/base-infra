@@ -22,3 +22,5 @@ configMapGenerator:
     literals:
       - ENVIRONMENT=${environment}
       - COMPONENT=base-infrastructure
+      - DOMAIN=${domain}
+      - ARGOCD_ADMIN_PASSWORD=${argocd_admin_password}

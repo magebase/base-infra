@@ -746,24 +746,24 @@ module "kube-hetzner" {
 
   # Adding extra firewall rules, like opening a port
   # More info on the format here https://registry.terraform.io/providers/hetznercloud/hcloud/latest/docs/resources/firewall
-  # extra_firewall_rules = [
-  #   {
-  #     description = "For Postgres"
-  #     direction       = "in"
-  #     protocol        = "tcp"
-  #     port            = "5432"
-  #     source_ips      = ["0.0.0.0/0", "::/0"]
-  #     destination_ips = [] # Won't be used for this rule
-  #   },
-  #   {
-  #     description = "To Allow ArgoCD access to resources via SSH"
-  #     direction       = "out"
-  #     protocol        = "tcp"
-  #     port            = "22"
-  #     source_ips      = [] # Won't be used for this rule
-  #     destination_ips = ["0.0.0.0/0", "::/0"]
-  #   }
-  # ]
+  extra_firewall_rules = [
+    {
+      description     = "For Postgres"
+      direction       = "in"
+      protocol        = "tcp"
+      port            = "5432"
+      source_ips      = ["0.0.0.0/0", "::/0"]
+      destination_ips = [] # Won't be used for this rule
+    },
+    {
+      description     = "To Allow ArgoCD access to resources via SSH"
+      direction       = "out"
+      protocol        = "tcp"
+      port            = "22"
+      source_ips      = [] # Won't be used for this rule
+      destination_ips = ["0.0.0.0/0", "::/0"]
+    }
+  ]
 
   # If you want to configure a different CNI for k3s, use this flag
   # possible values: flannel (Default), calico, and cilium
@@ -924,13 +924,17 @@ module "kube-hetzner" {
   create_kubeconfig = false
 
   # Don't create the kustomize backup. This can be helpful for automation.
-  create_kustomization = false
+  create_kustomization = true
 
   # Additional safeguard: disable kustomization deployment commands
-  extra_kustomize_deployment_commands = ""
+  extra_kustomize_deployment_commands = "kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd"
 
   # Additional safeguard: empty kustomization parameters
-  extra_kustomize_parameters = {}
+  extra_kustomize_parameters = {
+    environment           = var.environment
+    domain                = var.domain != "" ? var.domain : "magebase.dev"
+    argocd_admin_password = var.argocd_admin_password != "" ? var.argocd_admin_password : "admin123" # Default for dev, should be changed in prod
+  }
 
   # Disable export of values files to prevent any kustomization-related operations
   export_values = false

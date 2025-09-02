@@ -47,8 +47,8 @@ provider "aws" {
 # Local values
 locals {
   cluster_name        = "${var.environment}-magebase"
-  singapore_locations = ["sin"] # Singapore location
-  location            = "fsn1"  # Falkenstein for all environments
+  singapore_locations = ["sin"]            # Singapore location
+  location            = var.hetzner_region # Use variable instead of hardcoded value
   account_type        = var.environment == "prod" ? "production" : "development"
 }
 
