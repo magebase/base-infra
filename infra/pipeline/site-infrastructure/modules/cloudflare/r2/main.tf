@@ -1,12 +1,8 @@
 terraform {
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
       version = "~> 5.0"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.0"
     }
   }
 }
@@ -16,69 +12,26 @@ locals {
 }
 
 # Cloudflare R2 Bucket for PostgreSQL Backups
-resource "random_uuid" "postgres_backup_bucket_id" {}
-
-resource "aws_s3_bucket" "postgres_backups" {
-  bucket = "${local.cluster_name}-postgres-backups-${substr(random_uuid.postgres_backup_bucket_id.result, 0, 8)}"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-# Enable versioning for the PostgreSQL backup bucket
-resource "aws_s3_bucket_versioning" "postgres_backups" {
-  bucket = aws_s3_bucket.postgres_backups.bucket
-  versioning_configuration {
-    status = "Enabled"
-  }
+resource "cloudflare_r2_bucket" "postgres_backups" {
+  account_id = var.cloudflare_account_id
+  name       = "${local.cluster_name}-postgres-backups"
 }
 
 # Cloudflare R2 Bucket for Active Storage
-resource "random_uuid" "active_storage_bucket_id" {}
-
-resource "aws_s3_bucket" "active_storage" {
-  bucket = "${local.cluster_name}-active-storage-${substr(random_uuid.active_storage_bucket_id.result, 0, 8)}"
-
-  lifecycle {
-    prevent_destroy = true
-  }
+resource "cloudflare_r2_bucket" "active_storage" {
+  account_id = var.cloudflare_account_id
+  name       = "${local.cluster_name}-active-storage"
 }
 
-# Enable versioning for the Active Storage bucket
-resource "aws_s3_bucket_versioning" "active_storage" {
-  bucket = aws_s3_bucket.active_storage.bucket
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-# Public access block for security
-resource "aws_s3_bucket_public_access_block" "postgres_backups" {
-  bucket = aws_s3_bucket.postgres_backups.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_public_access_block" "active_storage" {
-  bucket = aws_s3_bucket.active_storage.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
+# Note: Cloudflare R2 doesn't have versioning or public access blocks like S3
 
 output "r2_bucket" {
-  value       = aws_s3_bucket.postgres_backups.bucket
+  value       = cloudflare_r2_bucket.postgres_backups.name
   description = "Cloudflare R2 bucket for PostgreSQL backups"
 }
 
 output "r2_active_storage_bucket" {
-  value       = aws_s3_bucket.active_storage.bucket
+  value       = cloudflare_r2_bucket.active_storage.name
   description = "Cloudflare R2 bucket for Active Storage"
 }
 

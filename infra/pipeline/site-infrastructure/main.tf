@@ -9,7 +9,7 @@ terraform {
     }
     cloudflare = {
       source  = "cloudflare/cloudflare"
-      version = "~> 4.0"
+      version = "~> 5.0"
     }
     aws = {
       source  = "hashicorp/aws"
@@ -57,6 +57,7 @@ module "cloudflare_dns" {
   source = "./modules/cloudflare"
 
   domain_name  = var.domain_name
+  zone_id      = var.cloudflare_zone_id
   cluster_ipv4 = var.cluster_ipv4
   cluster_ipv6 = null # IPv6 not currently available from base infrastructure
 
@@ -99,29 +100,9 @@ module "aws_ses_users" {
   account_id  = var.management_account_id
 }
 
-# Cloudflare R2 Provider (S3-compatible)
-provider "aws" {
-  alias                       = "cloudflare-r2"
-  region                      = "auto" # Cloudflare R2 uses 'auto' region
-  skip_credentials_validation = true
-  skip_requesting_account_id  = true
-  skip_metadata_api_check     = true
-  skip_region_validation      = true
-  endpoints {
-    s3 = "https://${var.cloudflare_account_id}.r2.cloudflarestorage.com"
-  }
-  # Use Cloudflare R2 credentials
-  access_key = var.cloudflare_r2_access_key_id
-  secret_key = var.cloudflare_r2_secret_access_key
-}
-
 # Cloudflare R2 Object Storage Configuration
 module "cloudflare_r2" {
   source = "./modules/cloudflare/r2"
-
-  providers = {
-    aws = aws.cloudflare-r2
-  }
 
   cluster_name          = local.cluster_name
   domain_name           = var.domain_name

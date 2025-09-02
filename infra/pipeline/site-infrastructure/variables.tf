@@ -26,6 +26,11 @@ variable "cloudflare_account_id" {
   type        = string
 }
 
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID for the domain"
+  type        = string
+}
+
 variable "cloudflare_r2_access_key_id" {
   description = "Cloudflare R2 Access Key ID"
   type        = string
