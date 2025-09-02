@@ -119,6 +119,18 @@ output "cloudflare_r2_endpoint" {
   description = "Cloudflare R2 endpoint URL"
 }
 
+output "cloudflare_account_id" {
+  value       = var.cloudflare_account_id
+  description = "Cloudflare Account ID being used for R2 buckets"
+  sensitive   = true
+}
+
+output "cloudflare_r2_account_id" {
+  value       = module.cloudflare_r2.account_id
+  description = "Cloudflare Account ID from R2 module"
+  sensitive   = true
+}
+
 output "active_storage_cdn_url" {
   value       = "https://cdn.${var.domain_name}"
   description = "Cloudflare CDN URL for Active Storage files"
