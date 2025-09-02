@@ -183,31 +183,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Extract Environment and Account IDs from Triggering Workflow
+      - name: Extract Environment from Triggering Workflow
         if: github.event_name == 'workflow_run'
-        id: extract-triggering-data
         run: |
           # Extract environment from the triggering workflow
           TRIGGERING_WORKFLOW="${{ github.event.workflow_run.name }}"
           echo "🔗 Triggered by workflow: $TRIGGERING_WORKFLOW"
 
-          # Extract account IDs from triggering workflow outputs
-          DEV_ACCOUNT_ID="${{ github.event.workflow_run.outputs.development_account_id }}"
-          PROD_ACCOUNT_ID="${{ github.event.workflow_run.outputs.production_account_id }}"
-
-          echo "🔍 Extracted account IDs from triggering workflow:"
-          echo "  - Development Account ID: $DEV_ACCOUNT_ID"
-          echo "  - Production Account ID: $PROD_ACCOUNT_ID"
-
           # Try to extract environment from workflow inputs or outputs
           # For now, default to dev, but this can be enhanced to parse the triggering workflow's inputs
           ENVIRONMENT="dev"
           echo "🌍 Inferred environment: $ENVIRONMENT"
-
-          # Set outputs for use in subsequent steps
           echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
-          echo "development_account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
-          echo "production_account_id=$PROD_ACCOUNT_ID" >> $GITHUB_OUTPUT
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -228,50 +215,27 @@ jobs:
       - name: Get Infrastructure Account ID
         id: get-infra-account
         run: |
-          ENVIRONMENT="${{ github.event.inputs.environment || steps.extract-triggering-data.outputs.environment || 'dev' }}"
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
 
-          # First, try to get account ID from triggering workflow (if triggered by workflow_run)
-          if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            case $ENVIRONMENT in
-              "dev")
-                ACCOUNT_ID="${{ steps.extract-triggering-data.outputs.development_account_id }}"
-                ;;
-              "prod")
-                ACCOUNT_ID="${{ steps.extract-triggering-data.outputs.production_account_id }}"
-                ;;
-              *)
-                ACCOUNT_ID=""
-                ;;
-            esac
-
-            if [ -n "$ACCOUNT_ID" ]; then
-              echo "✅ Using account ID from triggering workflow: $ACCOUNT_ID"
-            else
-              echo "⚠️  No account ID found in triggering workflow for $ENVIRONMENT"
-            fi
-          fi
-
-          # Fallback to repository variables if not found in triggering workflow
-          if [ -z "$ACCOUNT_ID" ]; then
-            case $ENVIRONMENT in
-              "dev")
-                ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID || '' }}"
-                ;;
-              "prod")
-                ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID || '' }}"
-                ;;
-              "qa")
-                ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID || '' }}"
-                ;;
-              "uat")
-                ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID || '' }}"
-                ;;
-              *)
-                echo "❌ Unknown environment: $ENVIRONMENT"
-                exit 1
-                ;;
-            esac
-          fi
+          # Get account ID from repository variables (set by unified-infrastructure workflow)
+          case $ENVIRONMENT in
+            "dev")
+              ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID || '' }}"
+              ;;
+            "prod")
+              ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID || '' }}"
+              ;;
+            "qa")
+              ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID || '' }}"
+              ;;
+            "uat")
+              ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID || '' }}"
+              ;;
+            *)
+              echo "❌ Unknown environment: $ENVIRONMENT"
+              exit 1
+              ;;
+          esac
 
           if [ -z "$ACCOUNT_ID" ]; then
             echo "❌ Could not determine account ID for environment: $ENVIRONMENT"
@@ -304,7 +268,7 @@ jobs:
           terraform {
             backend "s3" {
               bucket         = "magebase-tf-state-${ENVIRONMENT}-${{ env.INFRA_REGION }}"
-              key            = "magebase/site-infrastructure/terraform.tfstate"
+              key            = "magebase/site-infrastructure/${ENVIRONMENT}/terraform.tfstate"
               region         = "${{ env.INFRA_REGION }}"
               encrypt        = true
               dynamodb_table = "magebase-terraform-locks-${ENVIRONMENT}"
@@ -323,6 +287,7 @@ jobs:
       - name: Handle State Locks
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
           echo "🔍 Checking for existing Terraform state locks..."
 
           # Wait for any existing locks to be released (with timeout)
@@ -385,9 +350,7 @@ jobs:
         id: init
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
-          terraform init -upgrade \
-            -backend-config="bucket=magebase-tf-state-management-ap-southeast-1" \
-            -backend-config="key=magebase/site-infrastructure/${ENVIRONMENT}/terraform.tfstate"
+          terraform init -upgrade
 
       - name: Terraform Validate
         id: validate
@@ -584,12 +547,13 @@ jobs:
       - name: Force Unlock Site Infrastructure on Failure
         if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
         run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
           echo "🔍 Attempting to force unlock site infrastructure Terraform state after failure..."
 
           # Try to scan DynamoDB for any existing locks
           echo "🔍 Scanning DynamoDB for existing site infrastructure locks..."
           LOCK_ITEMS=$(aws dynamodb scan \
-            --table-name "magebase-terraform-locks-management" \
+            --table-name "magebase-terraform-locks-${ENVIRONMENT}" \
             --region ${{ env.INFRA_REGION }} \
             --query 'Items[?attribute_exists(LockID)]' \
             --output json 2>/dev/null || echo "[]")
