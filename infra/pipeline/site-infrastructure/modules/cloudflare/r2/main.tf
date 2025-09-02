@@ -39,3 +39,8 @@ output "r2_endpoint" {
   value       = "https://${var.cloudflare_account_id}.r2.cloudflarestorage.com"
   description = "Cloudflare R2 endpoint URL"
 }
+
+output "account_id" {
+  value       = var.cloudflare_account_id
+  description = "Cloudflare Account ID being used for R2 buckets"
+}

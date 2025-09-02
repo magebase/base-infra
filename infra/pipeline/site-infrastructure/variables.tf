@@ -24,6 +24,10 @@ variable "cloudflare_api_token" {
 variable "cloudflare_account_id" {
   description = "Cloudflare Account ID for R2"
   type        = string
+  validation {
+    condition     = var.cloudflare_account_id != "" && length(var.cloudflare_account_id) > 0
+    error_message = "Cloudflare Account ID cannot be empty. Please ensure CLOUDFLARE_ACCOUNT_ID secret is set in GitHub repository secrets."
+  }
 }
 
 variable "cloudflare_zone_id" {
