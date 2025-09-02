@@ -756,21 +756,9 @@ resource "aws_iam_access_key" "production" {
   user     = each.value.name
 }
 
-# Data source to check if GitHub OIDC provider exists - Development
-data "aws_iam_openid_connect_provider" "github_existing_development" {
-  provider = aws.development
-  url      = "https://token.actions.githubusercontent.com"
-}
-
-# Data source to check if GitHub OIDC provider exists - Production
-data "aws_iam_openid_connect_provider" "github_existing_production" {
-  provider = aws.production
-  url      = "https://token.actions.githubusercontent.com"
-}
-
 # GitHub Actions OIDC Provider for Development Account
 resource "aws_iam_openid_connect_provider" "github_development" {
-  count = try(data.aws_iam_openid_connect_provider.github_existing_development.arn, null) == null ? 1 : 0
+  count = 1
 
   provider = aws.development
   url      = "https://token.actions.githubusercontent.com"
@@ -797,7 +785,7 @@ resource "aws_iam_openid_connect_provider" "github_development" {
 
 # GitHub Actions OIDC Provider for Production Account
 resource "aws_iam_openid_connect_provider" "github_production" {
-  count = try(data.aws_iam_openid_connect_provider.github_existing_production.arn, null) == null ? 1 : 0
+  count = 1
 
   provider = aws.production
   url      = "https://token.actions.githubusercontent.com"
@@ -1223,11 +1211,11 @@ output "github_actions_oidc_providers" {
   description = "GitHub Actions OIDC providers in each account (created or existing)"
   value = {
     development = {
-      arn = try(aws_iam_openid_connect_provider.github_development[0].arn, data.aws_iam_openid_connect_provider.github_existing_development.arn)
+      arn = aws_iam_openid_connect_provider.github_development[0].arn
       url = "https://token.actions.githubusercontent.com"
     }
     production = {
-      arn = try(aws_iam_openid_connect_provider.github_production[0].arn, data.aws_iam_openid_connect_provider.github_existing_production.arn)
+      arn = aws_iam_openid_connect_provider.github_production[0].arn
       url = "https://token.actions.githubusercontent.com"
     }
   }
