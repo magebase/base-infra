@@ -698,6 +698,36 @@ jobs:
             echo "Missing PROD_ACCOUNT_ID or SSO_INSTANCE_ARN for production account check"
           fi
 
+      - name: Set Repository Variables for Account IDs
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        working-directory: infra/pipeline/org-sso
+        run: |
+          echo "🔧 Setting repository variables for account IDs..."
+
+          # Get account IDs from Terraform outputs
+          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "")
+          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null || echo "")
+
+          if [ -n "$DEV_ACCOUNT_ID" ]; then
+            echo "📋 Setting DEVELOPMENT_ACCOUNT_ID repository variable to: $DEV_ACCOUNT_ID"
+            # Use GitHub CLI to set repository variable
+            gh variable set DEVELOPMENT_ACCOUNT_ID --body "$DEV_ACCOUNT_ID"
+            echo "✅ Development account ID set as repository variable"
+          else
+            echo "⚠️  Development account ID not found in Terraform outputs"
+          fi
+
+          if [ -n "$PROD_ACCOUNT_ID" ]; then
+            echo "📋 Setting PRODUCTION_ACCOUNT_ID repository variable to: $PROD_ACCOUNT_ID"
+            # Use GitHub CLI to set repository variable
+            gh variable set PRODUCTION_ACCOUNT_ID --body "$PROD_ACCOUNT_ID"
+            echo "✅ Production account ID set as repository variable"
+          else
+            echo "⚠️  Production account ID not found in Terraform outputs"
+          fi
+
+          echo "🎉 Repository variables updated for site-infrastructure workflow"
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
