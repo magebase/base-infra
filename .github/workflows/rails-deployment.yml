@@ -1,4 +1,4 @@
-name: Unified Rails Deployment Pipeline
+name: Magebase Site Deployment Pipeline
 
 on:
   push:
