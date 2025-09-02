@@ -111,16 +111,6 @@ provider "aws" {
   }
 }
 
-# Temporary MinIO Provider for cleaning up orphaned resources
-provider "minio" {
-  alias          = "hetzner"
-  minio_server   = "fsn1.your-objectstorage.com"
-  minio_user     = var.hetzner_object_storage_access_key != "" ? var.hetzner_object_storage_access_key : "dummy"
-  minio_password = var.hetzner_object_storage_secret_key != "" ? var.hetzner_object_storage_secret_key : "dummy"
-  minio_region   = "fsn1"
-  minio_ssl      = true
-}
-
 # Cloudflare R2 Object Storage Configuration
 module "cloudflare_r2" {
   source = "./modules/cloudflare/r2"
