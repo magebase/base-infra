@@ -149,9 +149,9 @@ module "kube-hetzner" {
 
   control_plane_nodepools = [
     {
-      name        = "control-plane-fsn1",
+      name        = "control-plane-${var.hetzner_region}",
       server_type = "cax11",
-      location    = "fsn1",
+      location    = var.hetzner_region,
       labels      = [],
       taints      = [],
       count       = 1
@@ -177,7 +177,7 @@ module "kube-hetzner" {
     {
       name        = "agent-small",
       server_type = "cax11",
-      location    = "fsn1",
+      location    = var.hetzner_region,
       labels      = [],
       taints      = [],
       count       = 1
@@ -269,7 +269,7 @@ module "kube-hetzner" {
 
   # * LB location and type, the latter will depend on how much load you want it to handle, see https://www.hetzner.com/cloud/load-balancer
   load_balancer_type     = "lb11"
-  load_balancer_location = "fsn1"
+  load_balancer_location = var.hetzner_region
 
   # Disable IPv6 for the load balancer, the default is false.
   # load_balancer_disable_ipv6 = true

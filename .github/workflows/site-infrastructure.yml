@@ -98,6 +98,8 @@ jobs:
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
           TF_VAR_environment_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+          TF_VAR_hetzner_region: ${{ vars.HTZ_REGION || 'fsn1' }}
+          TF_VAR_cloudflare_region: ${{ vars.CF_REGION || 'EU' }}
           AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
           AWS_SSO_REGION: ${{ env.SSO_REGION }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -131,6 +133,8 @@ jobs:
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
           TF_VAR_environment_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+          TF_VAR_hetzner_region: ${{ vars.HTZ_REGION || 'fsn1' }}
+          TF_VAR_cloudflare_region: ${{ vars.CF_REGION || 'EU' }}
           AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
           AWS_SSO_REGION: ${{ env.SSO_REGION }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -163,6 +167,8 @@ jobs:
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
           TF_VAR_environment_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+          TF_VAR_hetzner_region: ${{ vars.HTZ_REGION || 'fsn1' }}
+          TF_VAR_cloudflare_region: ${{ vars.CF_REGION || 'EU' }}
           AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
           AWS_SSO_REGION: ${{ env.SSO_REGION }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -218,6 +224,8 @@ jobs:
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
           TF_VAR_environment_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+          TF_VAR_hetzner_region: ${{ vars.HTZ_REGION || 'fsn1' }}
+          TF_VAR_cloudflare_region: ${{ vars.CF_REGION || 'EU' }}
           AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
           AWS_SSO_REGION: ${{ env.SSO_REGION }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
