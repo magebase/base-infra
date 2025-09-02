@@ -94,6 +94,8 @@ jobs:
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_stripe_api_key: ${{ secrets.STRIPE_API_KEY }}
+          TF_VAR_stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
           AWS_SSO_REGION: ${{ env.SSO_REGION }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -117,6 +119,8 @@ jobs:
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_stripe_api_key: ${{ secrets.STRIPE_API_KEY }}
+          TF_VAR_stripe_webhook_secret: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
           AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
           AWS_SSO_REGION: ${{ env.SSO_REGION }}
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
