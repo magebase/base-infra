@@ -94,8 +94,17 @@ resource "cloudflare_record" "root_a" {
   name    = var.domain_name
   content = var.cluster_ipv4
   type    = "A"
-  ttl     = 1 # Must be 1 when proxied is true
-  proxied = true
+  ttl     = var.cluster_ipv4 == "127.0.0.1" ? 600 : 1 # Use 600 for non-proxied, 1 for proxied
+  proxied = var.cluster_ipv4 != "127.0.0.1"           # Don't proxy loopback addresses
+
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes = [
+      content, # Allow IP changes
+      proxied, # Allow proxy changes
+      ttl,
+    ]
+  }
 }
 
 # AAAA record for the root domain (if IPv6 is provided)
@@ -117,6 +126,15 @@ resource "cloudflare_record" "www_cname" {
   type    = "CNAME"
   ttl     = 1 # Must be 1 when proxied is true
   proxied = true
+
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes = [
+      content, # Allow existing records to be preserved
+      proxied,
+      ttl,
+    ]
+  }
 }
 
 # CNAME record for CDN subdomain
@@ -127,6 +145,15 @@ resource "cloudflare_record" "cdn_cname" {
   type    = "CNAME"
   ttl     = 1 # Must be 1 when proxied is true
   proxied = true
+
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes = [
+      content, # Allow existing records to be preserved
+      proxied,
+      ttl,
+    ]
+  }
 }
 
 # SES Domain Verification Record
