@@ -758,21 +758,19 @@ resource "aws_iam_access_key" "production" {
 
 # Data source to check if GitHub OIDC provider exists - Development
 data "aws_iam_openid_connect_provider" "github_existing_development" {
-  count    = 0 # Temporarily disabled to avoid errors when provider doesn't exist
   provider = aws.development
   url      = "https://token.actions.githubusercontent.com"
 }
 
 # Data source to check if GitHub OIDC provider exists - Production
 data "aws_iam_openid_connect_provider" "github_existing_production" {
-  count    = 0 # Temporarily disabled to avoid errors when provider doesn't exist
   provider = aws.production
   url      = "https://token.actions.githubusercontent.com"
 }
 
 # GitHub Actions OIDC Provider for Development Account
 resource "aws_iam_openid_connect_provider" "github_development" {
-  count = 1 # Always create since data source is disabled
+  count = try(data.aws_iam_openid_connect_provider.github_existing_development.arn, null) == null ? 1 : 0
 
   provider = aws.development
   url      = "https://token.actions.githubusercontent.com"
@@ -799,7 +797,7 @@ resource "aws_iam_openid_connect_provider" "github_development" {
 
 # GitHub Actions OIDC Provider for Production Account
 resource "aws_iam_openid_connect_provider" "github_production" {
-  count = 1 # Always create since data source is disabled
+  count = try(data.aws_iam_openid_connect_provider.github_existing_production.arn, null) == null ? 1 : 0
 
   provider = aws.production
   url      = "https://token.actions.githubusercontent.com"
@@ -883,9 +881,6 @@ resource "aws_iam_role" "github_actions_sso_development" {
   lifecycle {
     create_before_destroy = true
   }
-
-  # Ensure OIDC provider exists before creating the role
-  depends_on = [aws_iam_openid_connect_provider.github_development]
 }
 
 # GitHub Actions SSO Role for Production Account
@@ -933,9 +928,6 @@ resource "aws_iam_role" "github_actions_sso_production" {
   lifecycle {
     create_before_destroy = true
   }
-
-  # Ensure OIDC provider exists before creating the role
-  depends_on = [aws_iam_openid_connect_provider.github_production]
 }
 
 # IAM Policy for GitHub Actions SSO Role - Development (only for newly created roles)
@@ -1231,11 +1223,11 @@ output "github_actions_oidc_providers" {
   description = "GitHub Actions OIDC providers in each account (created or existing)"
   value = {
     development = {
-      arn = aws_iam_openid_connect_provider.github_development[0].arn
+      arn = try(aws_iam_openid_connect_provider.github_development[0].arn, data.aws_iam_openid_connect_provider.github_existing_development.arn)
       url = "https://token.actions.githubusercontent.com"
     }
     production = {
-      arn = aws_iam_openid_connect_provider.github_production[0].arn
+      arn = try(aws_iam_openid_connect_provider.github_production[0].arn, data.aws_iam_openid_connect_provider.github_existing_production.arn)
       url = "https://token.actions.githubusercontent.com"
     }
   }
