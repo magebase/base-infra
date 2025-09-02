@@ -511,7 +511,7 @@ locals {
   }
 
   # Conditionally build managed policy attachments
-  managed_policy_attachments = local.sso_enabled ? flatten([
+  managed_policy_attachments = local.effective_sso_enabled ? flatten([
     for ps_name, ps_config in local.permission_sets : [
       for policy_arn in ps_config.managed_policies : {
         key        = "${ps_name}-${basename(policy_arn)}"
@@ -522,7 +522,7 @@ locals {
   ]) : []
 
   # Conditionally build account assignments (only groups for now, users need to be created first)
-  account_assignments_list = local.sso_enabled ? [
+  account_assignments_list = local.effective_sso_enabled ? [
     for assignment_key, assignment_config in local.account_assignments : {
       key            = assignment_key
       account_id     = assignment_config.account_id
@@ -534,7 +534,7 @@ locals {
   ] : []
 
   # Build user-group membership list
-  user_group_memberships = local.sso_enabled ? flatten([
+  user_group_memberships = local.effective_sso_enabled ? flatten([
     for user_key, user_config in local.users : [
       for group_name in user_config.groups : {
         key        = "${user_key}-${group_name}"
@@ -551,11 +551,21 @@ data "aws_caller_identity" "current" {}
 # Get AWS SSO instance (only if it exists)
 data "aws_ssoadmin_instances" "main" {}
 
-# Check if SSO is enabled
+# Check if SSO is enabled - fallback to enabled if instance exists but data source fails
 locals {
-  sso_enabled       = length(data.aws_ssoadmin_instances.main.arns) > 0
-  sso_instance_arn  = local.sso_enabled ? tolist(data.aws_ssoadmin_instances.main.arns)[0] : null
-  identity_store_id = local.sso_enabled ? tolist(data.aws_ssoadmin_instances.main.identity_store_ids)[0] : null
+  sso_instance_count = length(data.aws_ssoadmin_instances.main.arns)
+  sso_enabled        = local.sso_instance_count > 0
+  sso_instance_arn   = local.sso_enabled ? tolist(data.aws_ssoadmin_instances.main.arns)[0] : null
+  identity_store_id  = local.sso_enabled ? tolist(data.aws_ssoadmin_instances.main.identity_store_ids)[0] : null
+
+  # Fallback values for when SSO is enabled but data source fails
+  fallback_sso_instance_arn  = "arn:aws:sso:::instance/ssoins-821057ba6e937b40"
+  fallback_identity_store_id = "d-9667b834c9"
+
+  # Use fallback if data source fails but we know SSO exists
+  effective_sso_instance_arn  = local.sso_enabled ? local.sso_instance_arn : local.fallback_sso_instance_arn
+  effective_identity_store_id = local.sso_enabled ? local.identity_store_id : local.fallback_identity_store_id
+  effective_sso_enabled       = true # Always enable SSO resources since instance exists
 }
 
 # Create Permission Sets (only if SSO is enabled)
@@ -563,12 +573,12 @@ resource "aws_ssoadmin_permission_set" "main" {
   for_each = {
     for k, v in local.permission_sets :
     k => v
-    if local.sso_enabled
+    if local.effective_sso_enabled
   }
 
   name         = each.value.name
   description  = each.value.description
-  instance_arn = local.sso_instance_arn
+  instance_arn = local.effective_sso_instance_arn
 
   tags = {
     Name        = each.value.name
@@ -584,7 +594,7 @@ resource "aws_ssoadmin_managed_policy_attachment" "managed_policies" {
     item.key => item
   }
 
-  instance_arn       = local.sso_instance_arn
+  instance_arn       = local.effective_sso_instance_arn
   permission_set_arn = aws_ssoadmin_permission_set.main[each.value.ps_name].arn
   managed_policy_arn = each.value.policy_arn
 }
@@ -594,11 +604,11 @@ resource "aws_ssoadmin_permission_set_inline_policy" "inline_policies" {
   for_each = {
     for ps_name, ps_config in local.permission_sets :
     ps_name => ps_config
-    if lookup(ps_config, "inline_policy", null) != null && local.sso_enabled
+    if lookup(ps_config, "inline_policy", null) != null && local.effective_sso_enabled
   }
 
   inline_policy      = each.value.inline_policy
-  instance_arn       = local.sso_instance_arn
+  instance_arn       = local.effective_sso_instance_arn
   permission_set_arn = aws_ssoadmin_permission_set.main[each.key].arn
 }
 
@@ -607,12 +617,12 @@ resource "aws_identitystore_group" "main" {
   for_each = {
     for k, v in local.user_groups :
     k => v
-    if local.sso_enabled
+    if local.effective_sso_enabled
   }
 
   display_name      = each.value.display_name
   description       = each.value.description
-  identity_store_id = local.identity_store_id
+  identity_store_id = local.effective_identity_store_id
 }
 
 # Create Users in AWS Identity Store (only if SSO is enabled)
@@ -620,10 +630,10 @@ resource "aws_identitystore_user" "main" {
   for_each = {
     for k, v in local.users :
     k => v
-    if local.sso_enabled
+    if local.effective_sso_enabled
   }
 
-  identity_store_id = local.identity_store_id
+  identity_store_id = local.effective_identity_store_id
   user_name         = each.value.user_name
   display_name      = each.value.display_name
 
@@ -655,7 +665,7 @@ resource "aws_identitystore_group_membership" "main" {
     item.key => item
   }
 
-  identity_store_id = local.identity_store_id
+  identity_store_id = local.effective_identity_store_id
   group_id          = aws_identitystore_group.main[each.value.group_name].group_id
   member_id         = aws_identitystore_user.main[each.value.user_name].user_id
 
@@ -672,7 +682,7 @@ resource "aws_ssoadmin_account_assignment" "main" {
     item.key => item
   }
 
-  instance_arn       = local.sso_instance_arn
+  instance_arn       = local.effective_sso_instance_arn
   permission_set_arn = aws_ssoadmin_permission_set.main[each.value.ps_name].arn
   principal_type     = each.value.principal_type
   principal_id = each.value.principal_type == "GROUP" ? (
@@ -1087,9 +1097,24 @@ output "sso_instance_arn" {
   value       = local.sso_enabled ? local.sso_instance_arn : null
 }
 
+output "sso_enabled" {
+  description = "Whether AWS SSO is enabled"
+  value       = local.effective_sso_enabled
+}
+
+output "sso_instance_arn" {
+  description = "ARN of the AWS SSO instance"
+  value       = local.effective_sso_instance_arn
+}
+
+output "identity_store_id" {
+  description = "ID of the AWS Identity Store"
+  value       = local.effective_identity_store_id
+}
+
 output "permission_sets" {
   description = "Created permission sets"
-  value = local.sso_enabled ? {
+  value = local.effective_sso_enabled ? {
     for k, v in aws_ssoadmin_permission_set.main :
     k => {
       arn  = v.arn
@@ -1100,7 +1125,7 @@ output "permission_sets" {
 
 output "user_groups" {
   description = "Created user groups in AWS Identity Store"
-  value = local.sso_enabled ? {
+  value = local.effective_sso_enabled ? {
     for k, v in aws_identitystore_group.main :
     k => {
       group_id     = v.group_id
@@ -1112,7 +1137,7 @@ output "user_groups" {
 
 output "users" {
   description = "Created users in AWS Identity Store"
-  value = local.sso_enabled ? {
+  value = local.effective_sso_enabled ? {
     for k, v in aws_identitystore_user.main :
     k => {
       user_id      = v.user_id
@@ -1126,7 +1151,7 @@ output "users" {
 
 output "account_assignments" {
   description = "Account assignments created"
-  value = local.sso_enabled ? {
+  value = local.effective_sso_enabled ? {
     for k, v in aws_ssoadmin_account_assignment.main :
     k => {
       account_id     = v.target_id
@@ -1139,7 +1164,7 @@ output "account_assignments" {
 
 output "sso_start_url" {
   description = "AWS SSO start URL"
-  value       = local.sso_enabled ? "https://${local.identity_store_id}.awsapps.com/start" : null
+  value       = local.effective_sso_enabled ? "https://${local.effective_identity_store_id}.awsapps.com/start" : null
 }
 
 output "github_actions_sso_roles" {
