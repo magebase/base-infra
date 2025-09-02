@@ -545,6 +545,36 @@ jobs:
             echo "✅ No empty account IDs found in plan"
           fi
 
+      - name: Remove Orphaned Resources from State
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        working-directory: infra/pipeline/org-sso
+        run: |
+          echo "🧹 Removing orphaned resources from Terraform state..."
+
+          # List of orphaned resources to remove from state
+          ORPHANED_RESOURCES=(
+            "aws_iam_openid_connect_provider.github_development"
+            "aws_iam_openid_connect_provider.github_production"
+            "aws_iam_role.github_actions_sso_development"
+            "aws_iam_role.github_actions_sso_production"
+            "aws_iam_role_policy.github_actions_sso_policy_development"
+            "aws_iam_role_policy.github_actions_sso_policy_production"
+            "aws_iam_role_policy_attachment.github_actions_sso_admin_development"
+            "aws_iam_role_policy_attachment.github_actions_sso_admin_production"
+          )
+
+          # Remove each orphaned resource from state
+          for resource in "${ORPHANED_RESOURCES[@]}"; do
+            echo "Removing orphaned resource: $resource"
+            if terraform state list | grep -q "^${resource}"; then
+              terraform state rm "$resource" || echo "⚠️  Failed to remove $resource from state"
+            else
+              echo "ℹ️  Resource $resource not found in state (already removed)"
+            fi
+          done
+
+          echo "✅ Orphaned resources cleanup completed"
+
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         working-directory: infra/pipeline/org-sso
