@@ -132,7 +132,8 @@ jobs:
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
 
           # Check if bootstrap resources exist
-          BUCKET_EXISTS=$(aws s3 ls s3://magebase-tf-state-${ENVIRONMENT}-${{ env.INFRA_REGION }} 2>/dev/null || echo "")
+          # The bootstrap creates buckets with "bootstrap" in the name
+          BUCKET_EXISTS=$(aws s3 ls s3://magebase-${ENVIRONMENT}-tf-state-bootstrap-${ENVIRONMENT}-${{ env.INFRA_REGION }} 2>/dev/null || echo "")
           TABLE_EXISTS=$(aws dynamodb describe-table --table-name magebase-terraform-locks-${ENVIRONMENT} --region ${{ env.INFRA_REGION }} 2>/dev/null || echo "")
 
           if [ -n "$BUCKET_EXISTS" ] && [ -n "$TABLE_EXISTS" ]; then
@@ -267,7 +268,7 @@ jobs:
           cat > backend.tf << EOF
           terraform {
             backend "s3" {
-              bucket         = "magebase-tf-state-${ENVIRONMENT}-${{ env.INFRA_REGION }}"
+              bucket         = "magebase-${ENVIRONMENT}-tf-state-bootstrap-${ENVIRONMENT}-${{ env.INFRA_REGION }}"
               key            = "magebase/site-infrastructure/${ENVIRONMENT}/terraform.tfstate"
               region         = "${{ env.INFRA_REGION }}"
               encrypt        = true
