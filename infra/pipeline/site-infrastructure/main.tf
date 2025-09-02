@@ -103,7 +103,7 @@ module "aws_ses_users" {
 # MinIO Provider for Hetzner Object Storage (recommended approach)
 provider "minio" {
   alias          = "hetzner"
-  minio_server   = "fsn1.your-objectstorage.com"
+  minio_server   = var.hetzner_object_storage_endpoint != "" ? var.hetzner_object_storage_endpoint : "fsn1.${var.domain_name}"
   minio_user     = var.hetzner_object_storage_access_key
   minio_password = var.hetzner_object_storage_secret_key
   minio_region   = "fsn1"
