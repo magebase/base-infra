@@ -2,13 +2,16 @@
 terraform {
   required_version = ">= 1.8.0"
 
-  # Backend configuration using management account S3 bucket
+  # Backend configuration - this will be overridden by the workflow
+  # The actual backend is configured dynamically based on environment
   backend "s3" {
-    bucket         = "magebase-tf-state-management-ap-southeast-1"
-    key            = "magebase/site-infrastructure/${var.environment}/terraform.tfstate"
+    # These values are set by the GitHub Actions workflow
+    # bucket, key, region, and dynamodb_table are configured per environment
+    bucket         = "magebase-tf-state-placeholder"
+    key            = "magebase/site-infrastructure/terraform.tfstate"
     region         = "ap-southeast-1"
     encrypt        = true
-    dynamodb_table = "magebase-terraform-locks-management"
+    dynamodb_table = "magebase-terraform-locks-placeholder"
   }
 
   required_providers {
@@ -42,14 +45,16 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
-# AWS Provider (for Route53 operations) - assumes GitHubActionsSSORole from management account
+# AWS Provider (for Route53 operations) - uses environment-specific account
 provider "aws" {
   alias  = "route53"
   region = "us-east-1" # Route53 is a global service, but provider needs a region
-
+  assume_role {
+    role_arn = "arn:aws:iam::${var.environment_account_id}:role/${var.pipeline_role_name}"
+  }
 }
 
-# IAM Role for SES Management (created in management account)
+# IAM Role for SES Management (created in environment account)
 resource "aws_iam_role" "ses_manager" {
   provider = aws.route53
   name     = "SESManagerRole-${var.environment}"
@@ -60,7 +65,7 @@ resource "aws_iam_role" "ses_manager" {
       {
         Effect = "Allow"
         Principal = {
-          AWS = "arn:aws:iam::${var.aws_ses_account_id}:role/GitHubActionsSSORole"
+          AWS = "arn:aws:iam::${var.environment_account_id}:role/${var.pipeline_role_name}"
         }
         Action = "sts:AssumeRole"
       }
@@ -154,7 +159,7 @@ module "cloudflare_dns" {
   cluster_ipv6 = null # IPv6 not currently available from base infrastructure
 
   # SES configuration
-  aws_ses_account_id = var.aws_ses_account_id
+  aws_ses_account_id = var.environment_account_id
 
   # SES DNS Records - SES is always enabled
   ses_verification_record = module.aws_ses.ses_verification_record
@@ -184,7 +189,7 @@ module "aws_ses" {
 
   domain_name          = var.domain_name
   environment          = var.environment
-  account_id           = var.aws_ses_account_id
+  account_id           = var.environment_account_id
   ses_manager_role_arn = aws_iam_role.ses_manager.arn
 }
 

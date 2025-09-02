@@ -53,9 +53,100 @@ env:
   INFRA_REGION: ap-southeast-1
 
 jobs:
+  bootstrap-env-account:
+    name: "Bootstrap Environment Account"
+    runs-on: self-hosted
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      account_id: ${{ steps.get-env-account.outputs.account_id }}
+      bootstrap_complete: ${{ steps.bootstrap-check.outputs.complete }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine Environment Account
+        id: get-env-account
+        run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+
+          case $ENVIRONMENT in
+            "dev")
+              ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID }}"
+              ;;
+            "qa")
+              ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID }}"
+              ;;
+            "uat")
+              ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID }}"
+              ;;
+            "prod")
+              ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID }}"
+              ;;
+            *)
+              echo "❌ Unknown environment: $ENVIRONMENT"
+              exit 1
+              ;;
+          esac
+
+          echo "🌍 Environment: $ENVIRONMENT"
+          echo "🔐 Account ID: $ACCOUNT_ID"
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials for bootstrap
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ steps.get-env-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          aws-region: ${{ env.INFRA_REGION }}
+
+      - name: Check if bootstrap is needed
+        id: bootstrap-check
+        run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+
+          # Check if bootstrap resources exist
+          BUCKET_EXISTS=$(aws s3 ls s3://magebase-tf-state-${ENVIRONMENT}-${{ env.INFRA_REGION }} 2>/dev/null || echo "")
+          TABLE_EXISTS=$(aws dynamodb describe-table --table-name magebase-terraform-locks-${ENVIRONMENT} --region ${{ env.INFRA_REGION }} 2>/dev/null || echo "")
+
+          if [ -n "$BUCKET_EXISTS" ] && [ -n "$TABLE_EXISTS" ]; then
+            echo "✅ Bootstrap resources already exist for $ENVIRONMENT"
+            echo "complete=true" >> $GITHUB_OUTPUT
+          else
+            echo "🔧 Bootstrap needed for $ENVIRONMENT environment"
+            echo "complete=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Bootstrap for Environment
+        if: steps.bootstrap-check.outputs.complete == 'false'
+        working-directory: infra/pipeline/bootstrap-env-account
+        run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+
+          echo "🚀 Running bootstrap for $ENVIRONMENT environment..."
+
+          # Initialize Terraform
+          terraform init
+
+          # Plan the bootstrap
+          terraform plan \
+            -var="environment=$ENVIRONMENT" \
+            -var="region=${{ env.INFRA_REGION }}" \
+            -var="account_alias=magebase-$ENVIRONMENT" \
+            -var="dynamodb_table_name=magebase-terraform-locks-$ENVIRONMENT" \
+            -var="create_account_alias=true" \
+            -out=tfplan
+
+          # Apply the bootstrap
+          terraform apply tfplan
+
+          echo "✅ Bootstrap completed for $ENVIRONMENT"
+
   site-infrastructure-deploy:
     name: "Site Infrastructure Deployment"
     runs-on: self-hosted
+    needs: bootstrap-env-account
     permissions:
       id-token: write
       contents: read
@@ -99,26 +190,56 @@ jobs:
       - name: Get Infrastructure Account ID
         id: get-infra-account
         run: |
-          # For site infrastructure, we need to use the management account
-          # because the Terraform state bucket is created there
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
 
-          # Use management account for accessing the shared Terraform state bucket
-          ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-          echo "Using management account for site infrastructure (environment: $ENVIRONMENT)"
-          echo "Account ID: $ACCOUNT_ID"
+          # Use the appropriate account based on environment
+          case $ENVIRONMENT in
+            "dev")
+              ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID }}"
+              ;;
+            "qa")
+              ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID }}"
+              ;;
+            "uat")
+              ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID }}"
+              ;;
+            "prod")
+              ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID }}"
+              ;;
+            *)
+              echo "❌ Unknown environment: $ENVIRONMENT"
+              exit 1
+              ;;
+          esac
 
+          echo "🌍 Using $ENVIRONMENT account for site infrastructure"
+          echo "🔐 Account ID: $ACCOUNT_ID"
           echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
-          echo "ses_access_key_id=" >> $GITHUB_OUTPUT
-          echo "ses_secret_access_key=" >> $GITHUB_OUTPUT
+
+      - name: Configure Terraform Backend
+        run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+
+          # Use environment-specific state bucket created by bootstrap
+          cat > backend.tf << EOF
+          terraform {
+            backend "s3" {
+              bucket         = "magebase-tf-state-${ENVIRONMENT}-${{ env.INFRA_REGION }}"
+              key            = "magebase/site-infrastructure/terraform.tfstate"
+              region         = "${{ env.INFRA_REGION }}"
+              encrypt        = true
+              dynamodb_table = "magebase-terraform-locks-${ENVIRONMENT}"
+            }
+          }
+          EOF
+
+          echo "✅ Configured Terraform backend for $ENVIRONMENT environment"
 
       - name: Configure AWS credentials via OIDC
-        id: oidc-auth
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ steps.get-infra-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
           aws-region: ${{ env.INFRA_REGION }}
-        continue-on-error: true
 
       - name: Handle State Locks
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
@@ -131,7 +252,7 @@ jobs:
 
           while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
             LOCK_ITEMS=$(aws dynamodb scan \
-              --table-name "magebase-terraform-locks-management" \
+              --table-name "magebase-terraform-locks-${ENVIRONMENT}" \
               --region ${{ env.INFRA_REGION }} \
               --query 'Items[?attribute_exists(LockID)]' \
               --output json 2>/dev/null || echo "[]")
@@ -204,6 +325,8 @@ jobs:
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
@@ -225,6 +348,8 @@ jobs:
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
@@ -313,6 +438,8 @@ jobs:
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}

@@ -21,9 +21,15 @@ variable "cloudflare_api_token" {
   sensitive   = true
 }
 
-variable "aws_ses_account_id" {
-  description = "AWS account ID for SES"
+variable "environment_account_id" {
+  description = "AWS account ID for the current environment"
   type        = string
+}
+
+variable "pipeline_role_name" {
+  description = "Name of the IAM role used by the CI/CD pipeline"
+  type        = string
+  default     = "GitHubActionsSSORole"
 }
 
 variable "domain_name" {
