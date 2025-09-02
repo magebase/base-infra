@@ -69,12 +69,17 @@ jobs:
       postgres:
         image: postgres:15
         env:
+          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: magebase_test
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
           --health-timeout 10s
           --health-retries 10
+          --name postgres-test
+        ports:
+          - 5432:5432
       redis:
         image: redis:7-alpine
         options: >-
@@ -112,8 +117,21 @@ jobs:
           npm install
       - name: Wait for PostgreSQL
         run: |
-          timeout 60 bash -c 'until pg_isready -h localhost -p 5432 -U postgres; do sleep 2; done'
-          echo "PostgreSQL is ready!"
+          echo "Waiting for PostgreSQL to be ready..."
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U postgres; then
+              echo "PostgreSQL is ready!"
+              break
+            fi
+            echo "Attempt $i: PostgreSQL not ready yet..."
+            sleep 2
+          done
+
+          # Final check
+          if ! pg_isready -h localhost -p 5432 -U postgres; then
+            echo "PostgreSQL failed to start"
+            exit 1
+          fi
       - name: Set up database
         env:
           RAILS_ENV: test
