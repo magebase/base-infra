@@ -41,6 +41,7 @@ env:
   TF_VERSION: "1.8.0"
   TF_WORKING_DIR: infra/pipeline/site-infrastructure
   INFRA_REGION: ap-southeast-1
+  SSO_REGION: us-east-1
 
 jobs:
   site-infrastructure:
@@ -88,6 +89,14 @@ jobs:
       - name: Terraform Plan
         if: github.event.inputs.action == 'plan' || github.event_name == 'pull_request'
         working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          AWS_REGION: ${{ env.INFRA_REGION }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+          AWS_SSO_REGION: ${{ env.SSO_REGION }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
         run: |
           ENVIRONMENT="${{ steps.get-env.outputs.environment }}"
           echo "📋 Planning infrastructure for $ENVIRONMENT environment..."
@@ -103,6 +112,14 @@ jobs:
         if: github.event.inputs.action == 'apply' || github.event_name == 'push'
         id: apply
         working-directory: ${{ env.TF_WORKING_DIR }}
+        env:
+          AWS_REGION: ${{ env.INFRA_REGION }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+          AWS_SSO_REGION: ${{ env.SSO_REGION }}
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
         run: |
           ENVIRONMENT="${{ steps.get-env.outputs.environment }}"
           echo "🚀 Applying infrastructure for $ENVIRONMENT environment..."
