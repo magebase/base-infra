@@ -36,18 +36,12 @@ provider "cloudflare" {
 # Default AWS Provider (uses management account OIDC role)
 provider "aws" {
   region = "ap-southeast-1"
-  assume_role {
-    role_arn = "arn:aws:iam::${var.management_account_id}:role/${var.pipeline_role_name}"
-  }
 }
 
 # AWS Provider (for Route53 operations) - uses management account OIDC role
 provider "aws" {
   alias  = "route53"
   region = "us-east-1" # Route53 is a global service, but provider needs a region
-  assume_role {
-    role_arn = "arn:aws:iam::${var.management_account_id}:role/${var.pipeline_role_name}"
-  }
 }
 
 # Local values
