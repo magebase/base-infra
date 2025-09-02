@@ -1,4 +1,19 @@
 # Terraform configuration for Magebase infrastructure using Hetzner + k3s
+data "terraform_remote_state" "base_infrastructure" {
+  backend = "s3"
+  config = {
+    bucket         = "magebase-tf-state-management-ap-southeast-1"
+    key            = "magebase/base-infrastructure/${var.environment}/terraform.tfstate"
+    region         = "ap-southeast-1"
+    dynamodb_table = "magebase-terraform-locks-management"
+    encrypt        = true
+    # Use management account credentials
+    assume_role = {
+      role_arn = "arn:aws:iam::${var.management_account_id}:role/${var.pipeline_role_name}"
+    }
+  }
+}
+
 terraform {
   required_version = ">= 1.8.0"
 
@@ -50,18 +65,6 @@ provider "aws" {
   region = "ap-southeast-1"
   assume_role {
     role_arn = "arn:aws:iam::${var.management_account_id}:role/${var.pipeline_role_name}"
-  }
-}
-
-# Data source for base infrastructure remote state
-data "terraform_remote_state" "base_infrastructure" {
-  backend = "s3"
-  config = {
-    bucket         = "magebase-tf-state-management-ap-southeast-1"
-    key            = "magebase/base-infrastructure/${var.environment}/terraform.tfstate"
-    region         = "ap-southeast-1"
-    dynamodb_table = "magebase-terraform-locks-management"
-    encrypt        = true
   }
 }
 
