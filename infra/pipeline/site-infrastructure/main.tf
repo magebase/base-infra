@@ -103,7 +103,7 @@ module "aws_ses_users" {
 # MinIO Provider for Hetzner Object Storage (recommended approach)
 provider "minio" {
   alias          = "hetzner"
-  minio_server   = var.hetzner_object_storage_endpoint != "" ? var.hetzner_object_storage_endpoint : "fsn1.${var.domain_name}"
+  minio_server   = "${var.environment}-magebase.${local.location}.your-objectstorage.com"
   minio_user     = var.hetzner_object_storage_access_key
   minio_password = var.hetzner_object_storage_secret_key
   minio_region   = "fsn1"
@@ -118,11 +118,6 @@ provider "aws" {
   skip_requesting_account_id  = true
   skip_metadata_api_check     = true
   skip_region_validation      = true
-  endpoints {
-    s3 = var.hetzner_object_storage_endpoint != "" ? "https://${var.hetzner_object_storage_endpoint}" : "https://fsn1.${var.domain_name}"
-  }
-
-
 }
 
 # Hetzner Object Storage Configuration
