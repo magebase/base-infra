@@ -95,22 +95,27 @@ resource "aws_organizations_account" "production" {
 }
 
 # Reference existing organization (don't create if it exists)
-data "aws_organizations_organization" "main" {}
+data "aws_organizations_organization" "main" {
+  count = var.management_account_id != "" ? 1 : 0
+}
 
 # Create Organizational Units (or reference existing ones)
 data "aws_organizations_organizational_units" "existing" {
-  parent_id = data.aws_organizations_organization.main.roots[0].id
+  count = var.management_account_id != "" ? 1 : 0
+
+  parent_id = data.aws_organizations_organization.main[0].roots[0].id
 }
 
 locals {
-  existing_ou_names = toset([for ou in data.aws_organizations_organizational_units.existing.children : ou.name])
+  # Only use data sources if management account is provided
+  existing_ou_names = var.management_account_id != "" ? toset([for ou in data.aws_organizations_organizational_units.existing[0].children : ou.name]) : toset([])
 
-  development_ou_id = contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : (length(aws_organizations_organizational_unit.development) > 0 ? aws_organizations_organizational_unit.development[0].id : "")
-  production_ou_id  = contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : (length(aws_organizations_organizational_unit.production) > 0 ? aws_organizations_organizational_unit.production[0].id : "")
+  development_ou_id = var.management_account_id != "" && contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : (length(aws_organizations_organizational_unit.development) > 0 ? aws_organizations_organizational_unit.development[0].id : "")
+  production_ou_id  = var.management_account_id != "" && contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : (length(aws_organizations_organizational_unit.production) > 0 ? aws_organizations_organizational_unit.production[0].id : "")
 
-  # Check for existing accounts by email
-  existing_development_account = [for acc in data.aws_organizations_organization.main.accounts : acc if acc.email == var.development_email]
-  existing_production_account  = [for acc in data.aws_organizations_organization.main.accounts : acc if acc.email == var.production_email]
+  # Check for existing accounts by email (only if management account is provided)
+  existing_development_account = var.management_account_id != "" ? [for acc in data.aws_organizations_organization.main[0].accounts : acc if acc.email == var.development_email] : []
+  existing_production_account  = var.management_account_id != "" ? [for acc in data.aws_organizations_organization.main[0].accounts : acc if acc.email == var.production_email] : []
 
   development_account_exists = length(local.existing_development_account) > 0 || var.development_account_id != ""
   production_account_exists  = length(local.existing_production_account) > 0 || var.production_account_id != ""
@@ -137,32 +142,32 @@ locals {
 }
 
 resource "aws_organizations_organizational_unit" "development" {
-  count = contains(local.existing_ou_names, "Development") ? 0 : 1
+  count = var.management_account_id != "" && contains(local.existing_ou_names, "Development") ? 0 : (var.management_account_id != "" ? 1 : 0)
 
-  name      = "Development"
-  parent_id = data.aws_organizations_organization.main.roots[0].id
+  name      = data.aws_organizations_organization.main[0].roots[0].id
+  parent_id = data.aws_organizations_organization.main[0].roots[0].id
 }
 
 resource "aws_organizations_organizational_unit" "production" {
-  count = contains(local.existing_ou_names, "Production") ? 0 : 1
+  count = var.management_account_id != "" && contains(local.existing_ou_names, "Production") ? 0 : (var.management_account_id != "" ? 1 : 0)
 
   name      = "Production"
-  parent_id = data.aws_organizations_organization.main.roots[0].id
+  parent_id = data.aws_organizations_organization.main[0].roots[0].id
 }
 
 # Data sources for existing OUs
 data "aws_organizations_organizational_unit" "development" {
-  count = contains(local.existing_ou_names, "Development") ? 1 : 0
+  count = var.management_account_id != "" && contains(local.existing_ou_names, "Development") ? 1 : 0
 
   name      = "Development"
-  parent_id = data.aws_organizations_organization.main.roots[0].id
+  parent_id = data.aws_organizations_organization.main[0].roots[0].id
 }
 
 data "aws_organizations_organizational_unit" "production" {
-  count = contains(local.existing_ou_names, "Production") ? 1 : 0
+  count = var.management_account_id != "" && contains(local.existing_ou_names, "Production") ? 1 : 0
 
   name      = "Production"
-  parent_id = data.aws_organizations_organization.main.roots[0].id
+  parent_id = data.aws_organizations_organization.main[0].roots[0].id
 }
 
 # Output the account IDs for use in SSO configuration

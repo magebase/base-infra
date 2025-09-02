@@ -26,6 +26,12 @@ variable "production_account_id" {
   default     = ""
 }
 
+variable "management_account_id" {
+  description = "AWS Account ID for the management account (leave empty if not using Organizations data sources)"
+  type        = string
+  default     = ""
+}
+
 variable "cloudflare_api_token" {
   description = "Cloudflare API token for managing email routing"
   type        = string
