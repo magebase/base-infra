@@ -34,6 +34,32 @@ provider "cloudflare" {
   api_token = var.cloudflare_api_token
 }
 
+# Development Account Provider (temporary - for cleaning up orphaned resources)
+provider "aws" {
+  alias  = "development"
+  region = var.region
+
+  assume_role {
+    role_arn = "arn:aws:iam::${local.development_account_id}:role/OrganizationAccountAccessRole"
+  }
+
+  skip_metadata_api_check     = true
+  skip_credentials_validation = true
+}
+
+# Production Account Provider (temporary - for cleaning up orphaned resources)
+provider "aws" {
+  alias  = "production"
+  region = var.region
+
+  assume_role {
+    role_arn = "arn:aws:iam::${local.production_account_id}:role/OrganizationAccountAccessRole"
+  }
+
+  skip_metadata_api_check     = true
+  skip_credentials_validation = true
+}
+
 # Create Development Account (only if not importing and not already exists)
 resource "aws_organizations_account" "development" {
   count = local.development_account_exists ? 0 : 1
