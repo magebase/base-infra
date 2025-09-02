@@ -696,146 +696,7 @@ resource "aws_ssoadmin_account_assignment" "main" {
   ]
 }
 
-# GitHub Actions OIDC Provider for Management Account
-resource "aws_iam_openid_connect_provider" "github_management" {
-  url = "https://token.actions.githubusercontent.com"
-
-  client_id_list = [
-    "sts.amazonaws.com"
-  ]
-
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1" # GitHub's OIDC thumbprint
-  ]
-
-  tags = {
-    Name        = "GitHubActionsOIDC"
-    Environment = "management"
-    Purpose     = "GitHub Actions CI/CD OIDC Provider"
-    ManagedBy   = "terraform"
-  }
-}
-
-# GitHub Actions SSO Role for Management Account
-resource "aws_iam_role" "github_actions_management" {
-  name = "GitHubActionsSSORole"
-
-  # Trust policy allowing GitHub Actions OIDC provider to assume this role
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = aws_iam_openid_connect_provider.github_management.arn
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:magebase/site:*"
-          }
-        }
-      }
-    ]
-  })
-
-  tags = {
-    Environment = "management"
-    Purpose     = "GitHub Actions CI/CD"
-    ManagedBy   = "terraform"
-  }
-}
-
-# IAM Policy for GitHub Actions Role - Management Account
-resource "aws_iam_role_policy" "github_actions_management_policy" {
-  name = "GitHubActionsManagementPolicy"
-  role = aws_iam_role.github_actions_management.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      # Full administrative access for management account operations
-      {
-        Effect = "Allow"
-        Action = [
-          "iam:*",
-          "organizations:*",
-          "sso:*",
-          "sso-admin:*",
-          "identitystore:*",
-          "account:*"
-        ]
-        Resource = "*"
-      },
-      # Cross-account role assumption
-      {
-        Effect = "Allow"
-        Action = [
-          "sts:AssumeRole"
-        ]
-        Resource = [
-          "arn:aws:iam::*:role/OrganizationAccountAccessRole",
-          "arn:aws:iam::*:role/InfrastructureDeploymentRole",
-          "arn:aws:iam::*:role/GitHubActionsSSORole"
-        ]
-      },
-      # S3 access for Terraform state
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:*"
-        ]
-        Resource = [
-          "arn:aws:s3:::magebase-tf-state-*",
-          "arn:aws:s3:::magebase-tf-state-*/*"
-        ]
-      },
-      # DynamoDB access for state locking
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:*"
-        ]
-        Resource = "arn:aws:dynamodb:*:*:table/magebase-terraform-locks*"
-      },
-      # CloudWatch for monitoring
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudwatch:*",
-          "logs:*"
-        ]
-        Resource = "*"
-      },
-      # EC2 for infrastructure management
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:*",
-          "elasticloadbalancing:*"
-        ]
-        Resource = "*"
-      },
-      # Route53 for DNS management
-      {
-        Effect = "Allow"
-        Action = [
-          "route53:*"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-}
-
-# Attach AdministratorAccess policy to GitHub Actions Role - Management
-resource "aws_iam_role_policy_attachment" "github_actions_management_admin" {
-  role       = aws_iam_role.github_actions_management.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-}
+# Data source to check if GitHub OIDC provider exists - Development
 data "aws_iam_openid_connect_provider" "github_existing_development" {
   count    = 0 # Temporarily disabled to avoid errors when provider doesn't exist
   provider = aws.development
@@ -1306,21 +1167,9 @@ output "github_actions_sso_roles" {
   }
 }
 
-output "github_actions_management_role" {
-  description = "GitHub Actions role in the management account"
-  value = {
-    arn  = aws_iam_role.github_actions_management.arn
-    name = aws_iam_role.github_actions_management.name
-  }
-}
-
 output "github_actions_oidc_providers" {
   description = "GitHub Actions OIDC providers in each account (created or existing)"
   value = {
-    management = {
-      arn = aws_iam_openid_connect_provider.github_management.arn
-      url = "https://token.actions.githubusercontent.com"
-    }
     development = {
       arn = aws_iam_openid_connect_provider.github_development[0].arn
       url = "https://token.actions.githubusercontent.com"
