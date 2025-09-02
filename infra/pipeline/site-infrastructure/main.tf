@@ -1,19 +1,4 @@
 # Terraform configuration for Magebase infrastructure using Hetzner + k3s
-data "terraform_remote_state" "base_infrastructure" {
-  backend = "s3"
-  config = {
-    bucket         = "magebase-tf-state-management-ap-southeast-1"
-    key            = "magebase/base-infrastructure/${var.environment}/terraform.tfstate"
-    region         = "ap-southeast-1"
-    dynamodb_table = "magebase-terraform-locks-management"
-    encrypt        = true
-    # Use management account credentials
-    assume_role = {
-      role_arn = "arn:aws:iam::${var.management_account_id}:role/${var.pipeline_role_name}"
-    }
-  }
-}
-
 terraform {
   required_version = ">= 1.8.0"
 
@@ -59,15 +44,6 @@ provider "aws" {
   region = "us-east-1" # Route53 is a global service, but provider needs a region
 }
 
-# AWS Provider for accessing management account (for base infrastructure remote state)
-provider "aws" {
-  alias  = "management"
-  region = "ap-southeast-1"
-  assume_role {
-    role_arn = "arn:aws:iam::${var.management_account_id}:role/${var.pipeline_role_name}"
-  }
-}
-
 # Local values
 locals {
   cluster_name        = "${var.environment}-magebase"
@@ -81,7 +57,7 @@ module "cloudflare_dns" {
   source = "./modules/cloudflare"
 
   domain_name  = var.domain_name
-  cluster_ipv4 = try(data.terraform_remote_state.base_infrastructure.outputs.lb_ipv4, "127.0.0.1")
+  cluster_ipv4 = var.cluster_ipv4
   cluster_ipv6 = null # IPv6 not currently available from base infrastructure
 
   # SES configuration

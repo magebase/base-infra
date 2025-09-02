@@ -45,6 +45,10 @@ on:
         required: false
         default: "unknown"
         type: string
+      cluster_ipv4:
+        description: "IPv4 address of the cluster load balancer from base infrastructure"
+        required: true
+        type: string
 
 env:
   TF_VERSION: "1.8.0"
@@ -394,6 +398,7 @@ jobs:
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || github.event_name == 'workflow_run'
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_cluster_ipv4: ${{ github.event.inputs.cluster_ipv4 || '127.0.0.1' }}
           TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
           TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
@@ -418,6 +423,7 @@ jobs:
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_run'
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_cluster_ipv4: ${{ github.event.inputs.cluster_ipv4 || '127.0.0.1' }}
           TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
           TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
@@ -509,6 +515,7 @@ jobs:
         if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_cluster_ipv4: ${{ github.event.inputs.cluster_ipv4 || '127.0.0.1' }}
           TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
           TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}

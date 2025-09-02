@@ -43,6 +43,12 @@ variable "domain_name" {
   default     = "magebase.dev"
 }
 
+variable "cluster_ipv4" {
+  description = "IPv4 address of the cluster load balancer from base infrastructure"
+  type        = string
+  default     = "127.0.0.1"
+}
+
 # variable "secret_key_base" {
 #   description = "Rails secret key base"
 #   type        = string
