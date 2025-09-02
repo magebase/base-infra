@@ -17,14 +17,14 @@ spec:
           ingress:
             enabled: true
             hosts:
-              - argocd.${domain}
+              - argocd.$(DOMAIN)
             tls:
               - secretName: argocd-tls
                 hosts:
-                  - argocd.${domain}
+                  - argocd.$(DOMAIN)
         configs:
           secret:
-            argocdServerAdminPassword: ${argocd_admin_password}
+            argocdServerAdminPassword: $(ARGOCD_ADMIN_PASSWORD)
         dex:
           enabled: false
   destination:
