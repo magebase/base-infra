@@ -63,7 +63,7 @@ env:
 jobs:
   test:
     name: Run Comprehensive Tests
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     if: github.event.inputs.skip_tests != true
     services:
       postgres:
