@@ -405,6 +405,38 @@ locals {
       principal_type = "GROUP"
       principal_name = "Auditors"
     }
+
+    # Individual User Assignments for Direct Access
+    admin_development_admin = {
+      account_id     = local.development_account_id
+      permission_set = "administrator"
+      principal_type = "USER"
+      principal_name = "admin_user"
+    }
+    admin_production_admin = {
+      account_id     = local.production_account_id
+      permission_set = "administrator"
+      principal_type = "USER"
+      principal_name = "admin_user"
+    }
+    developer_development = {
+      account_id     = local.development_account_id
+      permission_set = "deployment"
+      principal_type = "USER"
+      principal_name = "developer_user"
+    }
+    auditor_readonly_dev = {
+      account_id     = local.development_account_id
+      permission_set = "readonly"
+      principal_type = "USER"
+      principal_name = "auditor_user"
+    }
+    auditor_readonly_prod = {
+      account_id     = local.production_account_id
+      permission_set = "readonly"
+      principal_type = "USER"
+      principal_name = "auditor_user"
+    }
   }
 
   # User Groups Configuration
@@ -424,6 +456,57 @@ locals {
     Auditors = {
       display_name = "Auditors"
       description  = "Read-only access for auditing and compliance"
+    }
+  }
+
+  # Users Configuration - create users for each role type
+  users = {
+    # Infrastructure Team Users
+    admin_user = {
+      user_name    = "admin"
+      display_name = "Administrator"
+      given_name   = "Admin"
+      family_name  = "User"
+      email        = "admin@magebase.dev"
+      groups       = ["InfrastructureTeam"]
+    }
+    infra_user = {
+      user_name    = "infrastructure"
+      display_name = "Infrastructure Manager"
+      given_name   = "Infrastructure"
+      family_name  = "Manager"
+      email        = "infra@magebase.dev"
+      groups       = ["InfrastructureTeam"]
+    }
+
+    # Development Team Users
+    developer_user = {
+      user_name    = "developer"
+      display_name = "Developer"
+      given_name   = "Dev"
+      family_name  = "User"
+      email        = "dev@magebase.dev"
+      groups       = ["DevelopmentTeam"]
+    }
+
+    # Production Team Users
+    prod_user = {
+      user_name    = "production"
+      display_name = "Production Manager"
+      given_name   = "Prod"
+      family_name  = "Manager"
+      email        = "prod@magebase.dev"
+      groups       = ["ProductionTeam"]
+    }
+
+    # Auditor Users
+    auditor_user = {
+      user_name    = "auditor"
+      display_name = "Auditor"
+      given_name   = "Audit"
+      family_name  = "User"
+      email        = "audit@magebase.dev"
+      groups       = ["Auditors"]
     }
   }
 
@@ -449,6 +532,17 @@ locals {
       is_user        = assignment_config.principal_type == "USER"
     }
   ] : []
+
+  # Build user-group membership list
+  user_group_memberships = local.sso_enabled ? flatten([
+    for user_key, user_config in local.users : [
+      for group_name in user_config.groups : {
+        key        = "${user_key}-${group_name}"
+        user_name  = user_key
+        group_name = group_name
+      }
+    ]
+  ]) : []
 }
 
 # Get current account identity
@@ -521,6 +615,56 @@ resource "aws_identitystore_group" "main" {
   identity_store_id = local.identity_store_id
 }
 
+# Create Users in AWS Identity Store (only if SSO is enabled)
+resource "aws_identitystore_user" "main" {
+  for_each = {
+    for k, v in local.users :
+    k => v
+    if local.sso_enabled
+  }
+
+  identity_store_id = local.identity_store_id
+  user_name         = each.value.user_name
+  display_name      = each.value.display_name
+
+  name {
+    given_name  = each.value.given_name
+    family_name = each.value.family_name
+  }
+
+  emails {
+    primary = true
+    type    = "work"
+    value   = each.value.email
+  }
+
+  lifecycle {
+    ignore_changes = [
+      # Allow users to change their own details
+      display_name,
+      name,
+      emails,
+    ]
+  }
+}
+
+# Add Users to Groups (only if SSO is enabled)
+resource "aws_identitystore_group_membership" "main" {
+  for_each = {
+    for item in local.user_group_memberships :
+    item.key => item
+  }
+
+  identity_store_id = local.identity_store_id
+  group_id          = aws_identitystore_group.main[each.value.group_name].group_id
+  member_id         = aws_identitystore_user.main[each.value.user_name].user_id
+
+  depends_on = [
+    aws_identitystore_group.main,
+    aws_identitystore_user.main
+  ]
+}
+
 # Create account assignments (only if SSO is enabled)
 resource "aws_ssoadmin_account_assignment" "main" {
   for_each = {
@@ -531,12 +675,19 @@ resource "aws_ssoadmin_account_assignment" "main" {
   instance_arn       = local.sso_instance_arn
   permission_set_arn = aws_ssoadmin_permission_set.main[each.value.ps_name].arn
   principal_type     = each.value.principal_type
-  principal_id       = aws_identitystore_group.main[each.value.principal_name].group_id
-  target_id          = each.value.account_id
-  target_type        = "AWS_ACCOUNT"
+  principal_id = each.value.principal_type == "GROUP" ? (
+    aws_identitystore_group.main[each.value.principal_name].group_id
+    ) : (
+    aws_identitystore_user.main[each.value.principal_name].user_id
+  )
+  target_id   = each.value.account_id
+  target_type = "AWS_ACCOUNT"
 
-  # Add dependency on groups being created first
-  depends_on = [aws_identitystore_group.main]
+  # Add dependency on groups and users being created first
+  depends_on = [
+    aws_identitystore_group.main,
+    aws_identitystore_user.main
+  ]
 }
 
 # Data source to check if GitHub OIDC provider exists - Development
@@ -955,6 +1106,20 @@ output "user_groups" {
       group_id     = v.group_id
       display_name = v.display_name
       description  = v.description
+    }
+  } : {}
+}
+
+output "users" {
+  description = "Created users in AWS Identity Store"
+  value = local.sso_enabled ? {
+    for k, v in aws_identitystore_user.main :
+    k => {
+      user_id      = v.user_id
+      user_name    = v.user_name
+      display_name = v.display_name
+      email        = v.emails[0].value
+      groups       = local.users[k].groups
     }
   } : {}
 }
