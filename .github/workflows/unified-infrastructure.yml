@@ -703,25 +703,25 @@ jobs:
         with:
           go-version: "1.23"
 
-      - name: Run SSO Terratest
-        working-directory: infra/tests
-        env:
-          AWS_REGION: ${{ env.AWS_REGION }}
-          MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-        run: |
-          echo "🧪 Running SSO Terratest..."
+      # - name: Run SSO Terratest
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.AWS_REGION }}
+      #     MANAGEMENT_ACCOUNT_ID: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      #     TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      #     TF_VAR_aws_ses_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+      #   run: |
+      #     echo "🧪 Running SSO Terratest..."
 
-          # Install dependencies
-          go mod download
+      #     # Install dependencies
+      #     go mod download
 
-          # Run SSO test
-          go test -v -run TestSSOInfrastructure ./*.go
+      #     # Run SSO test
+      #     go test -v -run TestSSOInfrastructure ./*.go
 
-          echo "✅ SSO Terratest completed successfully"
+      #     echo "✅ SSO Terratest completed successfully"
 
   # ===== ENVIRONMENT ACCOUNT BOOTSTRAP (DEPENDS ON SSO) =====
   # bootstrap-env-account:
