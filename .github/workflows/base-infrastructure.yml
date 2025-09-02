@@ -111,8 +111,8 @@ jobs:
       id-token: write
       contents: read
       pull-requests: write
-    # Skip if we're not doing a full deployment (depends on bootstrap, sso-setup, and env-accounts)
-    if: (needs.bootstrap.result == 'success') && (needs.sso-setup.result == 'success') && (needs.env-accounts.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
+    # Skip if we're not doing a full deployment (depends on bootstrap only)
+    if: (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
     defaults:
       run:
         working-directory: infra/pipeline/base-infrastructure
@@ -595,11 +595,11 @@ jobs:
     if: always()
     steps:
       - name: Success
-        if: needs.site-infrastructure.result == 'success'
+        if: needs.base-infrastructure-deploy.result == 'success'
         run: echo "✅ Deployment completed successfully"
 
       - name: Failure
-        if: needs.site-infrastructure.result == 'failure'
+        if: needs.base-infrastructure-deploy.result == 'failure'
         run: |
           echo "❌ Deployment failed"
           exit 1
