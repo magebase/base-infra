@@ -66,6 +66,7 @@ module "cloudflare_dns" {
   # SES DNS Records - SES is always enabled
   ses_verification_record = module.aws_ses.ses_verification_record
   ses_dkim_records        = module.aws_ses.ses_dkim_records
+  ses_dkim_tokens         = module.aws_ses.dkim_tokens
   ses_spf_record          = module.aws_ses.ses_spf_record
   ses_mx_record           = module.aws_ses.ses_mx_record
 }

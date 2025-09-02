@@ -48,6 +48,12 @@ variable "ses_dkim_records" {
   default = []
 }
 
+variable "ses_dkim_tokens" {
+  description = "Raw SES DKIM tokens from AWS SES"
+  type        = list(string)
+  default     = []
+}
+
 variable "aws_ses_account_id" {
   description = "AWS SES account ID to determine if SES is enabled"
   type        = string
@@ -134,18 +140,16 @@ resource "cloudflare_record" "ses_verification" {
   proxied = false
 }
 
-# SES DKIM Records - handle conditionally to avoid count dependency issues
+# SES DKIM Records - use static keys with raw DKIM tokens
 resource "cloudflare_record" "ses_dkim" {
-  # Create records only if SES is enabled and records are provided
-  for_each = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" && length(var.ses_dkim_records) > 0 ? {
-    for idx, record in var.ses_dkim_records : idx => record
-  } : {}
+  # Use static keys (0, 1, 2) since AWS SES always generates exactly 3 DKIM tokens
+  for_each = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? toset(["0", "1", "2"]) : toset([])
 
   zone_id = data.cloudflare_zone.main.id
-  name    = trimsuffix(each.value.name, ".${var.domain_name}")
-  content = each.value.content
-  type    = each.value.type
-  ttl     = each.value.ttl
+  name    = length(var.ses_dkim_tokens) > tonumber(each.key) ? "${var.ses_dkim_tokens[tonumber(each.key)]}._domainkey.${var.domain_name}" : "${tonumber(each.key) + 1}._domainkey.${var.domain_name}"
+  content = length(var.ses_dkim_tokens) > tonumber(each.key) ? "${var.ses_dkim_tokens[tonumber(each.key)]}.dkim.amazonses.com" : "${tonumber(each.key) + 1}.dkim.amazonses.com"
+  type    = "CNAME"
+  ttl     = 600
   proxied = false
 }
 
