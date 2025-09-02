@@ -541,19 +541,21 @@ resource "aws_ssoadmin_account_assignment" "main" {
 
 # Data source to check if GitHub OIDC provider exists - Development
 data "aws_iam_openid_connect_provider" "github_existing_development" {
+  count    = 0 # Temporarily disabled to avoid errors when provider doesn't exist
   provider = aws.development
   url      = "https://token.actions.githubusercontent.com"
 }
 
 # Data source to check if GitHub OIDC provider exists - Production
 data "aws_iam_openid_connect_provider" "github_existing_production" {
+  count    = 0 # Temporarily disabled to avoid errors when provider doesn't exist
   provider = aws.production
   url      = "https://token.actions.githubusercontent.com"
 }
 
 # GitHub Actions OIDC Provider for Development Account
 resource "aws_iam_openid_connect_provider" "github_development" {
-  count = try(data.aws_iam_openid_connect_provider.github_existing_development, null) == null ? 1 : 0
+  count = 1 # Always create since data source is disabled
 
   provider = aws.development
   url      = "https://token.actions.githubusercontent.com"
@@ -580,7 +582,7 @@ resource "aws_iam_openid_connect_provider" "github_development" {
 
 # GitHub Actions OIDC Provider for Production Account
 resource "aws_iam_openid_connect_provider" "github_production" {
-  count = try(data.aws_iam_openid_connect_provider.github_existing_production, null) == null ? 1 : 0
+  count = 1 # Always create since data source is disabled
 
   provider = aws.production
   url      = "https://token.actions.githubusercontent.com"
@@ -607,19 +609,21 @@ resource "aws_iam_openid_connect_provider" "github_production" {
 
 # Data source to check if GitHubActionsSSORole exists - Development
 data "aws_iam_role" "github_actions_sso_existing_development" {
+  count    = 0 # Temporarily disabled to avoid errors when role doesn't exist
   provider = aws.development
   name     = "GitHubActionsSSORole"
 }
 
 # Data source to check if GitHubActionsSSORole exists - Production
 data "aws_iam_role" "github_actions_sso_existing_production" {
+  count    = 0 # Temporarily disabled to avoid errors when role doesn't exist
   provider = aws.production
   name     = "GitHubActionsSSORole"
 }
 
 # GitHub Actions SSO Role for Development Account
 resource "aws_iam_role" "github_actions_sso_development" {
-  count = try(data.aws_iam_role.github_actions_sso_existing_development, null) == null ? 1 : 0
+  count = 1 # Always create since data source is disabled
 
   provider = aws.development
   name     = "GitHubActionsSSORole"
@@ -669,7 +673,7 @@ resource "aws_iam_role" "github_actions_sso_development" {
 
 # GitHub Actions SSO Role for Production Account
 resource "aws_iam_role" "github_actions_sso_production" {
-  count = try(data.aws_iam_role.github_actions_sso_existing_production, null) == null ? 1 : 0
+  count = 1 # Always create since data source is disabled
 
   provider = aws.production
   name     = "GitHubActionsSSORole"
@@ -719,7 +723,7 @@ resource "aws_iam_role" "github_actions_sso_production" {
 
 # IAM Policy for GitHub Actions SSO Role - Development (only for newly created roles)
 resource "aws_iam_role_policy" "github_actions_sso_policy_development" {
-  count = try(data.aws_iam_role.github_actions_sso_existing_development, null) == null ? 1 : 0
+  count = 1 # Always create since data source is disabled
 
   provider = aws.development
   name     = "GitHubActionsSSOPolicy"
@@ -807,7 +811,7 @@ resource "aws_iam_role_policy" "github_actions_sso_policy_development" {
 
 # IAM Policy for GitHub Actions SSO Role - Production (only for newly created roles)
 resource "aws_iam_role_policy" "github_actions_sso_policy_production" {
-  count = try(data.aws_iam_role.github_actions_sso_existing_production, null) == null ? 1 : 0
+  count = 1 # Always create since data source is disabled
 
   provider = aws.production
   name     = "GitHubActionsSSOPolicy"
@@ -893,207 +897,15 @@ resource "aws_iam_role_policy" "github_actions_sso_policy_production" {
   }
 }
 
-# IAM Policy attachment for existing GitHub Actions SSO Role - Development
-resource "aws_iam_role_policy" "github_actions_sso_policy_existing_development" {
-  count = try(data.aws_iam_role.github_actions_sso_existing_development, null) != null ? 1 : 0
 
-  provider = aws.development
-  name     = "GitHubActionsSSOPolicy"
-  role     = data.aws_iam_role.github_actions_sso_existing_development.id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      # Administrative access for infrastructure management
-      {
-        Effect = "Allow"
-        Action = [
-          "iam:*",
-          "organizations:*",
-          "sso:*",
-          "sso-admin:*",
-          "identitystore:*"
-        ]
-        Resource = "*"
-      },
-      # Cross-account role assumption
-      {
-        Effect = "Allow"
-        Action = [
-          "sts:AssumeRole"
-        ]
-        Resource = [
-          "arn:aws:iam::*:role/OrganizationAccountAccessRole",
-          "arn:aws:iam::*:role/InfrastructureDeploymentRole",
-          "arn:aws:iam::*:role/SESManagerRole"
-        ]
-      },
-      # S3 access for Terraform state
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:*"
-        ]
-        Resource = [
-          "arn:aws:s3:::magebase-tf-state-*",
-          "arn:aws:s3:::magebase-tf-state-*/*"
-        ]
-      },
-      # DynamoDB access for state locking
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:*"
-        ]
-        Resource = "arn:aws:dynamodb:*:*:table/magebase-terraform-locks*"
-      },
-      # CloudWatch for monitoring
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudwatch:*",
-          "logs:*"
-        ]
-        Resource = "*"
-      },
-      # EC2 for infrastructure management
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:*",
-          "elasticloadbalancing:*"
-        ]
-        Resource = "*"
-      },
-      # Route53 for DNS management
-      {
-        Effect = "Allow"
-        Action = [
-          "route53:*"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
 
-  lifecycle {
-    create_before_destroy = true
-  }
-}
 
-# IAM Policy attachment for existing GitHub Actions SSO Role - Production
-resource "aws_iam_role_policy" "github_actions_sso_policy_existing_production" {
-  count = try(data.aws_iam_role.github_actions_sso_existing_production, null) != null ? 1 : 0
 
-  provider = aws.production
-  name     = "GitHubActionsSSOPolicy"
-  role     = data.aws_iam_role.github_actions_sso_existing_production.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      # Administrative access for infrastructure management
-      {
-        Effect = "Allow"
-        Action = [
-          "iam:*",
-          "organizations:*",
-          "sso:*",
-          "sso-admin:*",
-          "identitystore:*"
-        ]
-        Resource = "*"
-      },
-      # Cross-account role assumption
-      {
-        Effect = "Allow"
-        Action = [
-          "sts:AssumeRole"
-        ]
-        Resource = [
-          "arn:aws:iam::*:role/OrganizationAccountAccessRole",
-          "arn:aws:iam::*:role/InfrastructureDeploymentRole",
-          "arn:aws:iam::*:role/SESManagerRole"
-        ]
-      },
-      # S3 access for Terraform state
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:*"
-        ]
-        Resource = [
-          "arn:aws:s3:::magebase-tf-state-*",
-          "arn:aws:s3:::magebase-tf-state-*/*"
-        ]
-      },
-      # DynamoDB access for state locking
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:*"
-        ]
-        Resource = "arn:aws:dynamodb:*:*:table/magebase-terraform-locks*"
-      },
-      # CloudWatch for monitoring
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudwatch:*",
-          "logs:*"
-        ]
-        Resource = "*"
-      },
-      # EC2 for infrastructure management
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:*",
-          "elasticloadbalancing:*"
-        ]
-        Resource = "*"
-      },
-      # Route53 for DNS management
-      {
-        Effect = "Allow"
-        Action = [
-          "route53:*"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# Attach AdministratorAccess policy to existing GitHub Actions SSO Role - Development
-resource "aws_iam_role_policy_attachment" "github_actions_sso_admin_existing_development" {
-  count = try(data.aws_iam_role.github_actions_sso_existing_development, null) != null ? 1 : 0
-
-  provider   = aws.development
-  role       = data.aws_iam_role.github_actions_sso_existing_development.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-
-  depends_on = [aws_iam_role_policy.github_actions_sso_policy_existing_development]
-}
-
-# Attach AdministratorAccess policy to existing GitHub Actions SSO Role - Production
-resource "aws_iam_role_policy_attachment" "github_actions_sso_admin_existing_production" {
-  count = try(data.aws_iam_role.github_actions_sso_existing_production, null) != null ? 1 : 0
-
-  provider   = aws.production
-  role       = data.aws_iam_role.github_actions_sso_existing_production.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
-
-  depends_on = [aws_iam_role_policy.github_actions_sso_policy_existing_production]
-}
 
 # Attach AdministratorAccess policy to GitHub Actions SSO Role - Development
 resource "aws_iam_role_policy_attachment" "github_actions_sso_admin_development" {
-  count = try(data.aws_iam_role.github_actions_sso_existing_development, null) == null ? 1 : 0
+  count = 1 # Always create since data source is disabled
 
   provider   = aws.development
   role       = aws_iam_role.github_actions_sso_development[0].name
@@ -1104,7 +916,7 @@ resource "aws_iam_role_policy_attachment" "github_actions_sso_admin_development"
 
 # Attach AdministratorAccess policy to GitHub Actions SSO Role - Production
 resource "aws_iam_role_policy_attachment" "github_actions_sso_admin_production" {
-  count = try(data.aws_iam_role.github_actions_sso_existing_production, null) == null ? 1 : 0
+  count = 1 # Always create since data source is disabled
 
   provider   = aws.production
   role       = aws_iam_role.github_actions_sso_production[0].name
@@ -1169,11 +981,11 @@ output "github_actions_sso_roles" {
   description = "GitHub Actions SSO roles in each account (created or existing)"
   value = {
     development = {
-      arn  = try(aws_iam_role.github_actions_sso_development[0].arn, try(data.aws_iam_role.github_actions_sso_existing_development.arn, null))
+      arn  = aws_iam_role.github_actions_sso_development[0].arn
       name = "GitHubActionsSSORole"
     }
     production = {
-      arn  = try(aws_iam_role.github_actions_sso_production[0].arn, try(data.aws_iam_role.github_actions_sso_existing_production.arn, null))
+      arn  = aws_iam_role.github_actions_sso_production[0].arn
       name = "GitHubActionsSSORole"
     }
   }
@@ -1183,11 +995,11 @@ output "github_actions_oidc_providers" {
   description = "GitHub Actions OIDC providers in each account (created or existing)"
   value = {
     development = {
-      arn = try(aws_iam_openid_connect_provider.github_development[0].arn, try(data.aws_iam_openid_connect_provider.github_existing_development.arn, null))
+      arn = aws_iam_openid_connect_provider.github_development[0].arn
       url = "https://token.actions.githubusercontent.com"
     }
     production = {
-      arn = try(aws_iam_openid_connect_provider.github_production[0].arn, try(data.aws_iam_openid_connect_provider.github_existing_production.arn, null))
+      arn = aws_iam_openid_connect_provider.github_production[0].arn
       url = "https://token.actions.githubusercontent.com"
     }
   }
