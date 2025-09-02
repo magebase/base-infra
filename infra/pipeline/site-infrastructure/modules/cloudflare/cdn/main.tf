@@ -29,10 +29,17 @@ variable "zone_id" {
   type        = string
 }
 
+variable "enable_advanced_features" {
+  description = "Enable advanced Cloudflare features like page rules and rate limiting"
+  type        = bool
+  default     = false
+}
+
 # CDN for Active Storage (cdn.magebase.dev) - CNAME record managed in main Cloudflare module
 
 # Page Rule for Active Storage CDN optimization (cdn.magebase.dev)
 resource "cloudflare_page_rule" "active_storage_cdn" {
+  count   = var.enable_advanced_features ? 1 : 0
   zone_id = var.zone_id
   target  = "cdn.${var.domain_name}/*"
 
@@ -66,6 +73,7 @@ resource "cloudflare_page_rule" "active_storage_cdn" {
 
 # Rate limiting for Active Storage using Ruleset (replaces deprecated rate_limit)
 resource "cloudflare_ruleset" "active_storage_rate_limiting" {
+  count       = var.enable_advanced_features ? 1 : 0
   zone_id     = var.zone_id
   name        = "Active Storage Rate Limiting"
   description = "Rate limiting rules for Active Storage files"

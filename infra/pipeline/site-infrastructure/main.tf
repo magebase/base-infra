@@ -75,10 +75,11 @@ module "cloudflare_dns" {
 module "cloudflare_cdn" {
   source = "./modules/cloudflare/cdn"
 
-  domain_name             = var.domain_name
-  active_storage_bucket   = module.cloudflare_r2.r2_bucket
-  object_storage_endpoint = module.cloudflare_r2.r2_endpoint
-  zone_id                 = module.cloudflare_dns.zone_id
+  domain_name              = var.domain_name
+  active_storage_bucket    = module.cloudflare_r2.r2_bucket
+  object_storage_endpoint  = module.cloudflare_r2.r2_endpoint
+  zone_id                  = module.cloudflare_dns.zone_id
+  enable_advanced_features = false # Disable advanced features due to API token limitations
 }
 
 # AWS SES Configuration (always enabled)
@@ -109,6 +110,9 @@ provider "aws" {
   endpoints {
     s3 = "https://${var.cloudflare_account_id}.r2.cloudflarestorage.com"
   }
+  # Use Cloudflare R2 credentials
+  access_key = var.cloudflare_r2_access_key_id
+  secret_key = var.cloudflare_r2_secret_access_key
 }
 
 # Cloudflare R2 Object Storage Configuration

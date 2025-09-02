@@ -28,6 +28,12 @@ resource "aws_iam_user" "ses_user" {
     Purpose     = "SES Email Service"
     ManagedBy   = "terraform"
   }
+
+  lifecycle {
+    ignore_changes = [
+      name, # Allow existing users to be preserved
+    ]
+  }
 }
 
 # IAM Access Key for SES User

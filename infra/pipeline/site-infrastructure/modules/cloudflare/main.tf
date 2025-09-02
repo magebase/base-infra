@@ -90,12 +90,13 @@ data "cloudflare_zone" "main" {
 
 # A record for the root domain
 resource "cloudflare_record" "root_a" {
-  zone_id = data.cloudflare_zone.main.id
-  name    = var.domain_name
-  content = var.cluster_ipv4
-  type    = "A"
-  ttl     = var.cluster_ipv4 == "127.0.0.1" ? 600 : 1 # Use 600 for non-proxied, 1 for proxied
-  proxied = var.cluster_ipv4 != "127.0.0.1"           # Don't proxy loopback addresses
+  zone_id         = data.cloudflare_zone.main.id
+  name            = var.domain_name
+  content         = var.cluster_ipv4
+  type            = "A"
+  ttl             = var.cluster_ipv4 == "127.0.0.1" ? 600 : 1 # Use 600 for non-proxied, 1 for proxied
+  proxied         = var.cluster_ipv4 != "127.0.0.1"           # Don't proxy loopback addresses
+  allow_overwrite = true
 
   lifecycle {
     create_before_destroy = true
@@ -120,12 +121,13 @@ resource "cloudflare_record" "root_aaaa" {
 
 # CNAME record for www subdomain
 resource "cloudflare_record" "www_cname" {
-  zone_id = data.cloudflare_zone.main.id
-  name    = "www"
-  content = var.domain_name
-  type    = "CNAME"
-  ttl     = 1 # Must be 1 when proxied is true
-  proxied = true
+  zone_id         = data.cloudflare_zone.main.id
+  name            = "www"
+  content         = var.domain_name
+  type            = "CNAME"
+  ttl             = 1 # Must be 1 when proxied is true
+  proxied         = true
+  allow_overwrite = true
 
   lifecycle {
     create_before_destroy = true
@@ -139,12 +141,13 @@ resource "cloudflare_record" "www_cname" {
 
 # CNAME record for CDN subdomain
 resource "cloudflare_record" "cdn_cname" {
-  zone_id = data.cloudflare_zone.main.id
-  name    = "cdn"
-  content = var.domain_name
-  type    = "CNAME"
-  ttl     = 1 # Must be 1 when proxied is true
-  proxied = true
+  zone_id         = data.cloudflare_zone.main.id
+  name            = "cdn"
+  content         = var.domain_name
+  type            = "CNAME"
+  ttl             = 1 # Must be 1 when proxied is true
+  proxied         = true
+  allow_overwrite = true
 
   lifecycle {
     create_before_destroy = true
@@ -158,13 +161,14 @@ resource "cloudflare_record" "cdn_cname" {
 
 # SES Domain Verification Record
 resource "cloudflare_record" "ses_verification" {
-  count   = var.ses_verification_record != null ? 1 : 0
-  zone_id = data.cloudflare_zone.main.id
-  name    = trimsuffix(var.ses_verification_record.name, ".${var.domain_name}")
-  content = var.ses_verification_record.content
-  type    = var.ses_verification_record.type
-  ttl     = var.ses_verification_record.ttl
-  proxied = false
+  count           = var.ses_verification_record != null ? 1 : 0
+  zone_id         = data.cloudflare_zone.main.id
+  name            = trimsuffix(var.ses_verification_record.name, ".${var.domain_name}")
+  content         = var.ses_verification_record.content
+  type            = var.ses_verification_record.type
+  ttl             = var.ses_verification_record.ttl
+  proxied         = false
+  allow_overwrite = true
 }
 
 # SES DKIM Records - use static keys with raw DKIM tokens
@@ -172,23 +176,25 @@ resource "cloudflare_record" "ses_dkim" {
   # Use static keys (0, 1, 2) since AWS SES always generates exactly 3 DKIM tokens
   for_each = var.aws_ses_account_id != "" && var.aws_ses_account_id != "dummy" ? toset(["0", "1", "2"]) : toset([])
 
-  zone_id = data.cloudflare_zone.main.id
-  name    = length(var.ses_dkim_tokens) > tonumber(each.key) ? "${var.ses_dkim_tokens[tonumber(each.key)]}._domainkey.${var.domain_name}" : "${tonumber(each.key) + 1}._domainkey.${var.domain_name}"
-  content = length(var.ses_dkim_tokens) > tonumber(each.key) ? "${var.ses_dkim_tokens[tonumber(each.key)]}.dkim.amazonses.com" : "${tonumber(each.key) + 1}.dkim.amazonses.com"
-  type    = "CNAME"
-  ttl     = 600
-  proxied = false
+  zone_id         = data.cloudflare_zone.main.id
+  name            = length(var.ses_dkim_tokens) > tonumber(each.key) ? "${var.ses_dkim_tokens[tonumber(each.key)]}._domainkey.${var.domain_name}" : "${tonumber(each.key) + 1}._domainkey.${var.domain_name}"
+  content         = length(var.ses_dkim_tokens) > tonumber(each.key) ? "${var.ses_dkim_tokens[tonumber(each.key)]}.dkim.amazonses.com" : "${tonumber(each.key) + 1}.dkim.amazonses.com"
+  type            = "CNAME"
+  ttl             = 600
+  proxied         = false
+  allow_overwrite = true
 }
 
 # SES SPF Record
 resource "cloudflare_record" "ses_spf" {
-  count   = var.ses_spf_record != null ? 1 : 0
-  zone_id = data.cloudflare_zone.main.id
-  name    = trimsuffix(var.ses_spf_record.name, ".${var.domain_name}")
-  content = var.ses_spf_record.content
-  type    = var.ses_spf_record.type
-  ttl     = var.ses_spf_record.ttl
-  proxied = false
+  count           = var.ses_spf_record != null ? 1 : 0
+  zone_id         = data.cloudflare_zone.main.id
+  name            = trimsuffix(var.ses_spf_record.name, ".${var.domain_name}")
+  content         = var.ses_spf_record.content
+  type            = var.ses_spf_record.type
+  ttl             = var.ses_spf_record.ttl
+  proxied         = false
+  allow_overwrite = true
 
   lifecycle {
     create_before_destroy = true
@@ -202,14 +208,15 @@ resource "cloudflare_record" "ses_spf" {
 
 # SES MX Record
 resource "cloudflare_record" "ses_mx" {
-  count    = var.ses_mx_record != null ? 1 : 0
-  zone_id  = data.cloudflare_zone.main.id
-  name     = trimsuffix(var.ses_mx_record.name, ".${var.domain_name}")
-  content  = var.ses_mx_record.content
-  type     = var.ses_mx_record.type
-  ttl      = var.ses_mx_record.ttl
-  priority = var.ses_mx_record.priority
-  proxied  = false
+  count           = var.ses_mx_record != null ? 1 : 0
+  zone_id         = data.cloudflare_zone.main.id
+  name            = trimsuffix(var.ses_mx_record.name, ".${var.domain_name}")
+  content         = var.ses_mx_record.content
+  type            = var.ses_mx_record.type
+  ttl             = var.ses_mx_record.ttl
+  priority        = var.ses_mx_record.priority
+  proxied         = false
+  allow_overwrite = true
 
   lifecycle {
     create_before_destroy = true
