@@ -21,6 +21,11 @@ variable "cloudflare_api_token" {
   sensitive   = true
 }
 
+variable "cloudflare_account_id" {
+  description = "Cloudflare Account ID for R2"
+  type        = string
+}
+
 variable "management_account_id" {
   description = "AWS account ID for the management account"
   type        = string
@@ -76,19 +81,21 @@ variable "aws_ses_secret_access_key" {
 }
 
 variable "hetzner_object_storage_access_key" {
-  description = "Hetzner Object Storage access key ID"
+  description = "Hetzner Object Storage access key ID (deprecated - using Cloudflare R2)"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "hetzner_object_storage_secret_key" {
-  description = "Hetzner Object Storage secret access key"
+  description = "Hetzner Object Storage secret access key (deprecated - using Cloudflare R2)"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "hetzner_object_storage_endpoint" {
-  description = "Hetzner Object Storage endpoint URL (e.g., fsn1.your-storagebox.de)"
+  description = "Hetzner Object Storage endpoint URL (deprecated - using Cloudflare R2)"
   type        = string
   default     = ""
 }

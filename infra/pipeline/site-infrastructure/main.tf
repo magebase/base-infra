@@ -71,17 +71,15 @@ module "cloudflare_dns" {
   ses_mx_record           = module.aws_ses.ses_mx_record
 }
 
-# Cloudflare CDN Configuration for Active Storage - commented out due to module issues
-# module "cloudflare_cdn" {
-#   count = var.cloudflare_api_token != "" && var.cloudflare_api_token != "dummy_token_for_validation" ? 1 : 0
-#
-#   source = "./modules/cloudflare/cdn"
-#
-#   domain_name             = var.domain_name
-#   active_storage_bucket   = module.hetzner_object_storage.hetzner_active_storage_bucket
-#   object_storage_endpoint = module.hetzner_object_storage.hetzner_object_storage_endpoint
-#   zone_id                 = module.cloudflare_dns.zone_id
-# }
+# Cloudflare CDN Configuration for Active Storage
+module "cloudflare_cdn" {
+  source = "./modules/cloudflare/cdn"
+
+  domain_name             = var.domain_name
+  active_storage_bucket   = module.cloudflare_r2.r2_bucket
+  object_storage_endpoint = module.cloudflare_r2.r2_endpoint
+  zone_id                 = module.cloudflare_dns.zone_id
+}
 
 # AWS SES Configuration (always enabled)
 module "aws_ses" {
@@ -100,56 +98,40 @@ module "aws_ses_users" {
   account_id  = var.management_account_id
 }
 
-# MinIO Provider for Hetzner Object Storage (recommended approach)
-provider "minio" {
-  alias          = "hetzner"
-  minio_server   = "${var.environment}-magebase.${local.location}.your-objectstorage.com"
-  minio_user     = var.hetzner_object_storage_access_key
-  minio_password = var.hetzner_object_storage_secret_key
-  minio_region   = "fsn1"
-  minio_ssl      = true
-}
-
-# AWS Provider for Hetzner Object Storage (S3-compatible)
+# Cloudflare R2 Provider (S3-compatible)
 provider "aws" {
-  alias                       = "hetzner-object-storage"
-  region                      = "us-east-1" # Hetzner Object Storage doesn't use regions, but AWS provider requires one
+  alias                       = "cloudflare-r2"
+  region                      = "auto" # Cloudflare R2 uses 'auto' region
   skip_credentials_validation = true
   skip_requesting_account_id  = true
   skip_metadata_api_check     = true
   skip_region_validation      = true
+  endpoints {
+    s3 = "https://${var.cloudflare_account_id}.r2.cloudflarestorage.com"
+  }
 }
 
-# Hetzner Object Storage Configuration
-module "hetzner_object_storage" {
-  source = "./modules/hetzner/s3"
+# Cloudflare R2 Object Storage Configuration
+module "cloudflare_r2" {
+  source = "./modules/cloudflare/r2"
 
   providers = {
-    minio = minio.hetzner
-    aws   = aws.hetzner-object-storage
+    aws = aws.cloudflare-r2
   }
 
-  cluster_name                      = local.cluster_name
-  domain_name                       = var.domain_name
-  location                          = local.location
-  hetzner_object_storage_access_key = var.hetzner_object_storage_access_key
-  hetzner_object_storage_secret_key = var.hetzner_object_storage_secret_key
-  hetzner_object_storage_endpoint   = var.hetzner_object_storage_endpoint
+  cluster_name          = local.cluster_name
+  domain_name           = var.domain_name
+  cloudflare_account_id = var.cloudflare_account_id
 }
 
-output "hetzner_object_storage_bucket" {
-  value       = module.hetzner_object_storage.hetzner_object_storage_bucket
-  description = "Hetzner Object Storage bucket for PostgreSQL backups (MinIO provider)"
+output "cloudflare_r2_bucket" {
+  value       = module.cloudflare_r2.r2_bucket
+  description = "Cloudflare R2 bucket for PostgreSQL backups"
 }
 
-output "hetzner_object_storage_bucket_fallback" {
-  value       = module.hetzner_object_storage.hetzner_object_storage_bucket_fallback
-  description = "Hetzner Object Storage bucket for PostgreSQL backups (AWS provider fallback)"
-}
-
-output "hetzner_object_storage_endpoint" {
-  value       = module.hetzner_object_storage.hetzner_object_storage_endpoint
-  description = "Hetzner Object Storage endpoint URL"
+output "cloudflare_r2_endpoint" {
+  value       = module.cloudflare_r2.r2_endpoint
+  description = "Cloudflare R2 endpoint URL"
 }
 
 output "active_storage_cdn_url" {
