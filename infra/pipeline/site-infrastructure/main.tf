@@ -115,7 +115,18 @@ resource "aws_iam_role_policy" "ses_manager_policy" {
 provider "aws" {
   alias  = "ses"
   region = "ap-southeast-1" # Singapore region for SES
+  assume_role {
+    role_arn = "arn:aws:iam::${var.environment_account_id}:role/${var.pipeline_role_name}"
+  }
+}
 
+# AWS Provider for accessing management account (for base infrastructure remote state)
+provider "aws" {
+  alias  = "management"
+  region = "ap-southeast-1"
+  assume_role {
+    role_arn = "arn:aws:iam::${var.management_account_id}:role/${var.pipeline_role_name}"
+  }
 }
 
 # Data source for base infrastructure remote state

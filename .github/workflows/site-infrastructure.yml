@@ -395,6 +395,7 @@ jobs:
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
@@ -418,6 +419,7 @@ jobs:
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
@@ -508,6 +510,7 @@ jobs:
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_pipeline_role_name: ${{ vars.AWS_PIPELINE_ROLE }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}

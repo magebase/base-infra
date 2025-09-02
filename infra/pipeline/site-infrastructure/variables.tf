@@ -21,8 +21,13 @@ variable "cloudflare_api_token" {
   sensitive   = true
 }
 
+variable "management_account_id" {
+  description = "AWS account ID for the management account"
+  type        = string
+}
+
 variable "environment_account_id" {
-  description = "AWS account ID for the current environment"
+  description = "AWS account ID for the environment account (dev/prod)"
   type        = string
 }
 
