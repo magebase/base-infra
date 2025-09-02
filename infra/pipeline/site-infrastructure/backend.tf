@@ -6,6 +6,5 @@ terraform {
     region         = "ap-southeast-1"
     encrypt        = true
     dynamodb_table = "magebase-terraform-locks-management"
-    role_arn       = "arn:aws:iam::${var.management_account_id}:role/${var.pipeline_role_name}"
   }
 }
