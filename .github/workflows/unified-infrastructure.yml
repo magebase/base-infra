@@ -639,7 +639,7 @@ jobs:
         id: get-dev-account
         working-directory: infra/pipeline/org-sso
         run: |
-          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
+          DEV_ACCOUNT_ID=$(terraform output -raw development_account_id 2>/dev/null)
           echo "account_id=$DEV_ACCOUNT_ID" >> $GITHUB_OUTPUT
           echo "Using development account ID: $DEV_ACCOUNT_ID"
 
@@ -647,7 +647,7 @@ jobs:
         id: get-prod-account
         working-directory: infra/pipeline/org-sso
         run: |
-          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null || echo "${{ vars.MANAGEMENT_ACCOUNT_ID }}")
+          PROD_ACCOUNT_ID=$(terraform output -raw production_account_id 2>/dev/null)
           echo "account_id=$PROD_ACCOUNT_ID" >> $GITHUB_OUTPUT
           echo "Using production account ID: $PROD_ACCOUNT_ID"
 
