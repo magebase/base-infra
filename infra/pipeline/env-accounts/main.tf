@@ -17,6 +17,27 @@ terraform {
   }
 }
 
+# =============================================================================
+# Environment Accounts Configuration
+# =============================================================================
+#
+# This configuration sets up IAM users, roles, and SSO account assignments
+# for development and production AWS accounts.
+#
+# Prerequisites:
+# 1. AWS SSO must be enabled in the management account
+# 2. org-sso configuration must be applied first to create:
+#    - SSO permission sets
+#    - User groups and users in Identity Store
+#    - Account assignments for management account
+# 3. Account IDs must be provided (either as variables or from org-sso outputs)
+#
+# The configuration will:
+# - Create IAM users in each environment account
+# - Set up GitHub Actions OIDC providers and roles
+# - Create SSO account assignments if SSO is fully configured
+# =============================================================================
+
 # Management Account Provider
 provider "aws" {
   region = var.region
@@ -51,11 +72,29 @@ provider "aws" {
   skip_credentials_validation = true
 }
 
-# Data source to get existing organization
-data "aws_organizations_organization" "main" {}
+# Validate SSO configuration before proceeding
+data "null_data_source" "sso_validation" {
+  count = local.sso_enabled && !local.sso_fully_configured ? 1 : 0
 
-# Data source to get existing accounts by email
-data "aws_organizations_organization" "accounts" {}
+  inputs = {
+    error = "SSO is enabled but not fully configured. Missing components: ${join(", ", [
+      local.sso_validation.has_instance_arn ? "" : "instance_arn",
+      local.sso_validation.has_identity_store ? "" : "identity_store",
+      local.sso_validation.has_permission_sets ? "" : "permission_sets",
+      local.sso_validation.has_user_groups ? "" : "user_groups",
+      local.sso_validation.has_users ? "" : "users"
+    ])}"
+  }
+}
+
+# Validate that account IDs are properly set
+data "null_data_source" "account_id_validation" {
+  count = local.development_account_id == "" || local.production_account_id == "" ? 1 : 0
+
+  inputs = {
+    error = "Account IDs must be provided either as variables or from org-sso outputs. Development: ${local.development_account_id}, Production: ${local.production_account_id}"
+  }
+}
 
 # Data source to read outputs from org-sso configuration
 data "terraform_remote_state" "org_sso" {
@@ -65,6 +104,13 @@ data "terraform_remote_state" "org_sso" {
     key     = "magebase/org-sso/terraform.tfstate"
     region  = "ap-southeast-1"
     encrypt = true
+  }
+}
+
+# Validate that org-sso state exists and is accessible
+data "null_data_source" "org_sso_state_validation" {
+  inputs = {
+    sso_enabled = data.terraform_remote_state.org_sso.outputs.sso_enabled
   }
 }
 
@@ -84,6 +130,30 @@ locals {
   permission_sets   = data.terraform_remote_state.org_sso.outputs.permission_sets
   user_groups       = data.terraform_remote_state.org_sso.outputs.user_groups
   users             = data.terraform_remote_state.org_sso.outputs.users
+
+  # Validate SSO configuration
+  sso_validation = local.sso_enabled ? {
+    has_instance_arn    = local.sso_instance_arn != null && local.sso_instance_arn != ""
+    has_identity_store  = local.identity_store_id != null && local.identity_store_id != ""
+    has_permission_sets = length(local.permission_sets) > 0
+    has_user_groups     = length(local.user_groups) > 0
+    has_users           = length(local.users) > 0
+    } : {
+    has_instance_arn    = false
+    has_identity_store  = false
+    has_permission_sets = false
+    has_user_groups     = false
+    has_users           = false
+  }
+
+  # SSO is fully configured only if all components are available
+  sso_fully_configured = local.sso_enabled && alltrue([
+    local.sso_validation.has_instance_arn,
+    local.sso_validation.has_identity_store,
+    local.sso_validation.has_permission_sets,
+    local.sso_validation.has_user_groups,
+    local.sso_validation.has_users
+  ])
 
   # IAM Users Configuration
   iam_users = {
@@ -605,12 +675,41 @@ resource "aws_iam_role_policy_attachment" "github_actions_sso_admin_production" 
   depends_on = [aws_iam_role.github_actions_sso_production]
 }
 
-# Create account assignments for environment accounts (only if SSO is enabled)
+# Outputs for debugging and verification
+output "sso_enabled" {
+  description = "Whether SSO is enabled"
+  value       = local.sso_enabled
+}
+
+output "sso_fully_configured" {
+  description = "Whether SSO is fully configured with all required components"
+  value       = local.sso_fully_configured
+}
+
+output "sso_validation_details" {
+  description = "Details about SSO configuration validation"
+  value       = local.sso_validation
+}
+
+output "account_ids" {
+  description = "Account IDs being used"
+  value = {
+    development = local.development_account_id
+    production  = local.production_account_id
+  }
+}
+
+output "sso_account_assignments_created" {
+  description = "Number of SSO account assignments created"
+  value       = length(aws_ssoadmin_account_assignment.main)
+}
+
+# Create account assignments for environment accounts (only if SSO is fully configured)
 resource "aws_ssoadmin_account_assignment" "main" {
   for_each = {
     for item in local.account_assignments_list :
     item.key => item
-    if local.sso_enabled && item.principal_id != "" && item.permission_set_arn != ""
+    if local.sso_fully_configured && item.principal_id != "" && item.permission_set_arn != ""
   }
 
   instance_arn       = local.sso_instance_arn
