@@ -312,7 +312,7 @@ jobs:
           aws-region: ${{ env.INFRA_REGION }}
 
       - name: Handle State Locks
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply') || github.event_name == 'workflow_run'
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
           echo "🔍 Checking for existing Terraform state locks..."
@@ -391,7 +391,7 @@ jobs:
 
       - name: Terraform Plan
         id: tf-plan
-        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || github.event_name == 'workflow_run'
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
@@ -415,7 +415,7 @@ jobs:
 
       - name: Terraform Plan (Push to Main)
         id: tf-plan-main
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || github.event_name == 'workflow_run'
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_environment_account_id: ${{ steps.get-infra-account.outputs.account_id }}
@@ -575,7 +575,7 @@ jobs:
           echo "The application deployment automatically uses this Secret for DATABASE_URL."
 
       - name: Force Unlock Site Infrastructure on Failure
-        if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply') || github.event_name == 'workflow_run')
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
           echo "🔍 Attempting to force unlock site infrastructure Terraform state after failure..."
