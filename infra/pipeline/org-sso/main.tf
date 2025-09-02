@@ -40,7 +40,7 @@ provider "aws" {
   region = var.region
 
   assume_role {
-    role_arn = "arn:aws:iam::${local.development_account_id}:role/OrganizationAccountAccessRole"
+    role_arn = aws_iam_role.cleanup_role_development.arn
   }
 
   skip_metadata_api_check     = true
@@ -53,11 +53,110 @@ provider "aws" {
   region = var.region
 
   assume_role {
-    role_arn = "arn:aws:iam::${local.production_account_id}:role/OrganizationAccountAccessRole"
+    role_arn = aws_iam_role.cleanup_role_production.arn
   }
 
   skip_metadata_api_check     = true
   skip_credentials_validation = true
+}
+
+# Custom IAM role for cleanup operations (temporary)
+resource "aws_iam_role" "cleanup_role_development" {
+  provider = aws.development
+  name     = "TerraformCleanupRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${local.management_account_id}:root"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Purpose     = "Temporary cleanup role for orphaned resources"
+    Environment = "Development"
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_iam_role_policy" "cleanup_policy_development" {
+  provider = aws.development
+  name     = "TerraformCleanupPolicy"
+  role     = aws_iam_role.cleanup_role_development.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:DeleteOpenIDConnectProvider",
+          "iam:GetOpenIDConnectProvider",
+          "iam:DeleteRole",
+          "iam:DetachRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListRolePolicies"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role" "cleanup_role_production" {
+  provider = aws.production
+  name     = "TerraformCleanupRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${local.management_account_id}:root"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Purpose     = "Temporary cleanup role for orphaned resources"
+    Environment = "Production"
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_iam_role_policy" "cleanup_policy_production" {
+  provider = aws.production
+  name     = "TerraformCleanupPolicy"
+  role     = aws_iam_role.cleanup_role_production.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:DeleteOpenIDConnectProvider",
+          "iam:GetOpenIDConnectProvider",
+          "iam:DeleteRole",
+          "iam:DetachRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListRolePolicies"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }
 
 # Create Development Account (only if not importing and not already exists)
@@ -104,6 +203,9 @@ data "aws_organizations_organizational_units" "existing" {
 
 locals {
   existing_ou_names = toset([for ou in data.aws_organizations_organizational_units.existing.children : ou.name])
+
+  # Get management account ID from organization data
+  management_account_id = data.aws_organizations_organization.main.master_account_id
 
   development_ou_id = contains(local.existing_ou_names, "Development") ? data.aws_organizations_organizational_unit.development[0].id : (length(aws_organizations_organizational_unit.development) > 0 ? aws_organizations_organizational_unit.development[0].id : "")
   production_ou_id  = contains(local.existing_ou_names, "Production") ? data.aws_organizations_organizational_unit.production[0].id : (length(aws_organizations_organizational_unit.production) > 0 ? aws_organizations_organizational_unit.production[0].id : "")
