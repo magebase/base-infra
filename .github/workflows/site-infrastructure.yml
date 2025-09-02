@@ -72,24 +72,59 @@ jobs:
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
 
-          case $ENVIRONMENT in
-            "dev")
-              ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID }}"
-              ;;
-            "qa")
-              ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID }}"
-              ;;
-            "uat")
-              ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID }}"
-              ;;
-            "prod")
-              ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID }}"
-              ;;
-            *)
-              echo "❌ Unknown environment: $ENVIRONMENT"
-              exit 1
-              ;;
-          esac
+          # Try to get account ID from triggering workflow first (unified-infrastructure)
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            case $ENVIRONMENT in
+              "dev")
+                ACCOUNT_ID="${{ github.event.workflow_run.outputs.development_account_id }}"
+                ;;
+              "prod")
+                ACCOUNT_ID="${{ github.event.workflow_run.outputs.production_account_id }}"
+                ;;
+              *)
+                # For qa/uat, fall back to vars (these might need to be created separately)
+                case $ENVIRONMENT in
+                  "qa")
+                    ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID }}"
+                    ;;
+                  "uat")
+                    ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID }}"
+                    ;;
+                  *)
+                    echo "❌ Unknown environment: $ENVIRONMENT"
+                    exit 1
+                    ;;
+                esac
+                ;;
+            esac
+          else
+            # Manual dispatch - use vars
+            case $ENVIRONMENT in
+              "dev")
+                ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID }}"
+                ;;
+              "qa")
+                ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID }}"
+                ;;
+              "uat")
+                ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID }}"
+                ;;
+              "prod")
+                ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID }}"
+                ;;
+              *)
+                echo "❌ Unknown environment: $ENVIRONMENT"
+                exit 1
+                ;;
+            esac
+          fi
+
+          if [ -z "$ACCOUNT_ID" ]; then
+            echo "❌ Could not determine account ID for environment: $ENVIRONMENT"
+            echo "📋 For dev/prod environments, ensure unified-infrastructure workflow has completed successfully"
+            echo "📋 For qa/uat environments, ensure the account IDs are set in repository variables"
+            exit 1
+          fi
 
           echo "🌍 Environment: $ENVIRONMENT"
           echo "🔐 Account ID: $ACCOUNT_ID"
@@ -192,25 +227,59 @@ jobs:
         run: |
           ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
 
-          # Use the appropriate account based on environment
-          case $ENVIRONMENT in
-            "dev")
-              ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID }}"
-              ;;
-            "qa")
-              ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID }}"
-              ;;
-            "uat")
-              ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID }}"
-              ;;
-            "prod")
-              ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID }}"
-              ;;
-            *)
-              echo "❌ Unknown environment: $ENVIRONMENT"
-              exit 1
-              ;;
-          esac
+          # Try to get account ID from triggering workflow first (unified-infrastructure)
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            case $ENVIRONMENT in
+              "dev")
+                ACCOUNT_ID="${{ github.event.workflow_run.outputs.development_account_id }}"
+                ;;
+              "prod")
+                ACCOUNT_ID="${{ github.event.workflow_run.outputs.production_account_id }}"
+                ;;
+              *)
+                # For qa/uat, fall back to vars (these might need to be created separately)
+                case $ENVIRONMENT in
+                  "qa")
+                    ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID }}"
+                    ;;
+                  "uat")
+                    ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID }}"
+                    ;;
+                  *)
+                    echo "❌ Unknown environment: $ENVIRONMENT"
+                    exit 1
+                    ;;
+                esac
+                ;;
+            esac
+          else
+            # Manual dispatch - use vars
+            case $ENVIRONMENT in
+              "dev")
+                ACCOUNT_ID="${{ vars.DEVELOPMENT_ACCOUNT_ID }}"
+                ;;
+              "qa")
+                ACCOUNT_ID="${{ vars.QA_ACCOUNT_ID }}"
+                ;;
+              "uat")
+                ACCOUNT_ID="${{ vars.UAT_ACCOUNT_ID }}"
+                ;;
+              "prod")
+                ACCOUNT_ID="${{ vars.PRODUCTION_ACCOUNT_ID }}"
+                ;;
+              *)
+                echo "❌ Unknown environment: $ENVIRONMENT"
+                exit 1
+                ;;
+            esac
+          fi
+
+          if [ -z "$ACCOUNT_ID" ]; then
+            echo "❌ Could not determine account ID for environment: $ENVIRONMENT"
+            echo "📋 For dev/prod environments, ensure unified-infrastructure workflow has completed successfully"
+            echo "📋 For qa/uat environments, ensure the account IDs are set in repository variables"
+            exit 1
+          fi
 
           echo "🌍 Using $ENVIRONMENT account for site infrastructure"
           echo "🔐 Account ID: $ACCOUNT_ID"
