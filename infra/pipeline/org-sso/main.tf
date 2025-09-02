@@ -513,6 +513,50 @@ resource "aws_ssoadmin_account_assignment" "main" {
   depends_on = [aws_identitystore_group.main]
 }
 
+# Data source to check if GitHub OIDC provider exists
+data "aws_iam_openid_connect_provider" "github_existing" {
+  for_each = {
+    development = local.development_account_id
+    production  = local.production_account_id
+  }
+
+  provider = aws
+  url      = "https://token.actions.githubusercontent.com"
+}
+
+# GitHub Actions OIDC Provider for CI/CD Pipeline
+resource "aws_iam_openid_connect_provider" "github" {
+  for_each = {
+    for k, v in {
+      development = local.development_account_id
+      production  = local.production_account_id
+    } : k => v
+    if try(data.aws_iam_openid_connect_provider.github_existing[k], null) == null
+  }
+
+  provider = aws
+  url      = "https://token.actions.githubusercontent.com"
+
+  client_id_list = [
+    "sts.amazonaws.com"
+  ]
+
+  thumbprint_list = [
+    "6938fd4d98bab03faadb97b34396831e3780aea1" # GitHub's OIDC thumbprint
+  ]
+
+  tags = {
+    Name        = "GitHubActionsOIDC"
+    Environment = each.key
+    Purpose     = "GitHub Actions CI/CD OIDC Provider"
+    ManagedBy   = "terraform"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 # Data source to check if GitHubActionsSSORole exists
 data "aws_iam_role" "github_actions_sso_existing" {
   for_each = {
@@ -575,6 +619,9 @@ resource "aws_iam_role" "github_actions_sso" {
   lifecycle {
     create_before_destroy = true
   }
+
+  # Ensure OIDC provider exists before creating the role
+  depends_on = [aws_iam_openid_connect_provider.github]
 }
 
 # IAM Policy for GitHub Actions SSO Role (only for newly created roles)
@@ -820,6 +867,19 @@ output "github_actions_sso_roles" {
       } : k => {
       arn  = try(aws_iam_role.github_actions_sso[k].arn, try(data.aws_iam_role.github_actions_sso_existing[k].arn, null))
       name = "GitHubActionsSSORole"
+    }
+  }
+}
+
+output "github_actions_oidc_providers" {
+  description = "GitHub Actions OIDC providers in each account (created or existing)"
+  value = {
+    for k, v in {
+      development = local.development_account_id
+      production  = local.production_account_id
+      } : k => {
+      arn = try(aws_iam_openid_connect_provider.github[k].arn, try(data.aws_iam_openid_connect_provider.github_existing[k].arn, null))
+      url = "https://token.actions.githubusercontent.com"
     }
   }
 }
