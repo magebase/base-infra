@@ -1088,16 +1088,6 @@ resource "aws_iam_role_policy_attachment" "github_actions_sso_admin_production" 
 
 # Outputs
 output "sso_enabled" {
-  description = "Whether AWS SSO is enabled in this account"
-  value       = local.sso_enabled
-}
-
-output "sso_instance_arn" {
-  description = "ARN of the AWS SSO instance"
-  value       = local.sso_enabled ? local.sso_instance_arn : null
-}
-
-output "sso_enabled" {
   description = "Whether AWS SSO is enabled"
   value       = local.effective_sso_enabled
 }
