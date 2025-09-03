@@ -438,6 +438,31 @@ jobs:
             echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main-${{ github.sha }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Wait for image to be available
+        run: |
+          echo "Waiting for image ${{ steps.scan-image.outputs.image }} to be available..."
+          max_attempts=30
+          attempt=1
+
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt/$max_attempts: Checking if image exists..."
+
+            # Try to pull the image to check if it exists
+            if docker pull ${{ steps.scan-image.outputs.image }} 2>/dev/null; then
+              echo "✅ Image is available!"
+              break
+            else
+              echo "⏳ Image not yet available, waiting 10 seconds..."
+              sleep 10
+              attempt=$((attempt + 1))
+            fi
+          done
+
+          if [ $attempt -gt $max_attempts ]; then
+            echo "❌ Image did not become available within 5 minutes"
+            exit 1
+          fi
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
