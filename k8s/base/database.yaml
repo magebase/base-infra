@@ -34,13 +34,13 @@ spec:
   backup:
     barmanObjectStore:
       destinationPath: s3://magebase-postgres-backups/
-      endpointURL: https://sin.magebase.dev
+      endpointURL: "${CLOUDFLARE_R2_ENDPOINT}"
       s3Credentials:
         accessKeyId:
-          name: hetzner-object-storage-credentials
+          name: cloudflare-r2-credentials
           key: access_key_id
         secretAccessKey:
-          name: hetzner-object-storage-credentials
+          name: cloudflare-r2-credentials
           key: secret_access_key
       wal:
         compression: gzip
@@ -63,12 +63,12 @@ spec:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: hetzner-object-storage-credentials
+  name: cloudflare-r2-credentials
   namespace: magebase
 type: Opaque
 data:
-  access_key_id: "${HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64}"
-  secret_access_key: "${HETZNER_OBJECT_STORAGE_SECRET_KEY_B64}"
+  access_key_id: "${CLOUDFLARE_R2_ACCESS_KEY_B64}"
+  secret_access_key: "${CLOUDFLARE_R2_SECRET_KEY_B64}"
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup

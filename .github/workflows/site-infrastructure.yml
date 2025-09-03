@@ -212,6 +212,97 @@ jobs:
             echo "✅ SES Secret Access Key captured"
           fi
 
+          # Capture Cloudflare R2 endpoint from Terraform outputs
+          echo "☁️ Capturing Cloudflare R2 endpoint..."
+          CLOUDFLARE_R2_ENDPOINT=$(terraform output -raw cloudflare_r2_endpoint 2>/dev/null || echo "")
+          if [ -n "$CLOUDFLARE_R2_ENDPOINT" ]; then
+            echo "CLOUDFLARE_R2_ENDPOINT=$CLOUDFLARE_R2_ENDPOINT" >> $GITHUB_ENV
+            echo "✅ Cloudflare R2 Endpoint: $CLOUDFLARE_R2_ENDPOINT"
+          else
+            echo "⚠️ Cloudflare R2 endpoint not found in Terraform outputs, using default"
+            echo "CLOUDFLARE_R2_ENDPOINT=https://storage.magebase.dev" >> $GITHUB_ENV
+          fi
+
+      - name: Process Template Files
+        if: success() && (github.event.inputs.action == 'apply' || github.event_name == 'push' || github.event.inputs.action == 'plan-apply')
+        env:
+          CLOUDFLARE_R2_ACCESS_KEY_B64: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
+          CLOUDFLARE_R2_SECRET_KEY_B64: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          CLOUDFLARE_R2_ENDPOINT: ${{ env.CLOUDFLARE_R2_ENDPOINT }}
+          HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}
+          HETZNER_OBJECT_STORAGE_SECRET_KEY_B64: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}
+        run: |
+          echo "🔧 Processing template files..."
+
+          # Base64 encode the Cloudflare R2 credentials for Kubernetes secrets
+          if [ -n "${CLOUDFLARE_R2_ACCESS_KEY_B64}" ]; then
+            CLOUDFLARE_R2_ACCESS_KEY_B64=$(echo -n "${CLOUDFLARE_R2_ACCESS_KEY_B64}" | base64)
+            echo "✅ Cloudflare R2 Access Key encoded"
+          fi
+
+          if [ -n "${CLOUDFLARE_R2_SECRET_KEY_B64}" ]; then
+            CLOUDFLARE_R2_SECRET_KEY_B64=$(echo -n "${CLOUDFLARE_R2_SECRET_KEY_B64}" | base64)
+            echo "✅ Cloudflare R2 Secret Key encoded"
+          fi
+
+          # Base64 encode Hetzner credentials for backward compatibility
+          if [ -n "${HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64}" ]; then
+            HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64=$(echo -n "${HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64}" | base64)
+            echo "✅ Hetzner Access Key encoded"
+          fi
+
+          if [ -n "${HETZNER_OBJECT_STORAGE_SECRET_KEY_B64}" ]; then
+            HETZNER_OBJECT_STORAGE_SECRET_KEY_B64=$(echo -n "${HETZNER_OBJECT_STORAGE_SECRET_KEY_B64}" | base64)
+            echo "✅ Hetzner Secret Key encoded"
+          fi
+
+          # Export variables for envsubst
+          export CLOUDFLARE_R2_ACCESS_KEY_B64
+          export CLOUDFLARE_R2_SECRET_KEY_B64
+          export CLOUDFLARE_R2_ENDPOINT
+          export HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64
+          export HETZNER_OBJECT_STORAGE_SECRET_KEY_B64
+
+          # Function to process template files
+          process_templates() {
+            local template_dir="$1"
+            local output_dir="$2"
+
+            echo "📁 Processing templates in: $template_dir"
+
+            # Find all .tpl files and process them
+            find "$template_dir" -name "*.tpl" -type f | while read -r tpl_file; do
+              # Get the output file path (remove .tpl extension)
+              output_file="${tpl_file%.tpl}"
+
+              # If output_dir is specified, put output files there
+              if [ -n "$output_dir" ]; then
+                # Get relative path from template_dir
+                rel_path="${tpl_file#$template_dir/}"
+                rel_path="${rel_path%.tpl}"
+                output_file="$output_dir/$rel_path"
+                mkdir -p "$(dirname "$output_file")"
+              fi
+
+              echo "📝 Processing: $tpl_file -> $output_file"
+
+              # Process the template file with environment variable substitution
+              envsubst < "$tpl_file" > "$output_file"
+
+              echo "✅ Processed: $output_file"
+            done
+          }
+
+          # Process base infrastructure templates
+          process_templates "infra/pipeline/base-infrastructure/extra-manifests" "infra/pipeline/base-infrastructure/extra-manifests"
+
+          # Process site infrastructure templates if they exist
+          if [ -d "infra/pipeline/site-infrastructure/extra-manifests" ]; then
+            process_templates "infra/pipeline/site-infrastructure/extra-manifests" "infra/pipeline/site-infrastructure/extra-manifests"
+          fi
+
+          echo "🎉 Template processing completed!"
+
       - name: Generate Terraform Outputs
         if: success() && (github.event.inputs.action == 'apply' || github.event_name == 'push' || github.event.inputs.action == 'plan-apply')
         working-directory: ${{ env.TF_WORKING_DIR }}
