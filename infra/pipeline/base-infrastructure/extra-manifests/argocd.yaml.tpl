@@ -1,9 +1,37 @@
-# ArgoCD will be installed separately
-# This file is kept for future ArgoCD Application definitions
-apiVersion: v1
-kind: ConfigMap
+apiVersion: argoproj.io/v1alpha1
+kind: Application
 metadata:
-  name: argocd-placeholder
-  namespace: argocd
-data:
-  note: "ArgoCD installation will be handled separately"
+  name: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://argoproj.github.io/argo-helm
+    targetRevision: HEAD
+    chart: argo-cd
+    helm:
+      values: |
+        server:
+          service:
+            type: ClusterIP
+          ingress:
+            enabled: true
+            hosts:
+              - argocd.$(DOMAIN)
+            tls:
+              - secretName: argocd-tls
+                hosts:
+                  - argocd.$(DOMAIN)
+        configs:
+          secret:
+            argocdServerAdminPassword: $(ARGOCD_ADMIN_PASSWORD)
+        dex:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

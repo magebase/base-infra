@@ -44,12 +44,25 @@ provider "aws" {
   region = "us-east-1" # Route53 is a global service, but provider needs a region
 }
 
+# Data source to get load balancer IP from base-infrastructure
+data "terraform_remote_state" "base_infrastructure" {
+  backend = "s3"
+  config = {
+    bucket  = "magebase-tf-state-management-ap-southeast-1"
+    key     = "magebase/base-infrastructure/${var.environment}/terraform.tfstate"
+    region  = "ap-southeast-1"
+    encrypt = true
+  }
+}
+
 # Local values
 locals {
   cluster_name        = "${var.environment}-magebase"
   singapore_locations = ["sin"]            # Singapore location
   location            = var.hetzner_region # Use variable instead of hardcoded value
   account_type        = var.environment == "prod" ? "production" : "development"
+  # Get the load balancer IP from base infrastructure
+  cluster_ipv4 = data.terraform_remote_state.base_infrastructure.outputs.lb_ipv4
 }
 
 # Cloudflare DNS Configuration
@@ -58,7 +71,7 @@ module "cloudflare_dns" {
 
   domain_name  = var.domain_name
   zone_id      = var.cloudflare_zone_id
-  cluster_ipv4 = var.cluster_ipv4
+  cluster_ipv4 = local.cluster_ipv4
   cluster_ipv6 = null # IPv6 not currently available from base infrastructure
 
   # SES configuration
