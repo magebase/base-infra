@@ -1,37 +1,39 @@
-apiVersion: argoproj.io/v1alpha1
-kind: Application
+---
+apiVersion: v1
+kind: Namespace
 metadata:
   name: argocd
+  labels:
+    name: argocd
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: argocd
+  namespace: argocd
 spec:
-  project: default
-  source:
-    repoURL: https://argoproj.github.io/argo-helm
-    targetRevision: HEAD
-    chart: argo-cd
-    helm:
-      values: |
-        server:
-          service:
-            type: ClusterIP
-          ingress:
-            enabled: true
+  chart: argo-cd
+  repo: https://argoproj.github.io/argo-helm
+  targetNamespace: argocd
+  version: "7.3.11"
+  valuesContent: |
+    server:
+      service:
+        type: ClusterIP
+      ingress:
+        enabled: true
+        hosts:
+          - argocd.$(DOMAIN)
+        tls:
+          - secretName: argocd-tls
             hosts:
               - argocd.$(DOMAIN)
-            tls:
-              - secretName: argocd-tls
-                hosts:
-                  - argocd.$(DOMAIN)
-        configs:
-          secret:
-            argocdServerAdminPassword: $(ARGOCD_ADMIN_PASSWORD)
-        dex:
-          enabled: false
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: argocd
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+    configs:
+      secret:
+        argocdServerAdminPassword: $(ARGOCD_ADMIN_PASSWORD)
+    dex:
+      enabled: false
+    # Install CRDs
+    crds:
+      install: true
+      keep: true

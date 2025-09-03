@@ -9,10 +9,9 @@ commonLabels:
   app.kubernetes.io/part-of: magebase
   component: base-infrastructure
 
-# Resources to deploy - Namespace first, then ArgoCD
+# Resources to deploy - ArgoCD with namespace
 resources:
-  - namespace.yaml
-  - argocd.yaml
+  - argocd.yaml.tpl
 
 # ConfigMap for base infrastructure configuration
 configMapGenerator:
@@ -21,3 +20,4 @@ configMapGenerator:
       - ENVIRONMENT=${environment}
       - COMPONENT=base-infrastructure
       - DOMAIN=${domain}
+      - ARGOCD_ADMIN_PASSWORD=${argocd_admin_password}
