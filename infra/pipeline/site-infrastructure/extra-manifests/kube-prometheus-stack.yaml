@@ -32,6 +32,7 @@ spec:
             type: ClusterIP
           ingress:
             enabled: true
+            ingressClassName: traefik
             hosts:
               - grafana.${DOMAIN}
             tls:

@@ -38,6 +38,7 @@ patches:
           traefik.ingress.kubernetes.io/router.entrypoints: websecure
           traefik.ingress.kubernetes.io/router.tls: "true"
       spec:
+        ingressClassName: traefik
         rules:
           - host: argocd.${DOMAIN}
             http:
