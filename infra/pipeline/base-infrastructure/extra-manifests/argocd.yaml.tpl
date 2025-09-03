@@ -13,6 +13,9 @@ spec:
     server:
       service:
         type: ClusterIP
+      crds:
+        install: true
+        keep: true
       ingress:
         enabled: true
         hosts:
