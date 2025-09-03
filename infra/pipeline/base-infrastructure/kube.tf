@@ -927,12 +927,17 @@ module "kube-hetzner" {
   create_kustomization = true
 
   # Additional safeguard: disable kustomization deployment commands
-  extra_kustomize_deployment_commands = ""
+  extra_kustomize_deployment_commands = <<-EOT
+    kubectl -n argocd wait --for condition=established --timeout=120s crd/appprojects.argoproj.io
+    kubectl -n argocd wait --for condition=established --timeout=120s crd/applications.argoproj.io
+    kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+  EOT
 
   # Additional safeguard: empty kustomization parameters
   extra_kustomize_parameters = {
-    environment = var.environment
-    domain      = var.domain != "" ? var.domain : "magebase.dev"
+    environment           = var.environment
+    domain                = var.domain != "" ? var.domain : "magebase.dev"
+    argocd_admin_password = var.argocd_admin_password != "" ? var.argocd_admin_password : "admin123" # Default for dev, should be changed in prod
   }
 
   # Disable export of values files to prevent any kustomization-related operations
