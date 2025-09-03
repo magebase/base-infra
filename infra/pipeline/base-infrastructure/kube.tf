@@ -941,7 +941,11 @@ module "kube-hetzner" {
     echo "Waiting for ArgoCD server deployment..."
     kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || echo "Warning: ArgoCD server deployment wait failed"
 
-    echo "ArgoCD deployment completed successfully"
+    # Wait for Kubernetes Dashboard deployment
+    echo "Waiting for Kubernetes Dashboard deployment..."
+    kubectl wait --for=condition=available --timeout=300s deployment/kubernetes-dashboard -n kubernetes-dashboard || echo "Warning: Dashboard deployment wait failed"
+
+    echo "ArgoCD and Dashboard deployment completed successfully"
   EOT
 
   # Additional safeguard: empty kustomization parameters

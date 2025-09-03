@@ -4,6 +4,11 @@ kind: Kustomization
 namespace: argocd
 resources:
   - namespace.yaml
+  - kubernetes-dashboard-namespace.yaml
+  - https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml
+  - kubernetes-dashboard-service-account.yaml
+  - kubernetes-dashboard-cluster-role-binding.yaml
+  - kubernetes-dashboard-ingress.yaml
   - https://raw.githubusercontent.com/argoproj/argo-cd/v2.9.3/manifests/install.yaml
 
 patches:
