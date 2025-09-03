@@ -16,18 +16,18 @@ spec:
     spec:
       serviceAccountName: argocd-installer
       containers:
-      - name: kubectl
-        image: bitnami/kubectl:latest
-        command:
-        - /bin/sh
-        - -c
-        - |
-          kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-          # Wait for CRDs
-          kubectl wait --for condition=established --timeout=120s crd/appprojects.argoproj.io
-          kubectl wait --for condition=established --timeout=120s crd/applications.argoproj.io
-          # Wait for deployment
-          kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+        - name: kubectl
+          image: bitnami/kubectl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              kubectl apply -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+              # Wait for CRDs
+              kubectl wait --for condition=established --timeout=120s crd/appprojects.argoproj.io
+              kubectl wait --for condition=established --timeout=120s crd/applications.argoproj.io
+              # Wait for deployment
+              kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
       restartPolicy: Never
 ---
 apiVersion: v1
@@ -41,18 +41,18 @@ kind: ClusterRole
 metadata:
   name: argocd-installer
 rules:
-- apiGroups: ["*"]
-  resources: ["*"]
-  verbs: ["*"]
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: argocd-installer
 subjects:
-- kind: ServiceAccount
-  name: argocd-installer
-  namespace: argocd
+  - kind: ServiceAccount
+    name: argocd-installer
+    namespace: argocd
 roleRef:
   kind: ClusterRole
   name: argocd-installer

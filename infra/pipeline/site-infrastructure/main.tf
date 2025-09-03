@@ -69,7 +69,7 @@ locals {
 module "cloudflare_dns" {
   source = "./modules/cloudflare"
 
-  domain_name  = var.domain_name
+  domain_name  = var.environment == "dev" ? "dev.${var.domain_name}" : var.domain_name
   zone_id      = var.cloudflare_zone_id
   cluster_ipv4 = local.cluster_ipv4
   cluster_ipv6 = null # IPv6 not currently available from base infrastructure
