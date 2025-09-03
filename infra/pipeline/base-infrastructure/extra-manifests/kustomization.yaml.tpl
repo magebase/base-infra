@@ -9,9 +9,6 @@ commonLabels:
   app.kubernetes.io/part-of: magebase
   component: base-infrastructure
 
-# Namespace for base infrastructure components
-namespace: argocd
-
 # Resources to deploy - Namespace first, then ArgoCD
 resources:
   - namespace.yaml
