@@ -7,6 +7,22 @@ resources:
   - https://raw.githubusercontent.com/argoproj/argo-cd/v2.9.3/manifests/install.yaml
 
 patches:
+  # Middleware to handle ArgoCD headers properly
+  - patch: |-
+      apiVersion: traefik.containo.us/v1alpha1
+      kind: Middleware
+      metadata:
+        name: argocd-headers
+        namespace: argocd
+      spec:
+        headers:
+          customRequestHeaders:
+            X-Forwarded-Proto: "http"
+          customResponseHeaders:
+            Strict-Transport-Security: ""
+    target:
+      kind: Middleware
+      name: argocd-headers
   # Patch for custom domain configuration
   - patch: |-
       - op: replace
@@ -26,6 +42,9 @@ patches:
       metadata:
         name: argocd-server
         namespace: argocd
+        annotations:
+          traefik.ingress.kubernetes.io/router.entrypoints: web
+          traefik.ingress.kubernetes.io/router.middlewares: argocd-headers@kubernetescrd
       spec:
         rules:
           - host: argocd.$(DOMAIN)
