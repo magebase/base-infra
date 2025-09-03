@@ -62,6 +62,8 @@ permissions:
   id-token: write
   packages: write
   attestations: write
+  security-events: write
+  actions: read
 
 env:
   REGISTRY: ghcr.io
