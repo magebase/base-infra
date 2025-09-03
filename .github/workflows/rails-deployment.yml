@@ -524,7 +524,18 @@ jobs:
             IMAGE_TAG=${{ needs.build.outputs.new_release_version }}
           fi
 
-          sed -i "s|image:.*|image: ${{ needs.build.outputs.image-url }}|g" k8s/deployment.yaml
+          # Extract the first image URL from the multi-line output
+          IMAGE_URL=$(echo "${{ needs.build.outputs.image-url }}" | head -n 1)
+
+          # Use the latest image for main branch, or commit-specific image for others
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            FINAL_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+          else
+            FINAL_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main-${{ github.sha }}"
+          fi
+
+          echo "Using image: $FINAL_IMAGE"
+          sed -i "s|image:.*|image: $FINAL_IMAGE|g" k8s/deployment.yaml
 
           # Commit the changes to trigger ArgoCD sync
           git config --global user.name "github-actions[bot]"
