@@ -181,7 +181,7 @@ jobs:
 
   lint:
     name: Code Quality & Linting
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs: test
     if: success() || github.event.inputs.skip_tests == true
 
@@ -189,17 +189,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create Ruby working directory
-        run: |
-          mkdir -p $HOME/.ruby
-          chmod 755 $HOME/.ruby
-
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.4.5
           bundler-cache: false
-          working-directory: ${{ github.workspace }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -235,7 +229,7 @@ jobs:
 
   security:
     name: Security Audit & Scan
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs: lint
     if: success()
 
@@ -243,17 +237,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create Ruby working directory
-        run: |
-          mkdir -p $HOME/.ruby
-          chmod 755 $HOME/.ruby
-
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.4.5
           bundler-cache: false
-          working-directory: ${{ github.workspace }}
 
       - name: Run bundle audit
         run: bundle audit check --update
@@ -270,7 +258,7 @@ jobs:
 
   build:
     name: Build Docker Image
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs: [lint, security]
     if: success()
     outputs:
@@ -366,7 +354,7 @@ jobs:
 
   security-scan:
     name: Container Security Scan
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs: build
     if: success()
 
@@ -390,7 +378,7 @@ jobs:
 
   deploy:
     name: Deploy to ArgoCD
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs: [build, security-scan]
     if: success() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -445,7 +433,7 @@ jobs:
 
   performance-test:
     name: Performance Testing
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs: deploy
     if: success() && github.ref == 'refs/heads/main'
 
@@ -463,7 +451,7 @@ jobs:
 
   cleanup:
     name: Cleanup Old Images
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs: [build, deploy]
     if: success() && needs.build.outputs.new_release_published == 'true'
 
@@ -478,7 +466,7 @@ jobs:
 
   notify:
     name: Deployment Notification
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs:
       [
         test,
