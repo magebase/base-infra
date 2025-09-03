@@ -172,19 +172,28 @@ jobs:
           bundle exec rails db:seed || echo "Seeding completed with warnings"
 
       - name: Run Ruby tests
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true'
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/magebase_test
         run: bundle exec rails test
 
       - name: Run system tests
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true'
         env:
           RAILS_ENV: test
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/magebase_test
         run: bundle exec rails test:system
 
       - name: Run JavaScript tests
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true'
         run: npm test
+
+      - name: Skip Tests (Optional)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.skip_tests == 'true'
+        run: |
+          echo "🧪 Tests skipped as requested"
+          echo "test_results=skipped" >> $GITHUB_OUTPUT
 
   lint:
     name: Code Quality & Linting
