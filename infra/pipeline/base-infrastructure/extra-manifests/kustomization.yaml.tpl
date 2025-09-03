@@ -7,6 +7,10 @@ resources:
   - https://raw.githubusercontent.com/argoproj/argo-cd/v2.9.3/manifests/install.yaml
   - letsencrypt-issuer.yaml
   - argocd-certificate.yaml
+  - k3s-encryption.yaml
+  - network-policies.yaml
+  - pod-security.yaml
+  - audit-policy.yaml
 
 patches:
   # Patch for custom domain configuration

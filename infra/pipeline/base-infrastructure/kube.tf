@@ -710,7 +710,7 @@ module "kube-hetzner" {
   # k3s_prefer_bundled_bin = true
 
   # Additional flags to pass to the k3s server command (the control plane).
-  # k3s_exec_server_args = "--kube-apiserver-arg enable-admission-plugins=PodTolerationRestriction,PodNodeSelector"
+  k3s_exec_server_args = "--kube-apiserver-arg enable-admission-plugins=PodTolerationRestriction,PodNodeSelector,EventRateLimit --kube-apiserver-arg audit-log-path=/var/log/kubernetes/audit.log --kube-apiserver-arg audit-log-maxage=30 --kube-apiserver-arg audit-log-maxbackup=10 --kube-apiserver-arg audit-log-maxsize=100 --etcd-encryption-provider-config=/etc/rancher/k3s/encryption-config.yaml --secrets-encryption=true --kube-apiserver-arg encryption-provider-config=/etc/rancher/k3s/encryption-config.yaml"
 
   # Additional flags to pass to the k3s agent command (every agents nodes, including autoscaler nodepools).
   # k3s_exec_agent_args = "--kubelet-arg kube-reserved=cpu=100m,memory=200Mi,ephemeral-storage=1Gi"
@@ -976,8 +976,7 @@ module "kube-hetzner" {
   # Cilium, all Cilium helm values can be found at https://github.com/cilium/cilium/blob/master/install/kubernetes/cilium/values.yaml
   # Be careful when maintaining your own cilium_values, as the choice of available settings depends on the Cilium version used. See also the cilium_version setting to fix a specific version.
   # The following is an example, please note that the current indentation inside the EOT is important.
-  /*   cilium_values = <<EOT
-
+  cilium_values = <<EOT
 ipam:
   mode: kubernetes
 k8s:
@@ -995,7 +994,24 @@ encryption:
   enabled: true
   type: wireguard
 MTU: 1450
-  EOT */
+hubble:
+  enabled: true
+  ui:
+    enabled: true
+  relay:
+    enabled: true
+  metrics:
+    enabled:
+      - dns
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - http
+securityContext:
+  privileged: true
+transparentEncryption: true
+  EOT
 
   # Cert manager, all cert-manager helm values can be found at https://github.com/cert-manager/cert-manager/blob/master/deploy/charts/cert-manager/values.yaml
   # The following is an example, please note that the current indentation inside the EOT is important.
