@@ -239,7 +239,7 @@ jobs:
         run: bundle exec bundle-audit check --update
 
       - name: Run Brakeman security scan
-        run: bundle exec brakeman --quiet --format json --output brakeman-report.json
+        run: bundle exec brakeman -q -f json -o brakeman-report.json
 
       - name: Upload Brakeman results
         uses: actions/upload-artifact@v4
