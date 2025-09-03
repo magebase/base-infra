@@ -88,26 +88,35 @@ variable "ses_mx_record" {
   default = null
 }
 
-# Use provided zone_id
+# Use provided zone_id and parse domain components
 locals {
   zone_id = var.zone_id
+  # Extract the root domain from the full domain name
+  # For "dev.magebase.dev" -> "magebase.dev"
+  # For "magebase.dev" -> "magebase.dev"
+  domain_parts = split(".", var.domain_name)
+  root_domain = length(local.domain_parts) > 2 ? join(".", slice(local.domain_parts, 1, length(local.domain_parts))) : var.domain_name
+  # Extract subdomain if it exists
+  # For "dev.magebase.dev" -> "dev"
+  # For "magebase.dev" -> "@" (root)
+  subdomain = length(local.domain_parts) > 2 ? local.domain_parts[0] : "@"
 }
 
-# A record for the root domain
+# A record for the root domain or subdomain
 resource "cloudflare_dns_record" "root_a" {
   zone_id = local.zone_id
-  name    = var.domain_name
+  name    = local.subdomain
   content = var.cluster_ipv4
   type    = "A"
   ttl     = var.cluster_ipv4 == "127.0.0.1" ? 600 : 1 # Use 600 for non-proxied, 1 for proxied
   proxied = var.cluster_ipv4 != "127.0.0.1"           # Don't proxy loopback addresses
 }
 
-# AAAA record for the root domain (if IPv6 is provided)
+# AAAA record for the root domain or subdomain (if IPv6 is provided)
 resource "cloudflare_dns_record" "root_aaaa" {
   count   = var.cluster_ipv6 != null ? 1 : 0
   zone_id = local.zone_id
-  name    = var.domain_name
+  name    = local.subdomain
   content = var.cluster_ipv6
   type    = "AAAA"
   ttl     = 1 # Must be 1 when proxied is true
@@ -117,8 +126,8 @@ resource "cloudflare_dns_record" "root_aaaa" {
 # CNAME record for www subdomain
 resource "cloudflare_dns_record" "www_cname" {
   zone_id = local.zone_id
-  name    = "www"
-  content = var.domain_name
+  name    = "www.${local.subdomain}"
+  content = local.subdomain == "@" ? local.root_domain : "${local.subdomain}.${local.root_domain}"
   type    = "CNAME"
   ttl     = 1 # Must be 1 when proxied is true
   proxied = true
@@ -127,8 +136,8 @@ resource "cloudflare_dns_record" "www_cname" {
 # CNAME record for CDN subdomain
 resource "cloudflare_dns_record" "cdn_cname" {
   zone_id = local.zone_id
-  name    = "cdn"
-  content = var.domain_name
+  name    = "cdn.${local.subdomain}"
+  content = local.subdomain == "@" ? local.root_domain : "${local.subdomain}.${local.root_domain}"
   type    = "CNAME"
   ttl     = 1 # Must be 1 when proxied is true
   proxied = true
