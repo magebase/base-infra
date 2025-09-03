@@ -115,6 +115,10 @@ jobs:
         run: |
           bundle install
           npm install
+
+      - name: Install Playwright browsers
+        run: bundle exec playwright install chromium
+
       - name: Wait for PostgreSQL
         run: |
           echo "Waiting for PostgreSQL to be ready..."
