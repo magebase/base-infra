@@ -229,8 +229,6 @@ jobs:
           CLOUDFLARE_R2_ACCESS_KEY_B64: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           CLOUDFLARE_R2_SECRET_KEY_B64: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
           CLOUDFLARE_R2_ENDPOINT: ${{ env.CLOUDFLARE_R2_ENDPOINT }}
-          HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64: ${{ secrets.HETZNER_OBJECT_STORAGE_ACCESS_KEY }}
-          HETZNER_OBJECT_STORAGE_SECRET_KEY_B64: ${{ secrets.HETZNER_OBJECT_STORAGE_SECRET_KEY }}
         run: |
           echo "🔧 Processing template files..."
 
@@ -245,23 +243,10 @@ jobs:
             echo "✅ Cloudflare R2 Secret Key encoded"
           fi
 
-          # Base64 encode Hetzner credentials for backward compatibility
-          if [ -n "${HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64}" ]; then
-            HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64=$(echo -n "${HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64}" | base64)
-            echo "✅ Hetzner Access Key encoded"
-          fi
-
-          if [ -n "${HETZNER_OBJECT_STORAGE_SECRET_KEY_B64}" ]; then
-            HETZNER_OBJECT_STORAGE_SECRET_KEY_B64=$(echo -n "${HETZNER_OBJECT_STORAGE_SECRET_KEY_B64}" | base64)
-            echo "✅ Hetzner Secret Key encoded"
-          fi
-
           # Export variables for envsubst
           export CLOUDFLARE_R2_ACCESS_KEY_B64
           export CLOUDFLARE_R2_SECRET_KEY_B64
           export CLOUDFLARE_R2_ENDPOINT
-          export HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64
-          export HETZNER_OBJECT_STORAGE_SECRET_KEY_B64
 
           # Function to process template files
           process_templates() {
