@@ -55,6 +55,10 @@ on:
         default: false
         type: boolean
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   issues: write
@@ -267,242 +271,242 @@ jobs:
   #         name: brakeman-report
   #         path: brakeman-report.json
 
-  build:
-    name: Build Docker Image
-    runs-on: ubicloud-standard-2-arm
-    # needs: [lint, security, test]
-    if: success()
-    outputs:
-      image-digest: ${{ steps.build.outputs.digest }}
-      image-url: ${{ steps.meta.outputs.tags }}
-      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+  # build:
+  #   name: Build Docker Image
+  #   runs-on: ubicloud-standard-2-arm
+  #   # needs: [lint, security, test]
+  #   if: success()
+  #   outputs:
+  #     image-digest: ${{ steps.build.outputs.digest }}
+  #     image-url: ${{ steps.meta.outputs.tags }}
+  #     new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+  #     new_release_version: ${{ steps.semantic.outputs.new_release_version }}
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-          submodules: false
-          lfs: false
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #         token: ${{ secrets.GITHUB_TOKEN }}
+  #         submodules: false
+  #         lfs: false
 
-      - name: Configure Git
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+  #     - name: Configure Git
+  #       run: |
+  #         git config --global user.name "github-actions[bot]"
+  #         git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Set up Node.js for semantic-release
-        uses: actions/setup-node@v4
-        with:
-          node-version: "18"
-          cache: "npm"
+  #     - name: Set up Node.js for semantic-release
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: "18"
+  #         cache: "npm"
 
-      - name: Cache semantic-release dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            /usr/local/lib/node_modules
-          key: semantic-release-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json') }}
-          restore-keys: |
-            semantic-release-${{ runner.os }}-
+  #     - name: Cache semantic-release dependencies
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: |
+  #           ~/.npm
+  #           /usr/local/lib/node_modules
+  #         key: semantic-release-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json') }}
+  #         restore-keys: |
+  #           semantic-release-${{ runner.os }}-
 
-      - name: Install semantic-release
-        run: |
-          # Check if semantic-release is already installed
-          if ! command -v semantic-release &> /dev/null; then
-            npm install -g semantic-release
-          fi
-          if ! npm list -g @semantic-release/git &> /dev/null; then
-            npm install -g @semantic-release/git
-          fi
-          if ! npm list -g @semantic-release/github &> /dev/null; then
-            npm install -g @semantic-release/github
-          fi
-          if ! npm list -g @semantic-release/changelog &> /dev/null; then
-            npm install -g @semantic-release/changelog
-          fi
-          if ! npm list -g @semantic-release/exec &> /dev/null; then
-            npm install -g @semantic-release/exec
-          fi
+  #     - name: Install semantic-release
+  #       run: |
+  #         # Check if semantic-release is already installed
+  #         if ! command -v semantic-release &> /dev/null; then
+  #           npm install -g semantic-release
+  #         fi
+  #         if ! npm list -g @semantic-release/git &> /dev/null; then
+  #           npm install -g @semantic-release/git
+  #         fi
+  #         if ! npm list -g @semantic-release/github &> /dev/null; then
+  #           npm install -g @semantic-release/github
+  #         fi
+  #         if ! npm list -g @semantic-release/changelog &> /dev/null; then
+  #           npm install -g @semantic-release/changelog
+  #         fi
+  #         if ! npm list -g @semantic-release/exec &> /dev/null; then
+  #           npm install -g @semantic-release/exec
+  #         fi
 
-      - name: Run semantic-release
-        id: semantic
-        run: |
-          # Determine release type from input or analyze commits
-          if [ "${{ github.event.inputs.release_type }}" != "" ]; then
-            export RELEASE_TYPE="${{ github.event.inputs.release_type }}"
-          else
-            RELEASE_TYPE="patch"
-          fi
+  #     - name: Run semantic-release
+  #       id: semantic
+  #       run: |
+  #         # Determine release type from input or analyze commits
+  #         if [ "${{ github.event.inputs.release_type }}" != "" ]; then
+  #           export RELEASE_TYPE="${{ github.event.inputs.release_type }}"
+  #         else
+  #           RELEASE_TYPE="patch"
+  #         fi
 
-          # Run semantic release (dry-run for PRs)
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            npx semantic-release --dry-run
-            echo "new_release_published=false" >> $GITHUB_OUTPUT
-            echo "new_release_version=dry-run" >> $GITHUB_OUTPUT
-          else
-            npx semantic-release --branches main
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TYPE: ${{ github.event.inputs.release_type }}
-          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
-          GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
+  #         # Run semantic release (dry-run for PRs)
+  #         if [ "${{ github.event_name }}" == "pull_request" ]; then
+  #           npx semantic-release --dry-run
+  #           echo "new_release_published=false" >> $GITHUB_OUTPUT
+  #           echo "new_release_version=dry-run" >> $GITHUB_OUTPUT
+  #         else
+  #           npx semantic-release --branches main
+  #         fi
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #         RELEASE_TYPE: ${{ github.event.inputs.release_type }}
+  #         GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+  #         GITHUB_REPOSITORY_NAME: ${{ github.event.repository.name }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-        with:
-          driver-opts: |
-            network=host
-          buildkitd-flags: --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
+  #       with:
+  #         driver-opts: |
+  #           network=host
+  #         buildkitd-flags: --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Log in to GitHub Container Registry
+  #       uses: docker/login-action@v3
+  #       with:
+  #         registry: ${{ env.REGISTRY }}
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Warm up Docker cache
-        run: |
-          # Try to pull the latest image to warm up the cache
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || echo "No existing image to pull"
+  #     - name: Warm up Docker cache
+  #       run: |
+  #         # Try to pull the latest image to warm up the cache
+  #         docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || echo "No existing image to pull"
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.semantic.outputs.new_release_version }},enable=${{ steps.semantic.outputs.new_release_published == 'true' }}
+  #     - name: Extract metadata
+  #       id: meta
+  #       uses: docker/metadata-action@v5
+  #       with:
+  #         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+  #         tags: |
+  #           type=ref,event=branch
+  #           type=ref,event=pr
+  #           type=sha,prefix={{branch}}-
+  #           type=raw,value=latest,enable={{is_default_branch}}
+  #           type=raw,value=${{ steps.semantic.outputs.new_release_version }},enable=${{ steps.semantic.outputs.new_release_published == 'true' }}
 
-      - name: Build and push Docker image
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: |
-            type=gha,scope=build-${{ github.ref_name }}
-            type=gha,scope=build-main
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          cache-to: |
-            type=gha,scope=build-${{ github.ref_name }},mode=max
-          build-args: |
-            BUILDKIT_INLINE_CACHE=1
-          platforms: linux/arm64
-          provenance: false
-          sbom: false
-          outputs: |
-            type=image,push=true
-            type=docker
+  #     - name: Build and push Docker image
+  #       id: build
+  #       uses: docker/build-push-action@v5
+  #       with:
+  #         context: .
+  #         push: true
+  #         tags: ${{ steps.meta.outputs.tags }}
+  #         labels: ${{ steps.meta.outputs.labels }}
+  #         cache-from: |
+  #           type=gha,scope=build-${{ github.ref_name }}
+  #           type=gha,scope=build-main
+  #           type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+  #         cache-to: |
+  #           type=gha,scope=build-${{ github.ref_name }},mode=max
+  #         build-args: |
+  #           BUILDKIT_INLINE_CACHE=1
+  #         platforms: linux/arm64
+  #         provenance: false
+  #         sbom: false
+  #         outputs: |
+  #           type=image,push=true
+  #           type=docker
 
-      - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v1
-        continue-on-error: true
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
-          subject-digest: ${{ steps.build.outputs.digest }}
-          push-to-registry: true
+  #     - name: Generate artifact attestation
+  #       uses: actions/attest-build-provenance@v1
+  #       continue-on-error: true
+  #       with:
+  #         subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
+  #         subject-digest: ${{ steps.build.outputs.digest }}
+  #         push-to-registry: true
 
-  security-scan:
-    name: Container Security Scan
-    runs-on: ubicloud-standard-2-arm
-    needs: build
-    if: success()
+  # security-scan:
+  #   name: Container Security Scan
+  #   runs-on: ubicloud-standard-2-arm
+  #   needs: build
+  #   if: success()
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Log in to GitHub Container Registry
+  #       uses: docker/login-action@v3
+  #       with:
+  #         registry: ${{ env.REGISTRY }}
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Determine scan image
-        id: scan-image
-        run: |
-          # Use the latest image for main branch, or commit SHA image for others
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
-          else
-            echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main-${{ github.sha }}" >> $GITHUB_OUTPUT
-          fi
+  #     - name: Determine scan image
+  #       id: scan-image
+  #       run: |
+  #         # Use the latest image for main branch, or commit SHA image for others
+  #         if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+  #           echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "image=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main-${{ github.sha }}" >> $GITHUB_OUTPUT
+  #         fi
 
-      - name: Wait for image to be available
-        run: |
-          echo "Waiting for image ${{ steps.scan-image.outputs.image }} to be available..."
-          max_attempts=30
-          attempt=1
+  #     - name: Wait for image to be available
+  #       run: |
+  #         echo "Waiting for image ${{ steps.scan-image.outputs.image }} to be available..."
+  #         max_attempts=30
+  #         attempt=1
 
-          while [ $attempt -le $max_attempts ]; do
-            echo "Attempt $attempt/$max_attempts: Checking if image exists..."
+  #         while [ $attempt -le $max_attempts ]; do
+  #           echo "Attempt $attempt/$max_attempts: Checking if image exists..."
 
-            # Try to pull the image to check if it exists
-            if docker pull ${{ steps.scan-image.outputs.image }} 2>/dev/null; then
-              echo "✅ Image is available!"
-              break
-            else
-              echo "⏳ Image not yet available, waiting 10 seconds..."
-              sleep 10
-              attempt=$((attempt + 1))
-            fi
-          done
+  #           # Try to pull the image to check if it exists
+  #           if docker pull ${{ steps.scan-image.outputs.image }} 2>/dev/null; then
+  #             echo "✅ Image is available!"
+  #             break
+  #           else
+  #             echo "⏳ Image not yet available, waiting 10 seconds..."
+  #             sleep 10
+  #             attempt=$((attempt + 1))
+  #           fi
+  #         done
 
-          if [ $attempt -gt $max_attempts ]; then
-            echo "❌ Image did not become available within 5 minutes"
-            exit 1
-          fi
+  #         if [ $attempt -gt $max_attempts ]; then
+  #           echo "❌ Image did not become available within 5 minutes"
+  #           exit 1
+  #         fi
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: "image"
-          scan-ref: ${{ steps.scan-image.outputs.image }}
-          format: "sarif"
-          output: "trivy-results.sarif"
+  #     - name: Run Trivy vulnerability scanner
+  #       uses: aquasecurity/trivy-action@master
+  #       with:
+  #         scan-type: "image"
+  #         scan-ref: ${{ steps.scan-image.outputs.image }}
+  #         format: "sarif"
+  #         output: "trivy-results.sarif"
 
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always() && github.event.repository.private == false
-        continue-on-error: true
-        with:
-          sarif_file: "trivy-results.sarif"
+  #     - name: Upload Trivy scan results to GitHub Security tab
+  #       uses: github/codeql-action/upload-sarif@v3
+  #       if: always() && github.event.repository.private == false
+  #       continue-on-error: true
+  #       with:
+  #         sarif_file: "trivy-results.sarif"
 
-      - name: Check SARIF upload status
-        if: always()
-        run: |
-          if [ -f "trivy-results.sarif" ]; then
-            echo "✅ Trivy SARIF file generated successfully"
-            echo "📊 SARIF file size: $(stat -f%z trivy-results.sarif 2>/dev/null || stat -c%s trivy-results.sarif 2>/dev/null || echo 'unknown') bytes"
+  #     - name: Check SARIF upload status
+  #       if: always()
+  #       run: |
+  #         if [ -f "trivy-results.sarif" ]; then
+  #           echo "✅ Trivy SARIF file generated successfully"
+  #           echo "📊 SARIF file size: $(stat -f%z trivy-results.sarif 2>/dev/null || stat -c%s trivy-results.sarif 2>/dev/null || echo 'unknown') bytes"
 
-            # Check if Advanced Security is likely enabled
-            if [ "${{ github.event.repository.private }}" == "false" ]; then
-              echo "ℹ️  Repository is public - SARIF upload attempted"
-              echo "📋 If upload failed, enable GitHub Advanced Security for this repository:"
-              echo "   Settings → Security → Code security → Enable CodeQL analysis"
-            else
-              echo "🔒 Repository is private - Advanced Security may not be available"
-            fi
-          else
-            echo "⚠️  Trivy SARIF file not found"
-          fi
+  #           # Check if Advanced Security is likely enabled
+  #           if [ "${{ github.event.repository.private }}" == "false" ]; then
+  #             echo "ℹ️  Repository is public - SARIF upload attempted"
+  #             echo "📋 If upload failed, enable GitHub Advanced Security for this repository:"
+  #             echo "   Settings → Security → Code security → Enable CodeQL analysis"
+  #           else
+  #             echo "🔒 Repository is private - Advanced Security may not be available"
+  #           fi
+  #         else
+  #           echo "⚠️  Trivy SARIF file not found"
+  #         fi
 
   deploy:
     name: Deploy to ArgoCD
     runs-on: ubicloud-standard-2-arm
-    needs: [build, security-scan]
+    # needs: [build, security-scan]
     if: success() && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
     environment: ${{ github.event.inputs.environment || 'dev' }}
 
@@ -520,12 +524,6 @@ jobs:
         run: |
           # Update the image tag in the Kubernetes deployment manifest
           IMAGE_TAG=${{ github.sha }}
-          if [ "${{ needs.build.outputs.new_release_published }}" == "true" ]; then
-            IMAGE_TAG=${{ needs.build.outputs.new_release_version }}
-          fi
-
-          # Extract the first image URL from the multi-line output
-          IMAGE_URL=$(echo "${{ needs.build.outputs.image-url }}" | head -n 1)
 
           # Use the latest image for main branch, or commit-specific image for others
           if [ "${{ github.ref }}" == "refs/heads/main" ]; then
@@ -543,6 +541,9 @@ jobs:
 
           git add k8s/deployment.yaml
           git commit -m "chore: update application image to ${IMAGE_TAG}" || echo "No changes to commit"
+
+          # Pull latest changes to avoid conflicts
+          git pull origin main --rebase
 
           # Push changes to trigger ArgoCD
           git push origin HEAD:main
@@ -583,20 +584,20 @@ jobs:
           uploadArtifacts: true
           temporaryPublicStorage: true
 
-  cleanup:
-    name: Cleanup Old Images
-    runs-on: ubicloud-standard-2-arm
-    needs: [build, deploy]
-    if: success() && needs.build.outputs.new_release_published == 'true'
+  # cleanup:
+  #   name: Cleanup Old Images
+  #   runs-on: ubicloud-standard-2-arm
+  #   needs: [build, deploy]
+  #   if: success() && needs.build.outputs.new_release_published == 'true'
 
-    steps:
-      - name: Delete old container images
-        uses: actions/delete-package-versions@v5
-        with:
-          package-name: ${{ env.IMAGE_NAME }}
-          package-type: container
-          min-versions-to-keep: 10
-          delete-only-untagged-versions: true
+  #   steps:
+  #     - name: Delete old container images
+  #       uses: actions/delete-package-versions@v5
+  #       with:
+  #         package-name: ${{ env.IMAGE_NAME }}
+  #         package-type: container
+  #         min-versions-to-keep: 10
+  #         delete-only-untagged-versions: true
 
   notify:
     name: Deployment Notification
@@ -605,11 +606,11 @@ jobs:
         # test,
         # lint,
         # security,
-        build,
-        security-scan,
+        # build,
+        # security-scan,
         deploy,
         performance-test,
-        cleanup,
+        # cleanup,
       ]
     if: always()
 
@@ -623,19 +624,8 @@ jobs:
           # Code Quality - Temporarily commented out
           # Security - Temporarily commented out
 
-          # Build
-          if [ "${{ needs.build.result }}" == "success" ]; then
-            echo "✅ **Build:** Successful" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Build:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Security Scan
-          if [ "${{ needs.security-scan.result }}" == "success" ]; then
-            echo "✅ **Container Security:** Passed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "❌ **Container Security:** Failed" >> $GITHUB_STEP_SUMMARY
-          fi
+          # Build - Temporarily commented out
+          # Security Scan - Temporarily commented out
 
           # Deployment
           if [ "${{ needs.deploy.result }}" == "success" ]; then
@@ -653,21 +643,15 @@ jobs:
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📋 Deployment Details:" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image:** ${{ needs.build.outputs.image-url }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** N/A (build disabled)" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment:** ${{ github.event.inputs.environment || 'dev' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version:** ${{ needs.build.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** N/A (build disabled)" >> $GITHUB_STEP_SUMMARY
           echo "- **GitOps:** ArgoCD" >> $GITHUB_STEP_SUMMARY
           echo "- **Registry:** GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
           echo "- **Architecture:** Hetzner Cloud + k3s" >> $GITHUB_STEP_SUMMARY
           echo "- **Region:** Singapore (ap-southeast)" >> $GITHUB_STEP_SUMMARY
 
-          # Release Info
-          if [ "${{ needs.build.outputs.new_release_published }}" == "true" ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### 🎉 Release Information:" >> $GITHUB_STEP_SUMMARY
-            echo "- **New Release:** v${{ needs.build.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Semantic Release:** ✅ Published" >> $GITHUB_STEP_SUMMARY
-          fi
+          # Release Info - Temporarily commented out (build disabled)
 
       - name: Send Slack Notification
         if: always() && env.SLACK_WEBHOOK_URL
@@ -690,7 +674,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "*Environment:* ${{ github.event.inputs.environment || 'dev' }}\\n*Version:* ${{ needs.build.outputs.new_release_version }}\\n*Image:* ${{ needs.build.outputs.image-url }}\\n*Status:* ${{ needs.deploy.result == 'success' && '✅ Success' || '❌ Failed' }}\\n*Triggered by:* @${{ github.actor }}\\n*Semantic Release:* ${{ needs.build.outputs.new_release_published == 'true' && '✅ Published' || '⏭️ Skipped' }}"
+                    "text": "*Environment:* ${{ github.event.inputs.environment || 'dev' }}\\n*Version:* N/A (build disabled)\\n*Image:* N/A (build disabled)\\n*Status:* ${{ needs.deploy.result == 'success' && '✅ Success' || '❌ Failed' }}\\n*Triggered by:* @${{ github.actor }}\\n*Semantic Release:* ⏭️ Skipped (build disabled)"
                   }
                 }
               ]

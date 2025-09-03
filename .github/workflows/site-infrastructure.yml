@@ -39,6 +39,10 @@ on:
           - cleanup
           - plan-apply
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   TF_VERSION: "1.8.0"
   TF_WORKING_DIR: infra/pipeline/site-infrastructure
