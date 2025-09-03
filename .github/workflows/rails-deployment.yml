@@ -64,7 +64,8 @@ jobs:
   test:
     name: Run Comprehensive Tests
     runs-on: ubicloud-standard-2-arm
-    if: github.event.inputs.skip_tests != true
+    needs: security
+    if: success()
     services:
       postgres:
         image: postgres:15
@@ -182,8 +183,7 @@ jobs:
   lint:
     name: Code Quality & Linting
     runs-on: ubicloud-standard-2-arm
-    needs: test
-    if: success() || github.event.inputs.skip_tests == true
+    if: success()
 
     steps:
       - name: Checkout code
@@ -232,8 +232,11 @@ jobs:
           ruby-version: 3.4.5
           bundler-cache: false
 
+      - name: Install dependencies
+        run: bundle install
+
       - name: Run bundle audit
-        run: bundle audit check --update
+        run: bundle exec bundle-audit check --update
 
       - name: Run Brakeman security scan
         run: bundle exec brakeman --quiet --format json --output brakeman-report.json
@@ -248,7 +251,7 @@ jobs:
   build:
     name: Build Docker Image
     runs-on: ubicloud-standard-2-arm
-    needs: [lint, security]
+    needs: [lint, security, test]
     if: success()
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}

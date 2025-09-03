@@ -95,7 +95,7 @@ locals {
   # For "dev.magebase.dev" -> "magebase.dev"
   # For "magebase.dev" -> "magebase.dev"
   domain_parts = split(".", var.domain_name)
-  root_domain = length(local.domain_parts) > 2 ? join(".", slice(local.domain_parts, 1, length(local.domain_parts))) : var.domain_name
+  root_domain  = length(local.domain_parts) > 2 ? join(".", slice(local.domain_parts, 1, length(local.domain_parts))) : var.domain_name
   # Extract subdomain if it exists
   # For "dev.magebase.dev" -> "dev"
   # For "magebase.dev" -> "@" (root)
