@@ -136,10 +136,9 @@ metadata:
   name: magebase-ingress
   namespace: magebase
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
   tls:
     - hosts:
         - ${DOMAIN}
