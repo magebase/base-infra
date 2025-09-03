@@ -109,7 +109,7 @@ jobs:
     needs: [bootstrap]
     permissions:
       id-token: write
-      contents: read
+      contents: write
       pull-requests: write
     # Skip if we're not doing a full deployment (depends on bootstrap only)
     if: (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
@@ -356,6 +356,59 @@ jobs:
               fi
             fi
           done
+
+      - name: Generate Terraform Outputs
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        run: |
+          echo "📊 Generating Terraform outputs for sharing..."
+          terraform output -json > terraform-outputs.json
+          echo "✅ Outputs generated: terraform-outputs.json"
+
+      - name: Create GitHub Release
+        id: create_release
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: outputs-${{ github.run_id }}
+          release_name: Infrastructure Outputs ${{ github.run_id }}
+          body: |
+            Latest Terraform outputs from base infrastructure deployment.
+
+            **Environment:** ${{ github.event.inputs.environment || 'dev' }}
+            **Generated:** ${{ github.event.head_commit.timestamp }}
+            **Commit:** ${{ github.sha }}
+            **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            This release contains the terraform-outputs.json file with all infrastructure outputs that can be consumed by dependent repositories.
+          draft: false
+          prerelease: false
+
+      - name: Upload Outputs to Release
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./terraform-outputs.json
+          asset_name: terraform-outputs.json
+          asset_content_type: application/json
+
+      - name: Display Release Information
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        run: |
+          echo "## 📦 Infrastructure Outputs Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Release Created:** outputs-${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Outputs File:** terraform-outputs.json" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Download URL:** ${{ github.server_url }}/${{ github.repository }}/releases/download/outputs-${{ github.run_id }}/terraform-outputs.json" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Dependent Repositories:" >> $GITHUB_STEP_SUMMARY
+          echo "- Download the terraform-outputs.json from this release" >> $GITHUB_STEP_SUMMARY
+          echo "- Parse the JSON to extract required values" >> $GITHUB_STEP_SUMMARY
+          echo "- Use outputs in your Terraform configurations" >> $GITHUB_STEP_SUMMARY
 
       # - name: Run Base Infrastructure Terratest
       #   if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
