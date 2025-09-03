@@ -365,14 +365,11 @@ jobs:
           echo "✅ Outputs generated: terraform-outputs.json"
 
       - name: Create GitHub Release
-        id: create_release
         if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: outputs-${{ github.run_id }}
-          release_name: Infrastructure Outputs ${{ github.run_id }}
+          name: Infrastructure Outputs ${{ github.run_id }}
           body: |
             Latest Terraform outputs from base infrastructure deployment.
 
@@ -382,19 +379,9 @@ jobs:
             **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
             This release contains the terraform-outputs.json file with all infrastructure outputs that can be consumed by dependent repositories.
+          files: terraform-outputs.json
           draft: false
           prerelease: false
-
-      - name: Upload Outputs to Release
-        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./terraform-outputs.json
-          asset_name: terraform-outputs.json
-          asset_content_type: application/json
 
       - name: Display Release Information
         if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
