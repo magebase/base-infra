@@ -209,13 +209,12 @@ jobs:
       - name: Run RuboCop
         run: bundle exec rubocop --parallel
 
-      - name: Run ESLint
-        run: npm run lint
+      - name: Run Prettier
+        run: npx prettier --check "**/*.{js,jsx,ts,tsx,json,yaml,yml,md}"
 
       - name: Check code formatting
         run: |
           bundle exec rubocop --format offenses
-          npm run format:check
 
   security:
     name: Security Audit & Scan
