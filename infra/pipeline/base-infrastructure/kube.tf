@@ -929,12 +929,13 @@ module "kube-hetzner" {
   # Additional safeguard: disable kustomization deployment commands
   extra_kustomize_deployment_commands = <<-EOT
     # Brief delay to allow Kustomize application to complete
-    sleep 30
+    sleep 10
 
-    # Wait for CRDs to be established (should be immediate with Kustomize)
-    echo "Waiting for ArgoCD CRDs to be established..."
-    kubectl wait --for condition=established --timeout=120s crd/appprojects.argoproj.io || echo "Warning: appprojects CRD wait failed"
-    kubectl wait --for condition=established --timeout=120s crd/applications.argoproj.io || echo "Warning: applications CRD wait failed"
+    # Optional: Wait for CRDs to be established (usually immediate with Kustomize)
+    # Uncomment the lines below if you experience CRD-related issues:
+    # echo "Waiting for ArgoCD CRDs to be established..."
+    # kubectl wait --for condition=established --timeout=60s crd/appprojects.argoproj.io || echo "Warning: appprojects CRD wait failed"
+    # kubectl wait --for condition=established --timeout=60s crd/applications.argoproj.io || echo "Warning: applications CRD wait failed"
 
     # Wait for ArgoCD deployment
     echo "Waiting for ArgoCD server deployment..."
