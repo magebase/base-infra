@@ -193,7 +193,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.4.5
-          bundler-cache: true
+          bundler-cache: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -241,7 +241,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.4.5
-          bundler-cache: true
+          bundler-cache: false
 
       - name: Run bundle audit
         run: bundle audit check --update
