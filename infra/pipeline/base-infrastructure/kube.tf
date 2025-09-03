@@ -948,18 +948,14 @@ module "kube-hetzner" {
     echo "Waiting for ArgoCD server deployment..."
     kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || echo "Warning: ArgoCD server deployment wait failed"
 
-    # Wait for Kubernetes Dashboard deployment
-    echo "Waiting for Kubernetes Dashboard deployment..."
-    kubectl wait --for=condition=available --timeout=300s deployment/kubernetes-dashboard -n kubernetes-dashboard || echo "Warning: Dashboard deployment wait failed"
-
-    echo "ArgoCD and Dashboard deployment completed successfully"
+    echo "ArgoCD deployment completed successfully"
   EOT
 
   # Additional safeguard: empty kustomization parameters
   extra_kustomize_parameters = {
     environment           = var.environment
     domain                = var.domain != "" ? var.domain : "magebase.dev"
-    argocd_admin_password = var.argocd_admin_password != "" ? var.argocd_admin_password : "admin123" # Default for dev, should be changed in prod
+    argocd_admin_password = var.argocd_admin_password != "" ? base64encode(var.argocd_admin_password) : base64encode("admin123") # Default for dev, should be changed in prod
     encryption_key        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
   }
 

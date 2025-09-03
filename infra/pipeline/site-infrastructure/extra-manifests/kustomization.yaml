@@ -15,7 +15,6 @@ namespace: monitoring
 # Resources to deploy - Only monitoring components, no ArgoCD, CNPG, or magebase apps
 resources:
   - kube-prometheus-stack.yaml
-  - kubernetes-dashboard.yaml
 
 # Patches for environment-specific configuration
 patchesStrategicMerge:

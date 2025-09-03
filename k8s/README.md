@@ -165,7 +165,6 @@ curl https://your-domain.com/health
 docker build -t $IMAGE_REGISTRY/$IMAGE_NAME:$IMAGE_TAG .
 docker push $IMAGE_REGISTRY/$IMAGE_NAME:$IMAGE_TAG
 k8s/
-kubectl -n kubernetes-dashboard create token admin-user
 kubectl apply -f dev-manifests.yaml
 kubectl apply -f prod-manifests.yaml
 kubectl create job --from=cronjob/magebase-db-backup manual-backup-001 -n magebase-prod
@@ -184,7 +183,6 @@ kubectl logs -f deployment/magebase-app -n magebase-dev
 kubectl logs -l app.kubernetes.io/name=cloudnative-pg -n magebase-prod
 kubectl logs <pod-name> -n magebase-prod
 kubectl port-forward svc/kube-prometheus-stack-grafana 3000:80 -n monitoring
-kubectl port-forward svc/kubernetes-dashboard-kong-proxy 8443:443 -n kubernetes-dashboard
 kubectl scale deployment magebase-app --replicas=5 -n magebase-prod
 kustomize build . | envsubst > dev-manifests.yaml
 kustomize build . | envsubst > prod-manifests.yaml

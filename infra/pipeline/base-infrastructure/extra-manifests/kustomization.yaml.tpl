@@ -61,7 +61,7 @@ patches:
       - op: add
         path: /data
         value:
-          admin.password: $(ARGOCD_ADMIN_PASSWORD)
+          admin.password: $(argocd_admin_password)
           admin.passwordMtime: "2025-01-01T00:00:00Z"
     target:
       kind: Secret
