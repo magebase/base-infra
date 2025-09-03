@@ -475,9 +475,29 @@ jobs:
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
+        if: always() && github.event.repository.private == false
+        continue-on-error: true
         with:
           sarif_file: "trivy-results.sarif"
+
+      - name: Check SARIF upload status
+        if: always()
+        run: |
+          if [ -f "trivy-results.sarif" ]; then
+            echo "✅ Trivy SARIF file generated successfully"
+            echo "📊 SARIF file size: $(stat -f%z trivy-results.sarif 2>/dev/null || stat -c%s trivy-results.sarif 2>/dev/null || echo 'unknown') bytes"
+
+            # Check if Advanced Security is likely enabled
+            if [ "${{ github.event.repository.private }}" == "false" ]; then
+              echo "ℹ️  Repository is public - SARIF upload attempted"
+              echo "📋 If upload failed, enable GitHub Advanced Security for this repository:"
+              echo "   Settings → Security → Code security → Enable CodeQL analysis"
+            else
+              echo "🔒 Repository is private - Advanced Security may not be available"
+            fi
+          else
+            echo "⚠️  Trivy SARIF file not found"
+          fi
 
   deploy:
     name: Deploy to ArgoCD
