@@ -281,6 +281,8 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: false
+          lfs: false
 
       - name: Configure Git
         run: |
@@ -293,13 +295,34 @@ jobs:
           node-version: "18"
           cache: "npm"
 
+      - name: Cache semantic-release dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            /usr/local/lib/node_modules
+          key: semantic-release-${{ runner.os }}-${{ hashFiles('package.json', 'package-lock.json') }}
+          restore-keys: |
+            semantic-release-${{ runner.os }}-
+
       - name: Install semantic-release
         run: |
-          npm install -g semantic-release
-          npm install -g @semantic-release/git
-          npm install -g @semantic-release/github
-          npm install -g @semantic-release/changelog
-          npm install -g @semantic-release/exec
+          # Check if semantic-release is already installed
+          if ! command -v semantic-release &> /dev/null; then
+            npm install -g semantic-release
+          fi
+          if ! npm list -g @semantic-release/git &> /dev/null; then
+            npm install -g @semantic-release/git
+          fi
+          if ! npm list -g @semantic-release/github &> /dev/null; then
+            npm install -g @semantic-release/github
+          fi
+          if ! npm list -g @semantic-release/changelog &> /dev/null; then
+            npm install -g @semantic-release/changelog
+          fi
+          if ! npm list -g @semantic-release/exec &> /dev/null; then
+            npm install -g @semantic-release/exec
+          fi
 
       - name: Run semantic-release
         id: semantic
@@ -327,6 +350,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            network=host
+          buildkitd-flags: --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -334,6 +361,11 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Warm up Docker cache
+        run: |
+          # Try to pull the latest image to warm up the cache
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || echo "No existing image to pull"
 
       - name: Extract metadata
         id: meta
@@ -355,10 +387,20 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: |
+            type=gha,scope=build-${{ github.ref_name }}
+            type=gha,scope=build-main
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-to: |
+            type=gha,scope=build-${{ github.ref_name }},mode=max
           build-args: |
             BUILDKIT_INLINE_CACHE=1
+          platforms: linux/arm64
+          provenance: false
+          sbom: false
+          outputs: |
+            type=image,push=true
+            type=docker
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1
