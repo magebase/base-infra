@@ -189,11 +189,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Create Ruby working directory
+        run: |
+          mkdir -p $HOME/.ruby
+          chmod 755 $HOME/.ruby
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.4.5
           bundler-cache: false
+          working-directory: ${{ github.workspace }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -237,11 +243,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Create Ruby working directory
+        run: |
+          mkdir -p $HOME/.ruby
+          chmod 755 $HOME/.ruby
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.4.5
           bundler-cache: false
+          working-directory: ${{ github.workspace }}
 
       - name: Run bundle audit
         run: bundle audit check --update
