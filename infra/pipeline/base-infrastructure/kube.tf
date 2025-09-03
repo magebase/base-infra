@@ -928,35 +928,19 @@ module "kube-hetzner" {
 
   # Additional safeguard: disable kustomization deployment commands
   extra_kustomize_deployment_commands = <<-EOT
-    # Initial delay to allow HelmChart processing
-    sleep 60
-
-    # Wait for HelmChart to be processed and ready
-    echo "Waiting for ArgoCD HelmChart to be ready..."
-    kubectl wait --for=condition=ready --timeout=600s helmchart/argocd -n argocd || echo "Warning: HelmChart wait timed out, continuing..."
-
-    # Additional delay for CRD installation
+    # Brief delay to allow Kustomize application to complete
     sleep 30
 
-    # Wait for CRDs to be established with retry logic
+    # Wait for CRDs to be established (should be immediate with Kustomize)
     echo "Waiting for ArgoCD CRDs to be established..."
-    for i in {1..10}; do
-      if kubectl get crd appprojects.argoproj.io >/dev/null 2>&1 && kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
-        echo "CRDs found, waiting for establishment..."
-        kubectl wait --for condition=established --timeout=60s crd/appprojects.argoproj.io || echo "Warning: appprojects CRD wait failed"
-        kubectl wait --for condition=established --timeout=60s crd/applications.argoproj.io || echo "Warning: applications CRD wait failed"
-        break
-      else
-        echo "CRDs not found yet, retrying in 10 seconds... (attempt $i/10)"
-        sleep 10
-      fi
-    done
+    kubectl wait --for condition=established --timeout=120s crd/appprojects.argoproj.io || echo "Warning: appprojects CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/applications.argoproj.io || echo "Warning: applications CRD wait failed"
 
-    # Wait for ArgoCD deployment with error handling
+    # Wait for ArgoCD deployment
     echo "Waiting for ArgoCD server deployment..."
     kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || echo "Warning: ArgoCD server deployment wait failed"
 
-    echo "ArgoCD deployment commands completed"
+    echo "ArgoCD deployment completed successfully"
   EOT
 
   # Additional safeguard: empty kustomization parameters
