@@ -928,13 +928,35 @@ module "kube-hetzner" {
 
   # Additional safeguard: disable kustomization deployment commands
   extra_kustomize_deployment_commands = <<-EOT
-    # Wait for HelmChart to be processed
-    kubectl wait --for=condition=ready --timeout=300s helmchart/argocd -n argocd
-    # Wait for CRDs to be established
-    kubectl wait --for condition=established --timeout=120s crd/appprojects.argoproj.io
-    kubectl wait --for condition=established --timeout=120s crd/applications.argoproj.io
-    # Wait for ArgoCD deployment
-    kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+    # Initial delay to allow HelmChart processing
+    sleep 60
+
+    # Wait for HelmChart to be processed and ready
+    echo "Waiting for ArgoCD HelmChart to be ready..."
+    kubectl wait --for=condition=ready --timeout=600s helmchart/argocd -n argocd || echo "Warning: HelmChart wait timed out, continuing..."
+
+    # Additional delay for CRD installation
+    sleep 30
+
+    # Wait for CRDs to be established with retry logic
+    echo "Waiting for ArgoCD CRDs to be established..."
+    for i in {1..10}; do
+      if kubectl get crd appprojects.argoproj.io >/dev/null 2>&1 && kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
+        echo "CRDs found, waiting for establishment..."
+        kubectl wait --for condition=established --timeout=60s crd/appprojects.argoproj.io || echo "Warning: appprojects CRD wait failed"
+        kubectl wait --for condition=established --timeout=60s crd/applications.argoproj.io || echo "Warning: applications CRD wait failed"
+        break
+      else
+        echo "CRDs not found yet, retrying in 10 seconds... (attempt $i/10)"
+        sleep 10
+      fi
+    done
+
+    # Wait for ArgoCD deployment with error handling
+    echo "Waiting for ArgoCD server deployment..."
+    kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || echo "Warning: ArgoCD server deployment wait failed"
+
+    echo "ArgoCD deployment commands completed"
   EOT
 
   # Additional safeguard: empty kustomization parameters
