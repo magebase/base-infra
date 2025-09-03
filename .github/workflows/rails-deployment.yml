@@ -548,16 +548,6 @@ jobs:
           # Push changes to trigger ArgoCD
           git push origin HEAD:main
 
-      - name: Sync ArgoCD Application
-        run: |
-          # Login to ArgoCD
-          argocd login ${{ secrets.ARGOCD_SERVER }} --username admin --password ${{ secrets.ARGOCD_PASSWORD }}
-
-          # Sync application
-          ENVIRONMENT=${{ github.event.inputs.environment || 'dev' }}
-          argocd app sync magebase-app-${ENVIRONMENT}
-          argocd app wait magebase-app-${ENVIRONMENT} --timeout 600
-
       - name: Run Health Checks
         run: |
           # Wait for application to be ready
