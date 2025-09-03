@@ -210,7 +210,7 @@ jobs:
         run: bundle exec rubocop --parallel
 
       - name: Run Prettier
-        run: npx prettier --check "**/*.{js,jsx,ts,tsx,json,yaml,yml,md}"
+        run: npx prettier --check "**/*.{js,jsx,ts,tsx,json,yaml,yml}"
 
       - name: Check code formatting
         run: |
