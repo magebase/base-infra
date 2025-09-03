@@ -14,8 +14,8 @@ namespace: argocd
 
 # Resources to deploy - Namespace first, then ArgoCD
 resources:
-  - namespace.yaml.tpl
-  - argocd.yaml.tpl
+  - namespace.yaml
+  - argocd.yaml
 
 # ConfigMap for base infrastructure configuration
 configMapGenerator:
