@@ -382,6 +382,7 @@ jobs:
           files: terraform-outputs.json
           draft: false
           prerelease: false
+          generate_release_notes: true
 
       - name: Display Release Information
         if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
