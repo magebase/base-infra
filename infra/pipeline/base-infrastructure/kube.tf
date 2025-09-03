@@ -928,7 +928,9 @@ module "kube-hetzner" {
 
   # Additional safeguard: disable kustomization deployment commands
   extra_kustomize_deployment_commands = <<-EOT
-    kubectl -n argocd wait --for=condition=complete --timeout=600s job/argocd-install
+    kubectl -n argocd wait --for condition=established --timeout=120s crd/appprojects.argoproj.io
+    kubectl -n argocd wait --for condition=established --timeout=120s crd/applications.argoproj.io
+    kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
   EOT
 
   # Additional safeguard: empty kustomization parameters
