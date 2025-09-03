@@ -12,8 +12,22 @@ resources:
   - network-policies.yaml
   - pod-security.yaml
   - audit-policy.yaml
+  - argocd-secret.yaml
 
 patches:
+  # Patch for ArgoCD secret with admin password
+  - patch: |-
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: argocd-secret
+        namespace: argocd
+      data:
+        admin.password: ${argocd_admin_password}
+        admin.passwordMtime: "MjAyNS0wMS0wMVQwMDowMDowMFo="
+    target:
+      kind: Secret
+      name: argocd-secret
   # Patch for custom domain configuration
   - patch: |-
       - op: replace
@@ -57,13 +71,3 @@ patches:
     target:
       kind: Ingress
       name: argocd-server
-  # Patch for admin password
-  - patch: |-
-      - op: add
-        path: /data
-        value:
-          admin.password: ${argocd_admin_password}
-          admin.passwordMtime: "2025-01-01T00:00:00Z"
-    target:
-      kind: Secret
-      name: argocd-secret

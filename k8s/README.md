@@ -1,95 +1,169 @@
-   AWS_SES_ACCESS_KEY_ID_B64=base64-encoded-access-key
-   AWS_SES_SECRET_ACCESS_KEY_B64=base64-encoded-secret-key
-   Adjust PostgreSQL parameters in `database.yaml` based on your workload:
-   Backups are automatically configured to run daily at 2 AM and stored in AWS S3.
-   CREATE DATABASE magebase;
-   CREATE USER magebase_user WITH PASSWORD 'your-password';
-   Create a `.env` file with the following variables:
-   DOMAIN=your-domain.com
-   GRANT ALL PRIVILEGES ON DATABASE magebase TO magebase_user;
-   HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64=base64-encoded-access-key
-   HETZNER_OBJECT_STORAGE_SECRET_KEY_B64=base64-encoded-secret-key
-   IMAGE_NAME=magebase
-   IMAGE_REGISTRY=your-registry.com
-   IMAGE_TAG=latest
-   RUBY_LLM_API_KEY_B64=base64-encoded-api-key
-   SECRET_KEY_BASE_B64=base64-encoded-secret-key
-   See the `extra-manifests/` directory in the terraform configuration for ArgoCD applications.
-   The infrastructure is set up for GitOps deployments. To enable:
-   This directory contains Kubernetes manifests for deploying Magebase to Hetzner Cloud k3s clusters using GitOps with ArgoCD.
+AWS_SES_ACCESS_KEY_ID_B64=base64-encoded-access-key
+AWS_SES_SECRET_ACCESS_KEY_B64=base64-encoded-secret-key
+Adjust PostgreSQL parameters in `database.yaml` based on your workload:
+Backups are automatically configured to run daily at 2 AM and stored in AWS S3.
+CREATE DATABASE magebase;
+CREATE USER magebase_user WITH PASSWORD 'your-password';
+Create a `.env` file with the following variables:
+DOMAIN=your-domain.com
+GRANT ALL PRIVILEGES ON DATABASE magebase TO magebase_user;
+HETZNER_OBJECT_STORAGE_ACCESS_KEY_B64=base64-encoded-access-key
+HETZNER_OBJECT_STORAGE_SECRET_KEY_B64=base64-encoded-secret-key
+IMAGE_NAME=magebase
+IMAGE_REGISTRY=your-registry.com
+IMAGE_TAG=latest
+RUBY_LLM_API_KEY_B64=base64-encoded-api-key
+SECRET_KEY_BASE_B64=base64-encoded-secret-key
+See the `extra-manifests/` directory in the terraform configuration for ArgoCD applications.
+The infrastructure is set up for GitOps deployments. To enable:
+This directory contains Kubernetes manifests for deploying Magebase to Hetzner Cloud k3s clusters using GitOps with ArgoCD.
+
 # Access at http://localhost:3000
+
 # Access at https://localhost:8443
+
 # Application
+
 # Application health
+
 # Apply to cluster
+
 # Apply to cluster
+
 # Build the application image
+
 # Cache uses the same database as the application (SolidCache with PostgreSQL)
+
 # Check database logs
+
 # Check database pod status
+
 # Check ingress
+
 # Check ingress status
+
 # Check logs
+
 # Check nginx ingress controller
+
 # Check pod events
+
 # Check pod status
+
 # Check services
+
 # Connect to PostgreSQL
+
 # Create database and user
+
 # Database
+
 # Database connectivity
+
 # Generate manifests with environment variables
+
 # Generate manifests with environment variables
+
 # Get Grafana admin password
+
 # Get dashboard token
+
 # List backup jobs
+
 # Magebase Kubernetes Deployment
+
 # Manual backup
+
 # NOTE: With CloudNativePG, DATABASE_URL is automatically generated
+
 # Navigate to dev overlay
+
 # Navigate to prod overlay
+
 # Port forward Grafana
+
 # Port forward dashboard
+
 # Push to registry
+
 # Scale application
+
 # Secrets (base64 encoded)
+
 # View logs
+
 # by the operator and stored in the 'magebase-db-creds' Kubernetes Secret
+
 ## Architecture Overview
+
 ## Backup and Recovery
+
 ## Database Management
+
 ## Deployment Instructions
+
 ## Deployment Instructions
+
 ## Directory Structure
+
 ## Directory Structure
+
 ## Environment Configurations
+
 ## GitOps with ArgoCD
+
 ## Monitoring and Observability
+
 ## Performance Tuning
+
 ## Prerequisites
+
 ## Security Considerations
+
 ## Troubleshooting
+
 ### 1. Build and Push Application Image
+
 ### 2. Deploy to Development Environment
+
 ### 3. Deploy to Production Environment
+
 ### 4. Verify Deployment
+
 ### Accessing Grafana
+
 ### Accessing Kubernetes Dashboard
+
 ### Application Backups
+
 ### Application Scaling
+
 ### Common Issues
+
 ### Database Backups
+
 ### Database Tuning
+
 ### Development
+
 ### Disaster Recovery
+
 ### Environment Variables
+
 ### Health Checks
+
 ### Initial Database Setup
+
 ### Production
+
 ### Required Tools
+
 #### Database Connection Issues
+
 #### Ingress Not Working
+
 #### Pod Not Starting
+
 - **Base Configuration**: Core application, database, and Redis manifests
 - **Database**: 1 PostgreSQL instance, 5Gi storage
 - **Database**: 3 PostgreSQL instances (HA), 50Gi storage
@@ -118,33 +192,55 @@
 - `maintenance_work_mem`
 - `max_connections`
 - `shared_buffers`
+
 1. Configure ArgoCD to watch this repository
 1. Configure deployment approvals for production
 1. Redeploy application from Git
 1. Restore any persistent volumes if needed
 1. Restore from database backup
 1. Set up automatic image updates
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
+
 ```
-````
+
+`````
 ````bash
 ```bash
 ```bash
@@ -199,3 +295,4 @@ kustomize build . | envsubst > prod-manifests.yaml
 └── README.md              # This file
 ├── base/                    # Base Kubernetes manifests
 ├── overlays/               # Environment-specific overlays
+`````
