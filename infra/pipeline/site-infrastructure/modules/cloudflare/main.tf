@@ -123,17 +123,17 @@ resource "cloudflare_dns_record" "root_aaaa" {
   proxied = true
 }
 
-# CNAME record for www subdomain
-resource "cloudflare_dns_record" "www_cname" {
+# Wildcard CNAME record for all subdomains (except those with explicit records)
+resource "cloudflare_dns_record" "wildcard_cname" {
   zone_id = local.zone_id
-  name    = "www.${local.subdomain}"
+  name    = local.subdomain == "@" ? "*" : "*.${local.subdomain}"
   content = local.subdomain == "@" ? local.root_domain : "${local.subdomain}.${local.root_domain}"
   type    = "CNAME"
   ttl     = 1 # Must be 1 when proxied is true
   proxied = true
 }
 
-# CNAME record for CDN subdomain
+# CNAME record for CDN subdomain (takes precedence over wildcard)
 resource "cloudflare_dns_record" "cdn_cname" {
   zone_id = local.zone_id
   name    = "cdn.${local.subdomain}"
