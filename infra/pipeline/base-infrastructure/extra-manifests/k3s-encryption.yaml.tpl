@@ -3,6 +3,10 @@ kind: Secret
 metadata:
   name: k3s-encryption-config
   namespace: kube-system
+  labels:
+    environment: ${environment}
+    app.kubernetes.io/name: k3s
+    app.kubernetes.io/component: encryption-config
 type: Opaque
 stringData:
   encryption-config.yaml: |

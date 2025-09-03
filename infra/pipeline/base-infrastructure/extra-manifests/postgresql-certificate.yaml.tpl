@@ -3,16 +3,17 @@ kind: Certificate
 metadata:
   name: postgresql-tls
   namespace: database
+  labels:
+    environment: ${environment}
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/component: certificate
 spec:
   secretName: postgresql-tls
   issuerRef:
     name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
-    - postgresql.dev.magebase.dev
-    - postgresql.qa.magebase.dev
-    - postgresql.uat.magebase.dev
-    - postgresql.prod.magebase.dev
+    - postgresql.${DOMAIN}
     - postgresql.database.svc.cluster.local
     - postgresql.database.svc
 ---

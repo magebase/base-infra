@@ -3,15 +3,15 @@ kind: Kustomization
 
 namespace: argocd
 resources:
-  - namespace.yaml
+  - namespace.yaml.tpl
   - https://raw.githubusercontent.com/argoproj/argo-cd/v2.9.3/manifests/install.yaml
-  - letsencrypt-issuer.yaml
-  - argocd-certificate.yaml
-  - postgresql-certificate.yaml
-  - k3s-encryption.yaml
-  - network-policies.yaml
-  - pod-security.yaml
-  - audit-policy.yaml
+  - letsencrypt-issuer.yaml.tpl
+  - argocd-certificate.yaml.tpl
+  - postgresql-certificate.yaml.tpl
+  - k3s-encryption.yaml.tpl
+  - network-policies.yaml.tpl
+  - pod-security.yaml.tpl
+  - audit-policy.yaml.tpl
 
 secretGenerator:
   - name: argocd-secret
