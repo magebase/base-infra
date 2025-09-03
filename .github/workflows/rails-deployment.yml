@@ -116,8 +116,18 @@ jobs:
           bundle install
           npm install
 
+      - name: Verify Playwright setup
+        run: |
+          # Verify Ruby gems are installed
+          bundle exec ruby -e "require 'playwright'; puts 'Playwright Ruby gem loaded successfully'"
+          bundle exec ruby -e "require 'capybara-playwright-driver'; puts 'Capybara Playwright driver loaded successfully'"
+
       - name: Install Playwright browsers
-        run: bundle exec playwright install chromium
+        run: |
+          # Install Playwright browsers
+          npx playwright install chromium || ./node_modules/.bin/playwright install chromium || playwright install chromium
+          # Verify playwright installation
+          npx playwright --version || ./node_modules/.bin/playwright --version || playwright --version
 
       - name: Wait for PostgreSQL
         run: |
