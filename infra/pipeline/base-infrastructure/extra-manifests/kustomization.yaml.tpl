@@ -12,8 +12,9 @@ commonLabels:
 # Namespace for base infrastructure components
 namespace: argocd
 
-# Resources to deploy - ONLY ArgoCD for base infrastructure
+# Resources to deploy - Namespace first, then ArgoCD
 resources:
+  - namespace.yaml
   - argocd.yaml
 
 # ConfigMap for base infrastructure configuration
