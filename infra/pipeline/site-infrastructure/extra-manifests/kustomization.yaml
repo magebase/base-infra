@@ -27,7 +27,6 @@ configMapGenerator:
     literals:
       - ENVIRONMENT=${environment}
       - DOMAIN=${domain}
-
 # Secret for sensitive configuration (if needed)
 # secretGenerator:
 #   - name: magebase-secrets
