@@ -816,7 +816,7 @@ module "kube-hetzner" {
   # block_icmp_ping_in = true
 
   # You can enable cert-manager (installed by Helm behind the scenes) with the following flag, the default is "true".
-  # enable_cert_manager = false
+  enable_cert_manager = true
 
   # IP Addresses to use for the DNS Servers, the defaults are the ones provided by Hetzner https://docs.hetzner.com/dns-console/dns/general/recursive-name-servers/.
   # The number of different DNS servers is limited to 3 by Kubernetes itself.
@@ -1000,16 +1000,16 @@ MTU: 1450
   # Cert manager, all cert-manager helm values can be found at https://github.com/cert-manager/cert-manager/blob/master/deploy/charts/cert-manager/values.yaml
   # The following is an example, please note that the current indentation inside the EOT is important.
   # For cert-manager versions < v1.15.0, you need to set installCRDs: true instead of crds.enabled and crds.keep.
-  /*   cert_manager_values = <<EOT
+  cert_manager_values = <<EOT
 crds:
   enabled: true
   keep: true
-replicaCount: 3
+replicaCount: 1
 webhook:
-  replicaCount: 3
+  replicaCount: 1
 cainjector:
-  replicaCount: 3
-  EOT */
+  replicaCount: 1
+  EOT
 
   # Hetzner Cloud Controller Manager, all Hetzner Cloud Controller Manager helm values can be found at https://github.com/hetznercloud/hcloud-cloud-controller-manager/blob/main/chart/values.yaml
   # We advise you to not touch this and to let the defaults that are already set under the hood.

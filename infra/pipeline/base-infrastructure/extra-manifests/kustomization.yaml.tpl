@@ -5,31 +5,17 @@ namespace: argocd
 resources:
   - namespace.yaml
   - https://raw.githubusercontent.com/argoproj/argo-cd/v2.9.3/manifests/install.yaml
+  - letsencrypt-issuer.yaml
+  - argocd-certificate.yaml
 
 patches:
-  # Middleware to handle ArgoCD headers properly
-  - patch: |-
-      apiVersion: traefik.containo.us/v1alpha1
-      kind: Middleware
-      metadata:
-        name: argocd-headers
-        namespace: argocd
-      spec:
-        headers:
-          customRequestHeaders:
-            X-Forwarded-Proto: "http"
-          customResponseHeaders:
-            Strict-Transport-Security: ""
-    target:
-      kind: Middleware
-      name: argocd-headers
   # Patch for custom domain configuration
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/env
         value:
           - name: ARGOCD_SERVER_INSECURE
-            value: "true"
+            value: "false"
           - name: ARGOCD_SERVER_ROOTPATH
             value: "/"
     target:
@@ -43,8 +29,9 @@ patches:
         name: argocd-server
         namespace: argocd
         annotations:
-          traefik.ingress.kubernetes.io/router.entrypoints: web
-          traefik.ingress.kubernetes.io/router.middlewares: argocd-headers@kubernetescrd
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          traefik.ingress.kubernetes.io/router.tls: "true"
       spec:
         rules:
           - host: argocd.$(DOMAIN)
@@ -56,12 +43,11 @@ patches:
                     service:
                       name: argocd-server
                       port:
-                        number: 80
-        # TLS termination handled by load balancer
-        # tls:
-        #   - hosts:
-        #       - argocd.$(DOMAIN)
-        #     secretName: argocd-tls
+                        number: 443
+        tls:
+          - hosts:
+              - argocd.$(DOMAIN)
+            secretName: argocd-tls
     target:
       kind: Ingress
       name: argocd-server
