@@ -51,7 +51,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
-      contents: read
+      contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout code
@@ -206,6 +207,48 @@ jobs:
             echo "SES_SECRET_ACCESS_KEY=$SES_SECRET_ACCESS_KEY" >> $GITHUB_ENV
             echo "✅ SES Secret Access Key captured"
           fi
+
+      - name: Generate Terraform Outputs
+        if: success() && (github.event.inputs.action == 'apply' || github.event_name == 'push' || github.event.inputs.action == 'plan-apply')
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          echo "📊 Generating Terraform outputs for sharing..."
+          terraform output -json > terraform-outputs.json
+          echo "✅ Outputs generated: terraform-outputs.json"
+
+      - name: Create GitHub Release
+        if: success() && (github.event.inputs.action == 'apply' || github.event_name == 'push' || github.event.inputs.action == 'plan-apply')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: site-outputs-${{ github.run_id }}
+          name: Site Infrastructure Outputs ${{ github.run_id }}
+          body: |
+            Latest Terraform outputs from site infrastructure deployment.
+
+            **Environment:** ${{ github.event.inputs.environment || 'dev' }}
+            **Generated:** ${{ github.event.head_commit.timestamp }}
+            **Commit:** ${{ github.sha }}
+            **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            This release contains the terraform-outputs.json file with all site infrastructure outputs that can be consumed by dependent repositories.
+          files: terraform-outputs.json
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+      - name: Display Release Information
+        if: success() && (github.event.inputs.action == 'apply' || github.event_name == 'push' || github.event.inputs.action == 'plan-apply')
+        run: |
+          echo "## 📦 Site Infrastructure Outputs Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Release Created:** site-outputs-${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Outputs File:** terraform-outputs.json" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Download URL:** ${{ github.server_url }}/${{ github.repository }}/releases/download/site-outputs-${{ github.run_id }}/terraform-outputs.json" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Dependent Repositories:" >> $GITHUB_STEP_SUMMARY
+          echo "- Download the terraform-outputs.json from this release" >> $GITHUB_STEP_SUMMARY
+          echo "- Parse the JSON to extract required values" >> $GITHUB_STEP_SUMMARY
+          echo "- Use outputs in your Terraform configurations" >> $GITHUB_STEP_SUMMARY
 
       - name: Terraform Destroy
         if: github.event.inputs.action == 'destroy'

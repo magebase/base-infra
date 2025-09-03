@@ -368,8 +368,8 @@ jobs:
         if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: outputs-${{ github.run_id }}
-          name: Infrastructure Outputs ${{ github.run_id }}
+          tag_name: base-outputs-${{ github.run_id }}
+          name: Base Infrastructure Outputs ${{ github.run_id }}
           body: |
             Latest Terraform outputs from base infrastructure deployment.
 
@@ -389,9 +389,9 @@ jobs:
         run: |
           echo "## 📦 Infrastructure Outputs Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ **Release Created:** outputs-${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Release Created:** base-outputs-${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
           echo "📊 **Outputs File:** terraform-outputs.json" >> $GITHUB_STEP_SUMMARY
-          echo "🔗 **Download URL:** ${{ github.server_url }}/${{ github.repository }}/releases/download/outputs-${{ github.run_id }}/terraform-outputs.json" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Download URL:** ${{ github.server_url }}/${{ github.repository }}/releases/download/base-outputs-${{ github.run_id }}/terraform-outputs.json" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📋 Dependent Repositories:" >> $GITHUB_STEP_SUMMARY
           echo "- Download the terraform-outputs.json from this release" >> $GITHUB_STEP_SUMMARY
