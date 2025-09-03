@@ -39,7 +39,7 @@ patches:
           traefik.ingress.kubernetes.io/router.tls: "true"
       spec:
         rules:
-          - host: argocd.$(DOMAIN)
+          - host: argocd.${DOMAIN}
             http:
               paths:
                 - path: /
@@ -51,7 +51,7 @@ patches:
                         number: 443
         tls:
           - hosts:
-              - argocd.$(DOMAIN)
+              - argocd.${DOMAIN}
             secretName: argocd-tls
     target:
       kind: Ingress
@@ -61,7 +61,7 @@ patches:
       - op: add
         path: /data
         value:
-          admin.password: $(argocd_admin_password)
+          admin.password: ${argocd_admin_password}
           admin.passwordMtime: "2025-01-01T00:00:00Z"
     target:
       kind: Secret
