@@ -33,6 +33,13 @@ locals {
   cluster_name = "${var.environment}-magebase"
 }
 
+# Generate encryption key for k3s secrets and etcd encryption
+resource "random_password" "encryption_key" {
+  length  = 32
+  special = true
+  # This will generate a 32-byte key suitable for AES encryption
+}
+
 module "kube-hetzner" {
   providers = {
     hcloud = hcloud
@@ -953,6 +960,7 @@ module "kube-hetzner" {
     environment           = var.environment
     domain                = var.domain != "" ? var.domain : "magebase.dev"
     argocd_admin_password = var.argocd_admin_password != "" ? var.argocd_admin_password : "admin123" # Default for dev, should be changed in prod
+    encryption_key        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
   }
 
   # Disable export of values files to prevent any kustomization-related operations

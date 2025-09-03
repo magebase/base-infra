@@ -15,7 +15,7 @@ stringData:
       - aescbc:
           keys:
           - name: key1
-            secret: ${ENCRYPTION_KEY}
+            secret: ${encryption_key}
       - identity: {}
 ---
 apiVersion: v1
@@ -36,5 +36,5 @@ data:
       - aescbc:
           keys:
           - name: key1
-            secret: ${ENCRYPTION_KEY}
+            secret: ${encryption_key}
       - identity: {}
