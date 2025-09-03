@@ -133,10 +133,20 @@ resource "cloudflare_dns_record" "www_cname" {
   proxied = true
 }
 
-# CNAME record for Dashboard subdomain
-resource "cloudflare_dns_record" "dashboard_cname" {
+# CNAME record for CDN subdomain
+resource "cloudflare_dns_record" "cdn_cname" {
   zone_id = local.zone_id
-  name    = "dashboard"
+  name    = "cdn.${local.subdomain}"
+  content = local.subdomain == "@" ? local.root_domain : "${local.subdomain}.${local.root_domain}"
+  type    = "CNAME"
+  ttl     = 1 # Must be 1 when proxied is true
+  proxied = true
+}
+
+# CNAME record for ArgoCD subdomain
+resource "cloudflare_dns_record" "argocd_cname" {
+  zone_id = local.zone_id
+  name    = "argocd.${local.subdomain}"
   content = local.subdomain == "@" ? local.root_domain : "${local.subdomain}.${local.root_domain}"
   type    = "CNAME"
   ttl     = 1 # Must be 1 when proxied is true
