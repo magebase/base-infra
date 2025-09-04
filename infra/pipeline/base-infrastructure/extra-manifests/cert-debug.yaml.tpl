@@ -78,21 +78,21 @@ data:
   check-dns-propagation.sh: |
     #!/bin/bash
 
-    DOMAIN="${1:-argocd.dev.magebase.dev}"
+    DOMAIN="$${1:-argocd.dev.magebase.dev}"
 
-    echo "Checking DNS propagation for $DOMAIN"
+    echo "Checking DNS propagation for $$DOMAIN"
     echo
 
     echo "DNS A records:"
-    dig +short A $DOMAIN
+    dig +short A $$DOMAIN
     echo
 
     echo "DNS CNAME records:"
-    dig +short CNAME $DOMAIN
+    dig +short CNAME $$DOMAIN
     echo
 
     echo "DNS TXT records (for ACME challenges):"
-    dig +short TXT "_acme-challenge.$DOMAIN"
+    dig +short TXT "_acme-challenge.$$DOMAIN"
     echo
 
 ---
@@ -100,7 +100,7 @@ data:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cert-debug-${environment}-$(date +%s)
+  name: cert-debug-${environment}-$$(date +%s)
   namespace: cert-manager
   labels:
     app.kubernetes.io/name: cert-manager-debug
