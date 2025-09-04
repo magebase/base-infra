@@ -143,15 +143,15 @@ resource "cloudflare_dns_record" "cdn_cname" {
   proxied = true
 }
 
-# CNAME record for ArgoCD subdomain with environment prefix
-resource "cloudflare_dns_record" "argocd_cname" {
+# A record for ArgoCD subdomain pointing to Hetzner LB for SSL termination
+resource "cloudflare_dns_record" "argocd_a" {
   zone_id = local.zone_id
   # Use environment prefix: dev-argocd.magebase.dev, prod-argocd.magebase.dev
   name    = local.subdomain == "@" ? "prod-argocd" : "${local.subdomain}-argocd"
-  content = local.subdomain == "@" ? local.root_domain : "${local.subdomain}.${local.root_domain}"
-  type    = "CNAME"
-  ttl     = 1    # Must be 1 when proxied is true
-  proxied = true # Enable Cloudflare proxy for SSL termination
+  content = var.cluster_ipv4 # Hetzner LB IP for SSL termination
+  type    = "A"
+  ttl     = 300   # Standard TTL when not proxied
+  proxied = false # Disable Cloudflare proxy for Hetzner LB SSL termination
 }
 
 # SES Domain Verification Record
