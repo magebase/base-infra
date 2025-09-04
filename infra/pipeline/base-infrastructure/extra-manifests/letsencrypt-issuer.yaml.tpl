@@ -9,24 +9,16 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
-      # DNS01 solver for Cloudflare-managed domains (recommended for ArgoCD and other subdomains)
+      # DNS01 solver for Cloudflare-managed domains
       - dns01:
           cloudflare:
             apiTokenSecretRef:
               name: cloudflare-api-token-secret
               key: api-token
         selector:
-          dnsNames:
-            - "*.magebase.dev"
-            - "*.dev.magebase.dev"
-            - "argocd.dev.magebase.dev"
-      # HTTP01 solver for public domains (fallback)
-      - http01:
-          ingress:
-            class: traefik
-        selector:
-          dnsNames:
+          dnsZones:
             - "magebase.dev"
+            - "dev.magebase.dev"
 ---
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
