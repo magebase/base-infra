@@ -6,6 +6,7 @@ resources:
   - trivy-operator.yaml.tpl
   - kube-prometheus.yaml.tpl
   - postgres-operator.yaml.tpl
+  - postgres-clusters.yaml.tpl
   - magebase-genfix.yaml.tpl
   - magebase-site.yaml.tpl
 
