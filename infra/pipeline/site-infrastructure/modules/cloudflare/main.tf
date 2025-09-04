@@ -149,7 +149,7 @@ resource "cloudflare_dns_record" "argocd_cname" {
   name    = "argocd.${local.subdomain}"
   content = local.subdomain == "@" ? local.root_domain : "${local.subdomain}.${local.root_domain}"
   type    = "CNAME"
-  ttl     = 300   # Set higher TTL for DNS-only records
+  ttl     = 60    # Low TTL for faster DNS propagation during setup
   proxied = false # DNS only - required for cert-manager DNS01 challenges
 }
 
