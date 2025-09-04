@@ -150,8 +150,8 @@ resource "cloudflare_dns_record" "argocd_a" {
   name    = local.subdomain == "@" ? "prod-argocd" : "${local.subdomain}-argocd"
   content = var.cluster_ipv4 # Hetzner LB IP for SSL termination
   type    = "A"
-  ttl     = 300   # Standard TTL when not proxied
-  proxied = false # Disable Cloudflare proxy for Hetzner LB SSL termination
+  ttl     = 1    # Must be 1 when proxied is true
+  proxied = true # Enable Cloudflare proxying for SSL termination
 }
 
 # SES Domain Verification Record

@@ -1,22 +1,22 @@
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
 metadata:
-  name: argocd-server-ingress
+  name: argocd-server
   namespace: argocd
-  annotations:
-    # TLS termination at Hetzner LB, HTTP traffic to Traefik
-    traefik.ingress.kubernetes.io/router.entrypoints: "web"
-    traefik.ingress.kubernetes.io/service.serversscheme: "http"
 spec:
-  ingressClassName: traefik
-  rules:
-  - host: dev-argocd.magebase.dev
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: argocd-server
-            port:
-              number: 80  # ArgoCD expects HTTP traffic
+  entryPoints:
+    - websecure
+  routes:
+  - kind: Rule
+    match: Host(`dev-argocd.magebase.dev`)
+    priority: 10
+    services:
+    - name: argocd-server
+      port: 80
+  - kind: Rule
+    match: Host(`dev-argocd.magebase.dev`) && Header(`Content-Type`, `application/grpc`)
+    priority: 11
+    services:
+    - name: argocd-server
+      port: 80
+      scheme: h2c
