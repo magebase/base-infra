@@ -1,25 +1,31 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: magebase-app-dev
+  name: app-of-apps
   namespace: argocd
-  labels:
-    environment: dev
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
-    repoURL: https://github.com/xyz-ekrata/magebase
+    repoURL: https://github.com/magebase/site
+    path: infra/pipeline/base-infrastructure/extra-manifests/argocd/applications
     targetRevision: HEAD
-    path: k8s/overlays/dev
   destination:
     server: https://kubernetes.default.svc
-    namespace: magebase-dev
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+      allowEmpty: false
     syncOptions:
       - CreateNamespace=true
       - PrunePropagationPolicy=foreground
       - PruneLast=true
-  revisionHistoryLimit: 10
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

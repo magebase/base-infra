@@ -14,6 +14,8 @@ resources:
   - audit-policy.yaml
   - argocd-ingress.yaml
   - traefik-middleware.yaml
+  - argocd/applications
+  - postgres
 
 secretGenerator:
   - name: argocd-secret
