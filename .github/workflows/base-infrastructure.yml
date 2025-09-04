@@ -238,6 +238,7 @@ jobs:
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           terraform plan -no-color -out=tfplan
         continue-on-error: true
@@ -250,6 +251,7 @@ jobs:
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           echo "🚀 Running Terraform plan for base infrastructure deployment..."
 
@@ -324,38 +326,35 @@ jobs:
 
       #     echo "✅ Base Infrastructure Terratest completed successfully"
 
-      - name: Terraform Apply
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+      - name: Terraform Apply (Push to Main)
+        id: base-tf-apply-main
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           echo "🚀 Applying base infrastructure changes..."
 
-          # Retry logic for state lock conflicts and resource availability
+          # Apply with retry logic
           MAX_RETRIES=3
           RETRY_COUNT=0
 
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "📋 Apply attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
 
-            # Regenerate plan on each attempt to avoid stale plan issues
-            if [ $RETRY_COUNT -gt 0 ]; then
-              echo "🔄 Regenerating plan for retry attempt..."
-              terraform plan -out=tfplan -no-color
-            fi
-
             if terraform apply -auto-approve tfplan; then
-              echo "✅ Base infrastructure apply completed successfully"
+              echo "✅ Terraform apply completed successfully"
               break
             else
               RETRY_COUNT=$((RETRY_COUNT + 1))
               if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo "⚠️  Base infrastructure apply failed, retrying in 30 seconds..."
+                echo "⚠️  Terraform apply failed, retrying in 30 seconds..."
                 sleep 30
               else
-                echo "❌ Base infrastructure apply failed after $MAX_RETRIES attempts"
+                echo "❌ Terraform apply failed after $MAX_RETRIES attempts"
                 exit 1
               fi
             fi
