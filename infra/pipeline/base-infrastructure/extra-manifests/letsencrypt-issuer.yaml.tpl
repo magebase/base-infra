@@ -9,15 +9,7 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
-      # HTTP01 solver for basic domains
-      - http01:
-          ingress:
-            class: traefik
-        selector:
-          dnsNames:
-            - "magebase.dev"
-            - "*.magebase.dev"
-      # DNS01 solver for subdomains not covered by Cloudflare free SSL
+      # DNS01 solver for Cloudflare-managed domains (recommended for ArgoCD and other subdomains)
       - dns01:
           cloudflare:
             apiTokenSecretRef:
@@ -25,8 +17,16 @@ spec:
               key: api-token
         selector:
           dnsNames:
-            - "argocd.dev.magebase.dev"
+            - "*.magebase.dev"
             - "*.dev.magebase.dev"
+            - "argocd.dev.magebase.dev"
+      # HTTP01 solver for public domains (fallback)
+      - http01:
+          ingress:
+            class: traefik
+        selector:
+          dnsNames:
+            - "magebase.dev"
 ---
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
@@ -39,15 +39,7 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-staging
     solvers:
-      # HTTP01 solver for basic domains
-      - http01:
-          ingress:
-            class: traefik
-        selector:
-          dnsNames:
-            - "magebase.dev"
-            - "*.magebase.dev"
-      # DNS01 solver for subdomains not covered by Cloudflare free SSL
+      # DNS01 solver for Cloudflare-managed domains (recommended for ArgoCD and other subdomains)
       - dns01:
           cloudflare:
             apiTokenSecretRef:
@@ -55,5 +47,13 @@ spec:
               key: api-token
         selector:
           dnsNames:
-            - "argocd.dev.magebase.dev"
+            - "*.magebase.dev"
             - "*.dev.magebase.dev"
+            - "argocd.dev.magebase.dev"
+      # HTTP01 solver for public domains (fallback)
+      - http01:
+          ingress:
+            class: traefik
+        selector:
+          dnsNames:
+            - "magebase.dev"

@@ -9,6 +9,8 @@ resources:
   - cloudflare-secret.yaml
   - argocd-certificate.yaml
   - postgresql-certificate.yaml
+  - cert-debug.yaml
+  - traefik-middleware.yaml
   - k3s-encryption.yaml
   - network-policies.yaml
   - pod-security.yaml
@@ -38,9 +40,11 @@ patches:
         path: /spec/template/spec/containers/0/env
         value:
           - name: ARGOCD_SERVER_INSECURE
-            value: "false"
+            value: "true"
           - name: ARGOCD_SERVER_ROOTPATH
             value: "/"
+          - name: ARGOCD_SERVER_GRPC_WEB
+            value: "true"
     target:
       kind: Deployment
       name: argocd-server
@@ -53,8 +57,10 @@ patches:
         namespace: argocd
         annotations:
           cert-manager.io/cluster-issuer: letsencrypt-prod
-          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
           traefik.ingress.kubernetes.io/router.tls: "true"
+          # Use ArgoCD-specific middleware for proper SSL handling
+          traefik.ingress.kubernetes.io/router.middlewares: argocd-argocd-middleware@kubernetescrd
       spec:
         ingressClassName: traefik
         rules:
@@ -67,7 +73,7 @@ patches:
                     service:
                       name: argocd-server
                       port:
-                        number: 443
+                        number: 80
         tls:
           - hosts:
               - argocd.${DOMAIN}
