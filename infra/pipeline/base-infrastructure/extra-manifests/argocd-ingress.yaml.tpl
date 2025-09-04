@@ -1,31 +1,26 @@
-apiVersion: traefik.containo.us/v1alpha1
-kind: IngressRoute
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: argocd-https
+  name: argocd-server-ingress
   namespace: argocd
   annotations:
-    # This annotation tells Traefik to expect unencrypted HTTP from the load balancer
+    # Let Hetzner LB terminate TLS and forward HTTP to Traefik
     traefik.ingress.kubernetes.io/router.entrypoints: "web"
-    # This annotation tells Traefik to use the http scheme to communicate with the backend service
     traefik.ingress.kubernetes.io/service.serversscheme: "http"
 spec:
-  entryPoints:
-    - websecure
-  routes:
-  - kind: Rule
-    match: Host(`${argocd_fqdn}`)
-    priority: 10
-    services:
-    - kind: Service
-      name: argocd-server
-      port: http
-  - kind: Rule
-    match: >-
-      Host(`${argocd_fqdn}`) &&
-      Headers(`Content-Type`, `application/grpc`)
-    priority: 11
-    services:
-    - kind: Service
-      name: argocd-server
-      port: http
-      scheme: h2c
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - dev-argocd.magebase.dev
+    secretName: argocd-tls
+  rules:
+  - host: dev-argocd.magebase.dev
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: argocd-server
+            port:
+              number: 80  # Corrected from 8080 to match service port
