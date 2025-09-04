@@ -957,6 +957,7 @@ module "kube-hetzner" {
     DOMAIN                = var.domain != "" ? var.domain : "magebase.dev"
     argocd_admin_password = var.argocd_admin_password != "" ? base64encode(var.argocd_admin_password) : base64encode("admin123") # Default for dev, should be changed in prod
     encryption_key        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
+    cloudflare_api_token  = var.cloudflare_api_token
   }
 
   # Disable export of values files to prevent any kustomization-related operations

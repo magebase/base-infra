@@ -93,6 +93,19 @@ inputs = {
   # Hetzner Configuration
   hcloud_token = get_env("HCLOUD_TOKEN", "")
 
+  # Infrastructure Configuration
+  environment = get_env("ENVIRONMENT", "dev")
+  domain = get_env("DOMAIN", "dev.magebase.dev")
+
+  # SSH Keys
+  ssh_public_key = get_env("SSH_PUBLIC_KEY", "")
+  ssh_private_key = get_env("SSH_PRIVATE_KEY", "")
+
+  # Security
+  argocd_admin_password = get_env("ARGOCD_ADMIN_PASSWORD", "")
+  encryption_key = get_env("ENCRYPTION_KEY", "")
+  cloudflare_api_token = get_env("CLOUDFLARE_API_TOKEN", "")
+
   # Account IDs from org-sso
   development_account_id = dependency.org_sso.outputs.development_account_id
   production_account_id  = dependency.org_sso.outputs.production_account_id

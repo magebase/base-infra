@@ -6,6 +6,7 @@ resources:
   - namespace.yaml
   - https://raw.githubusercontent.com/argoproj/argo-cd/v2.9.3/manifests/install.yaml
   - letsencrypt-issuer.yaml
+  - cloudflare-secret.yaml
   - argocd-certificate.yaml
   - postgresql-certificate.yaml
   - k3s-encryption.yaml
@@ -23,6 +24,14 @@ secretGenerator:
       disableNameSuffixHash: true
 
 patches:
+  # Override namespace for Cloudflare secret to place it in cert-manager namespace
+  - patch: |-
+      - op: replace
+        path: /metadata/namespace
+        value: cert-manager
+    target:
+      kind: Secret
+      name: cloudflare-api-token-secret
   # Patch for custom domain configuration
   - patch: |-
       - op: replace

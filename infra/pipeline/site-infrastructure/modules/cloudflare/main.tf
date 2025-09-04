@@ -149,8 +149,8 @@ resource "cloudflare_dns_record" "argocd_cname" {
   name    = "argocd.${local.subdomain}"
   content = local.subdomain == "@" ? local.root_domain : "${local.subdomain}.${local.root_domain}"
   type    = "CNAME"
-  ttl     = 1 # Must be 1 when proxied is true
-  proxied = true
+  ttl     = 300   # Set higher TTL for DNS-only records
+  proxied = false # DNS only - required for cert-manager DNS01 challenges
 }
 
 # SES Domain Verification Record

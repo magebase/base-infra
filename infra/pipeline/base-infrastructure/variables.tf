@@ -56,3 +56,10 @@ variable "encryption_key" {
   default     = ""
   sensitive   = true
 }
+
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token with Zone:DNS:Edit and Zone:Zone:Read permissions for cert-manager DNS01 challenges"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
