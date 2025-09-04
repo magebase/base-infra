@@ -1236,3 +1236,33 @@ output "lb_ipv4" {
   value       = module.kube-hetzner.ingress_public_ipv4
   description = "IPv4 address of the load balancer"
 }
+
+# IMPORTANT: If you want Traefik TLS passthrough to work end-to-end, the Hetzner Load Balancer
+# must forward raw TCP on port 443 (no TLS termination). By default the module may create an
+# HTTPS listener that terminates TLS. To switch to passthrough you need to update the
+# Hetzner Load Balancer listener to use protocol = "tcp" and target_protocol = "tcp".
+# Example (uncomment and adapt to your module or use the Hetzner console):
+#
+# resource "hcloud_load_balancer" "k3s_lb" {
+#   name    = "k3s-lb"
+#   location = var.hetzner_region
+#   type    = "lb11"
+#
+#   # Listener that forwards raw TCP to targets (passthrough)
+#   listener {
+#     name     = "https-tcp"
+#     protocol = "tcp"
+#     port     = 443
+#     target_port = 443
+#   }
+#
+#   # Targets should be the node IPs where Traefik is running.
+# }
+#
+# If you're using the kube-hetzner module, check the module variables for configuring
+# load balancer listeners. After changing the listener to TCP you must run:
+#
+#   terraform plan
+#   terraform apply
+#
+# to update the load balancer. The change may cause a short interruption.

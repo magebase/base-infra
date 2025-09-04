@@ -33,13 +33,30 @@ patches:
     target:
       kind: Secret
       name: cloudflare-api-token-secret
-  # Patch for custom domain configuration
+  # Patch to mount TLS secret and enable TLS in argocd-server
   - patch: |-
+      - op: add
+        path: /spec/template/spec/volumes
+        value:
+          - name: argocd-tls
+            secret:
+              secretName: argocd-tls
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts
+        value:
+          - name: argocd-tls
+            mountPath: /app/config/tls
+            readOnly: true
+      - op: add
+        path: /spec/template/spec/containers/0/args
+        value:
+          - "--tls-cert-file=/app/config/tls/tls.crt"
+          - "--tls-private-key-file=/app/config/tls/tls.key"
       - op: replace
         path: /spec/template/spec/containers/0/env
         value:
           - name: ARGOCD_SERVER_INSECURE
-            value: "true"
+            value: "false"
           - name: ARGOCD_SERVER_ROOTPATH
             value: "/"
           - name: ARGOCD_SERVER_GRPC_WEB
