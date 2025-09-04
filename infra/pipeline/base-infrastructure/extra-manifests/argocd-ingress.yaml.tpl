@@ -1,22 +1,28 @@
-apiVersion: traefik.io/v1alpha1
+apiVersion: traefik.containo.us/v1alpha1
 kind: IngressRoute
 metadata:
-  name: argocd-server
+  name: argocd-https
   namespace: argocd
 spec:
   entryPoints:
     - websecure
   routes:
   - kind: Rule
-    match: Host(`dev-argocd.magebase.dev`)
+    match: Host(`${environment}-argocd.${domain_name}`)
     priority: 10
     services:
-    - name: argocd-server
-      port: 80
+    - kind: Service
+      name: argocd-server
+      port: http
   - kind: Rule
-    match: Host(`dev-argocd.magebase.dev`) && Header(`Content-Type`, `application/grpc`)
+    match: >-
+      Host(`${environment}-argocd.${domain_name}`) &&
+      Headers(`Content-Type`, `application/grpc`)
     priority: 11
     services:
-    - name: argocd-server
-      port: 80
+    - kind: Service
+      name: argocd-server
+      port: http
       scheme: h2c
+  tls:
+    secretName: argocd-tls
