@@ -11,10 +11,10 @@ spec:
   ingressClassName: traefik
   tls:
   - hosts:
-    - dev-argocd.magebase.dev
+    - {argocd_fqdn}
     secretName: argocd-tls
   rules:
-  - host: dev-argocd.magebase.dev
+  - host: {argocd_fqdn}
     http:
       paths:
       - path: /
