@@ -278,6 +278,13 @@ module "kube-hetzner" {
   load_balancer_type     = "lb11"
   load_balancer_location = var.hetzner_region
 
+  # Configure LB listener for HTTPS termination
+  load_balancer_listener = {
+    protocol    = "https"
+    port        = 443
+    target_port = 80
+  }
+
   # Disable IPv6 for the load balancer, the default is false.
   # load_balancer_disable_ipv6 = true
 
@@ -1101,7 +1108,7 @@ persistence:
 
   # Traefik, all Traefik helm values can be found at https://github.com/traefik/traefik-helm-chart/blob/master/traefik/values.yaml
   # The following is an example, please note that the current indentation inside the EOT is important.
-  /*   traefik_values = <<EOT
+  traefik_values = <<EOT
 deployment:
   replicas: 1
 globalArguments: []
@@ -1114,6 +1121,7 @@ service:
     "load-balancer.hetzner.cloud/disable-private-ingress": "true"
     "load-balancer.hetzner.cloud/location": "nbg1"
     "load-balancer.hetzner.cloud/type": "lb11"
+    "load-balancer.hetzner.cloud/protocol": "https"
     "load-balancer.hetzner.cloud/uses-proxyprotocol": "true"
 
 ports:
@@ -1141,7 +1149,7 @@ ports:
       trustedIPs:
         - 127.0.0.1/32
         - 10.0.0.0/8
-  EOT */
+  EOT
 
   # If you want to use a specific Nginx helm chart version, set it below; otherwise, leave them as-is for the latest versions.
   # See https://github.com/kubernetes/ingress-nginx?tab=readme-ov-file#supported-versions-table for the available versions.
