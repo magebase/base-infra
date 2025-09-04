@@ -13,6 +13,7 @@ resources:
   - pod-security.yaml
   - audit-policy.yaml
   - argocd-ingress.yaml
+  - traefik-middleware.yaml
 
 secretGenerator:
   - name: argocd-secret
@@ -32,3 +33,15 @@ patches:
     target:
       kind: Secret
       name: cloudflare-api-token-secret
+  # Configure ArgoCD server to serve HTTP instead of HTTPS
+  - patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: argocd-cmd-params-cm
+        namespace: argocd
+      data:
+        server.insecure: "true"
+    target:
+      kind: ConfigMap
+      name: argocd-cmd-params-cm
