@@ -13,7 +13,7 @@ spec:
     - websecure
   routes:
   - kind: Rule
-    match: Host(`${domain}`)
+    match: Host(`${argocd_fqdn}`)
     priority: 10
     services:
     - kind: Service
@@ -21,7 +21,7 @@ spec:
       port: http
   - kind: Rule
     match: >-
-      Host(`${domain}`) &&
+      Host(`${argocd_fqdn}`) &&
       Headers(`Content-Type`, `application/grpc`)
     priority: 11
     services:

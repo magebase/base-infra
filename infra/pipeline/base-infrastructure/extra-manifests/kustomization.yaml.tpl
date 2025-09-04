@@ -5,7 +5,6 @@ namespace: argocd
 resources:
   - namespace.yaml
   - https://raw.githubusercontent.com/argoproj/argo-cd/v3.1.1/manifests/install.yaml
-  - letsencrypt-issuer.yaml
   - cloudflare-secret.yaml
   - postgresql-certificate.yaml
   - cert-debug.yaml
@@ -33,17 +32,3 @@ patches:
     target:
       kind: Secret
       name: cloudflare-api-token-secret
-  # Patch to mount TLS secret and enable TLS in argocd-server
-  - patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/env
-        value:
-          - name: ARGOCD_SERVER_INSECURE
-            value: "true"
-          - name: ARGOCD_SERVER_ROOTPATH
-            value: "/"
-          - name: ARGOCD_SERVER_GRPC_WEB
-            value: "true"
-    target:
-      kind: Deployment
-      name: argocd-server

@@ -147,7 +147,7 @@ resource "cloudflare_dns_record" "cdn_cname" {
 resource "cloudflare_dns_record" "argocd_a" {
   zone_id = local.zone_id
   # Use environment prefix: dev-argocd.magebase.dev, prod-argocd.magebase.dev
-  name    = local.subdomain == "@" ? "prod-argocd" : "${local.subdomain}-argocd"
+  name    = local.subdomain == "@" ? "argocd" : "argocd-${local.subdomain}"
   content = var.cluster_ipv4 # Hetzner LB IP for SSL termination
   type    = "A"
   ttl     = 1    # Must be 1 when proxied is true

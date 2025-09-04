@@ -43,6 +43,13 @@ variable "domain" {
   default     = ""
 }
 
+variable "argocd_fqdn" {
+  description = "Fully qualified domain name for ArgoCD (e.g. argocd.magebase.dev)"
+  type        = string
+  default     = ""
+
+}
+
 variable "argocd_admin_password" {
   description = "ArgoCD admin password (bcrypt hashed)"
   type        = string
