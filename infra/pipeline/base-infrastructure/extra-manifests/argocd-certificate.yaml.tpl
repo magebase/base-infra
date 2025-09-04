@@ -14,7 +14,7 @@ metadata:
 spec:
   secretName: argocd-tls
   issuerRef:
-    name: letsencrypt-prod
+    name: letsencrypt-staging
     kind: ClusterIssuer
   dnsNames:
     - argocd.${DOMAIN}

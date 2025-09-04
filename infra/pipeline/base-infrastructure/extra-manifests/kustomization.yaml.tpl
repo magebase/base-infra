@@ -10,7 +10,6 @@ resources:
   - argocd-certificate.yaml
   - postgresql-certificate.yaml
   - cert-debug.yaml
-  - traefik-middleware.yaml
   - k3s-encryption.yaml
   - network-policies.yaml
   - pod-security.yaml
