@@ -13,6 +13,7 @@ resources:
   - network-policies.yaml
   - pod-security.yaml
   - audit-policy.yaml
+  - argocd-ingress.yaml
 
 secretGenerator:
   - name: argocd-secret
@@ -45,30 +46,4 @@ patches:
             value: "true"
     target:
       kind: Deployment
-      name: argocd-server
-  # Patch for ingress configuration (HTTP-only, SSL terminated at load balancer)
-  - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: Ingress
-      metadata:
-        name: argocd-server
-        namespace: argocd
-        annotations:
-          traefik.ingress.kubernetes.io/router.entrypoints: web
-          traefik.ingress.kubernetes.io/service.serversscheme: http
-      spec:
-        ingressClassName: traefik
-        rules:
-          - host: ${environment}-argocd.${DOMAIN}
-            http:
-              paths:
-                - path: /
-                  pathType: Prefix
-                  backend:
-                    service:
-                      name: argocd-server
-                      port:
-                        number: 80
-    target:
-      kind: Ingress
       name: argocd-server

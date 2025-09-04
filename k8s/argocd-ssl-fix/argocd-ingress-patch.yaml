@@ -14,7 +14,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: argocd.dev.magebase.dev
+    - host: dev-argocd.magebase.dev
       http:
         paths:
           - path: /
@@ -26,4 +26,4 @@ spec:
                   number: 443
   tls:
     - hosts:
-        - argocd.dev.magebase.dev
+        - dev-argocd.magebase.dev
