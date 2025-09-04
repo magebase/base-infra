@@ -7,6 +7,11 @@ metadata:
     # TCP passthrough from Hetzner LB to Traefik for end-to-end TLS
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
     traefik.ingress.kubernetes.io/service.serversscheme: "https"
+    # Enable TLS passthrough for end-to-end encryption
+    traefik.ingress.kubernetes.io/router.tls.passthrough: "true"
+    # Redirect HTTP to HTTPS
+    traefik.ingress.kubernetes.io/redirect-scheme: https
+    traefik.ingress.kubernetes.io/redirect-permanent: "true"
 spec:
   ingressClassName: traefik
   tls:
@@ -23,4 +28,4 @@ spec:
           service:
             name: argocd-server
             port:
-              number: 80  # Corrected from 8080 to match service port
+              number: 443  # Changed from 80 to 443 for TLS passthrough

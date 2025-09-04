@@ -14,6 +14,7 @@ resources:
   - pod-security.yaml
   - audit-policy.yaml
   - argocd-ingress.yaml
+  - argocd-server-service.yaml
 
 secretGenerator:
   - name: argocd-secret
