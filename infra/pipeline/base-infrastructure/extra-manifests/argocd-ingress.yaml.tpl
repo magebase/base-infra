@@ -3,12 +3,17 @@ kind: IngressRoute
 metadata:
   name: argocd-https
   namespace: argocd
+  annotations:
+    # This annotation tells Traefik to expect unencrypted HTTP from the load balancer
+    traefik.ingress.kubernetes.io/router.entrypoints: "web"
+    # This annotation tells Traefik to use the http scheme to communicate with the backend service
+    traefik.ingress.kubernetes.io/service.serversscheme: "http"
 spec:
   entryPoints:
     - websecure
   routes:
   - kind: Rule
-    match: Host(`${environment}-argocd.${domain_name}`)
+    match: Host(`${domain}`)
     priority: 10
     services:
     - kind: Service
@@ -16,7 +21,7 @@ spec:
       port: http
   - kind: Rule
     match: >-
-      Host(`${environment}-argocd.${domain_name}`) &&
+      Host(`${domain}`) &&
       Headers(`Content-Type`, `application/grpc`)
     priority: 11
     services:
@@ -24,5 +29,3 @@ spec:
       name: argocd-server
       port: http
       scheme: h2c
-  tls:
-    secretName: argocd-tls
