@@ -46,6 +46,7 @@ module "kube-hetzner" {
   }
   hcloud_token = var.hcloud_token != "" ? var.hcloud_token : local.hcloud_token
 
+
   kured_version = "1.19.0"
 
   # Then fill or edit the below values. Only the first values starting with a * are obligatory; the rest can remain with their default values, or you
@@ -277,6 +278,40 @@ module "kube-hetzner" {
   # * LB location and type, the latter will depend on how much load you want it to handle, see https://www.hetzner.com/cloud/load-balancer
   load_balancer_type     = "lb11"
   load_balancer_location = var.hetzner_region
+
+  traefik_values = <<EOT
+  deployment:
+    replicas: 1
+  service:
+    enabled: true
+    type: LoadBalancer
+    annotations:
+      "load-balancer.hetzner.cloud/name": "k3s"
+      "load-balancer.hetzner.cloud/use-private-ip": "true"
+      "load-balancer.hetzner.cloud/disable-private-ingress": "true"
+      "load-balancer.hetzner.cloud/location": "nbg1"
+      "load-balancer.hetzner.cloud/type": "lb11"
+      # Request Hetzner LB to forward raw TCP (passthrough) to nodes
+      "load-balancer.hetzner.cloud/protocol": "tcp"
+      "load-balancer.hetzner.cloud/target-protocol": "tcp"
+
+  # Expose HTTPS only on LB -> node TCP passthrough to Traefik (Traefik will terminate TLS)
+  ports:
+    web:
+      expose: false
+    websecure:
+      port: 443
+      expose: true
+      targetPort: 443
+
+  # Entrypoints: make sure Traefik listens on 80 and 443 (TLS terminated by Traefik)
+  additionalArguments:
+    - "--entrypoints.web.address=:80"
+    - "--entrypoints.websecure.address=:443"
+    - "--entrypoints.websecure.http.tls=true"
+
+  # disable proxy-protocol / forwarded headers at LB level for passthrough
+    EOT
 
   # Disable IPv6 for the load balancer, the default is false.
   # load_balancer_disable_ipv6 = true
@@ -1098,51 +1133,6 @@ persistence:
   # If you want to use a specific Traefik helm chart version, set it below; otherwise, leave them as-is for the latest versions.
   # See https://github.com/traefik/traefik-helm-chart/releases for the available versions.
   # traefik_version = ""
-
-  # Traefik, all Traefik helm values can be found at https://github.com/traefik/traefik-helm-chart/blob/master/traefik/values.yaml
-  # The following is an example, please note that the current indentation inside the EOT is important.
-  traefik_values = <<EOT
-deployment:
-  replicas: 1
-globalArguments: []
-service:
-  enabled: true
-  type: LoadBalancer
-  annotations:
-    "load-balancer.hetzner.cloud/name": "k3s"
-    "load-balancer.hetzner.cloud/use-private-ip": "true"
-    "load-balancer.hetzner.cloud/disable-private-ingress": "true"
-    "load-balancer.hetzner.cloud/location": "nbg1"
-    "load-balancer.hetzner.cloud/type": "lb11"
-    "load-balancer.hetzner.cloud/protocol": "https"
-    "load-balancer.hetzner.cloud/uses-proxyprotocol": "true"
-
-ports:
-  web:
-    redirections:
-      entryPoint:
-        to: websecure
-        scheme: https
-        permanent: true
-
-    proxyProtocol:
-      trustedIPs:
-        - 127.0.0.1/32
-        - 10.0.0.0/8
-    forwardedHeaders:
-      trustedIPs:
-        - 127.0.0.1/32
-        - 10.0.0.0/8
-  websecure:
-    proxyProtocol:
-      trustedIPs:
-        - 127.0.0.1/32
-        - 10.0.0.0/8
-    forwardedHeaders:
-      trustedIPs:
-        - 127.0.0.1/32
-        - 10.0.0.0/8
-  EOT
 
   # If you want to use a specific Nginx helm chart version, set it below; otherwise, leave them as-is for the latest versions.
   # See https://github.com/kubernetes/ingress-nginx?tab=readme-ov-file#supported-versions-table for the available versions.

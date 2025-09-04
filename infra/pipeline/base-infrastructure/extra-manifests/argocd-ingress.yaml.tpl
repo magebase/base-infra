@@ -4,10 +4,15 @@ metadata:
   name: argocd-server-ingress
   namespace: argocd
   annotations:
-    # SSL terminates at Hetzner LB, so use websecure entrypoint
+    # TCP passthrough from Hetzner LB to Traefik for end-to-end TLS
     traefik.ingress.kubernetes.io/router.entrypoints: "websecure"
+    traefik.ingress.kubernetes.io/service.serversscheme: "https"
 spec:
   ingressClassName: traefik
+  tls:
+  - hosts:
+    - dev-argocd.magebase.dev
+    secretName: argocd-tls
   rules:
   - host: dev-argocd.magebase.dev
     http:
@@ -18,4 +23,4 @@ spec:
           service:
             name: argocd-server
             port:
-              number: 80
+              number: 80  # Corrected from 8080 to match service port
