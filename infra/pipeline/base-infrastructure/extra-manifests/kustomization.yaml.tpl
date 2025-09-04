@@ -7,7 +7,6 @@ resources:
   - https://raw.githubusercontent.com/argoproj/argo-cd/v2.9.3/manifests/install.yaml
   - letsencrypt-issuer.yaml
   - cloudflare-secret.yaml
-  - argocd-certificate.yaml
   - postgresql-certificate.yaml
   - cert-debug.yaml
   - k3s-encryption.yaml
@@ -47,7 +46,7 @@ patches:
     target:
       kind: Deployment
       name: argocd-server
-  # Patch for ingress configuration
+  # Patch for ingress configuration (HTTP-only, SSL terminated at load balancer)
   - patch: |-
       apiVersion: networking.k8s.io/v1
       kind: Ingress
@@ -55,14 +54,12 @@ patches:
         name: argocd-server
         namespace: argocd
         annotations:
-          cert-manager.io/cluster-issuer: letsencrypt-prod
-          traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
-          traefik.ingress.kubernetes.io/router.tls: "true"
+          traefik.ingress.kubernetes.io/router.entrypoints: web
           traefik.ingress.kubernetes.io/service.serversscheme: http
       spec:
         ingressClassName: traefik
         rules:
-          - host: argocd.${DOMAIN}
+          - host: ${environment}-argocd.${DOMAIN}
             http:
               paths:
                 - path: /
@@ -72,10 +69,6 @@ patches:
                       name: argocd-server
                       port:
                         number: 80
-        tls:
-          - hosts:
-              - argocd.${DOMAIN}
-            secretName: argocd-tls
     target:
       kind: Ingress
       name: argocd-server

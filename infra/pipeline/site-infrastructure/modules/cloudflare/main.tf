@@ -143,14 +143,15 @@ resource "cloudflare_dns_record" "cdn_cname" {
   proxied = true
 }
 
-# CNAME record for ArgoCD subdomain
+# CNAME record for ArgoCD subdomain with environment prefix
 resource "cloudflare_dns_record" "argocd_cname" {
   zone_id = local.zone_id
-  name    = "argocd.${local.subdomain}"
+  # Use environment prefix: dev-argocd.magebase.dev, prod-argocd.magebase.dev
+  name    = local.subdomain == "@" ? "prod-argocd" : "${local.subdomain}-argocd"
   content = local.subdomain == "@" ? local.root_domain : "${local.subdomain}.${local.root_domain}"
   type    = "CNAME"
-  ttl     = 60    # Low TTL for faster DNS propagation during setup
-  proxied = false # DNS only - required for cert-manager DNS01 challenges
+  ttl     = 1    # Must be 1 when proxied is true
+  proxied = true # Enable Cloudflare proxy for SSL termination
 }
 
 # SES Domain Verification Record
