@@ -278,13 +278,6 @@ module "kube-hetzner" {
   load_balancer_type     = "lb11"
   load_balancer_location = var.hetzner_region
 
-  # Configure LB listener for HTTPS termination
-  load_balancer_listener = {
-    protocol    = "https"
-    port        = 443
-    target_port = 80
-  }
-
   # Disable IPv6 for the load balancer, the default is false.
   # load_balancer_disable_ipv6 = true
 
