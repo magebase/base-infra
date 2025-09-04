@@ -59,8 +59,7 @@ patches:
           cert-manager.io/cluster-issuer: letsencrypt-prod
           traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
           traefik.ingress.kubernetes.io/router.tls: "true"
-          # Use ArgoCD-specific middleware for proper SSL handling
-          traefik.ingress.kubernetes.io/router.middlewares: argocd-argocd-middleware@kubernetescrd
+          traefik.ingress.kubernetes.io/service.serversscheme: http
       spec:
         ingressClassName: traefik
         rules:

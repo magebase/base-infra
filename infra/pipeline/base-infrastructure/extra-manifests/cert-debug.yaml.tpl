@@ -100,7 +100,7 @@ data:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cert-debug-${environment}-$$(date +%s)
+  name: cert-debug-${environment}
   namespace: cert-manager
   labels:
     app.kubernetes.io/name: cert-manager-debug
