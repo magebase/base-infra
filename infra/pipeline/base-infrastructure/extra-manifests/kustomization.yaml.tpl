@@ -6,7 +6,6 @@ resources:
   - https://raw.githubusercontent.com/argoproj/argo-cd/v3.1.1/manifests/install.yaml
   - cloudflare-secret.yaml
   - postgresql-certificate.yaml
-  - cert-debug.yaml
   - k3s-encryption.yaml
   - network-policies.yaml
   - pod-security.yaml
@@ -18,6 +17,7 @@ resources:
   - argocd/applications/trivy-operator.yaml
   - argocd/applications/kube-prometheus.yaml
   - argocd/applications/postgres-operator.yaml
+  - argocd/applications/postgres-clusters.yaml
   - argocd/applications/magebase-genfix.yaml
   - argocd/applications/magebase-site.yaml
   # NOTE: PostgreSQL clusters & backup secrets are now managed exclusively via the
