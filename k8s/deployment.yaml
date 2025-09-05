@@ -129,28 +129,3 @@ spec:
       port: 80
       targetPort: 3000
   type: ClusterIP
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: magebase-ingress
-  namespace: magebase
-  annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
-spec:
-  ingressClassName: traefik
-  tls:
-    - hosts:
-        - ${DOMAIN}
-      secretName: magebase-tls
-  rules:
-    - host: ${DOMAIN}
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: magebase-service
-                port:
-                  number: 80
