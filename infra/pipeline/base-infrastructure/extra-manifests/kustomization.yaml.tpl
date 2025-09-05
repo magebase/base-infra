@@ -14,6 +14,7 @@ resources:
   - audit-policy.yaml
   - argocd-ingress.yaml
   - traefik-middleware.yaml
+  - argocd/github-pat-secret.yaml
   - argocd/applications/app-of-apps.yaml
   - argocd/applications/trivy-operator.yaml
   - argocd/applications/kube-prometheus.yaml

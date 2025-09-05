@@ -968,7 +968,8 @@ module "kube-hetzner" {
     environment           = var.environment
     DOMAIN                = var.domain != "" ? var.domain : "magebase.dev"
     argocd_fqdn           = var.environment == "prod" ? "argocd.${var.domain != "" ? var.domain : "magebase.dev"}" : "argocd-dev.${var.domain != "" ? var.domain : "magebase.dev"}"
-    argocd_admin_password = var.argocd_admin_password != "" ? base64encode(var.argocd_admin_password) : base64encode("admin123") # Default for dev, should be changed in prod
+    argocd_admin_password = var.argocd_password
+    argocd_repo_token     = var.argocd_repo_token
     encryption_key        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
     cloudflare_api_token  = var.cloudflare_api_token
 

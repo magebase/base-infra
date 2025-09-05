@@ -50,6 +50,13 @@ variable "argocd_admin_password" {
   sensitive   = true
 }
 
+variable "argocd_repo_token" {
+  description = "GitHub Personal Access Token for ArgoCD repository access"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "encryption_key" {
   description = "32-byte base64-encoded encryption key for k3s secrets and etcd encryption"
   type        = string
