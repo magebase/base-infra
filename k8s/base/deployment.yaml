@@ -5,33 +5,6 @@ metadata:
   labels:
     name: magebase
 ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: magebase-config
-  namespace: magebase
-data:
-  RAILS_ENV: "production"
-  RAILS_LOG_TO_STDOUT: "true"
-  RAILS_SERVE_STATIC_FILES: "true"
-  SECRET_KEY_BASE: "${SECRET_KEY_BASE}"
-  RUBY_LLM_API_KEY: "${RUBY_LLM_API_KEY}"
-  AWS_SES_ACCESS_KEY_ID: "${AWS_SES_ACCESS_KEY_ID}"
-  AWS_SES_SECRET_ACCESS_KEY: "${AWS_SES_SECRET_ACCESS_KEY}"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: magebase-secrets
-  namespace: magebase
-type: Opaque
-data:
-  # These will be base64 encoded values
-  secret-key-base: "${SECRET_KEY_BASE_B64}"
-  ruby-llm-api-key: "${RUBY_LLM_API_KEY_B64}"
-  aws-ses-access-key-id: "${AWS_SES_ACCESS_KEY_ID_B64}"
-  aws-ses-secret-access-key: "${AWS_SES_SECRET_ACCESS_KEY_B64}"
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:

@@ -66,9 +66,12 @@ metadata:
   name: cloudflare-r2-credentials
   namespace: magebase
 type: Opaque
-data:
-  access_key_id: "${CLOUDFLARE_R2_ACCESS_KEY_B64}"
-  secret_access_key: "${CLOUDFLARE_R2_SECRET_KEY_B64}"
+stringData:
+  # Using stringData to avoid base64 decoding errors when placeholders haven't been substituted yet.
+  # Provide RAW (non-base64) values via pipeline env vars CLOUDFLARE_R2_ACCESS_KEY / CLOUDFLARE_R2_SECRET_KEY.
+  # If your pipeline currently supplies *_B64 variables, switch to raw versions or remove this comment and adjust substitution.
+  access_key_id: "${CLOUDFLARE_R2_ACCESS_KEY}"
+  secret_access_key: "${CLOUDFLARE_R2_SECRET_KEY}"
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup

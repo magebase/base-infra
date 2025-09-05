@@ -25,8 +25,8 @@ metadata:
   name: magebase-secrets
   namespace: magebase
 type: Opaque
-data:
-  # These will be base64 encoded values
+stringData:
+  # Plain values (pipeline can substitute). Kustomize/ArgoCD will base64 encode automatically.
   secret-key-base: "${SECRET_KEY_BASE_B64}"
   ruby-llm-api-key: "${RUBY_LLM_API_KEY_B64}"
   aws-ses-access-key-id: "${AWS_SES_ACCESS_KEY_ID_B64}"
