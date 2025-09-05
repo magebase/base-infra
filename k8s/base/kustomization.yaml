@@ -10,8 +10,8 @@ resources:
 
 images:
   - name: magebase-app
-    newName: ${IMAGE_REGISTRY}/${IMAGE_NAME}
-    newTag: ${IMAGE_TAG}
+    newName: ghcr.io/magebase/site
+    newTag: latest
 
 generatorOptions:
   disableNameSuffixHash: true
