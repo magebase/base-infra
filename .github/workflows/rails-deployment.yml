@@ -27,6 +27,7 @@ on:
       - "package-lock.json"
       - "Dockerfile"
       - "docker-compose.yml"
+      - ".github/workflows/rails-deployment.yml"
       - "k8s/deployment.yaml"
   workflow_dispatch:
     inputs:

@@ -12,13 +12,13 @@ on:
     paths:
       - "infra/**"
       - "k8s/**"
-      - ".github/workflows/unified-infrastructure.yml"
+      - ".github/workflows/base-infrastructure.yml"
   pull_request:
     branches: [main]
     paths:
       - "infra/**"
       - "k8s/**"
-      - ".github/workflows/unified-infrastructure.yml"
+      - ".github/workflows/base-infrastructure.yml"
   workflow_dispatch:
     inputs:
       environment:
