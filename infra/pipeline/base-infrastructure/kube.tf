@@ -947,22 +947,22 @@ module "kube-hetzner" {
   create_kustomization = true
 
   # Additional safeguard: disable kustomization deployment commands
-  extra_kustomize_deployment_commands = <<-EOT
-    # Brief delay to allow Kustomize application to complete
-    sleep 10
+  # extra_kustomize_deployment_commands = <<-EOT
+  #   # Brief delay to allow Kustomize application to complete
+  #   sleep 10
 
-    # Optional: Wait for CRDs to be established (usually immediate with Kustomize)
-    # Uncomment the lines below if you experience CRD-related issues:
-    # echo "Waiting for ArgoCD CRDs to be established..."
-    # kubectl wait --for condition=established --timeout=60s crd/appprojects.argoproj.io || echo "Warning: appprojects CRD wait failed"
-    # kubectl wait --for condition=established --timeout=60s crd/applications.argoproj.io || echo "Warning: applications CRD wait failed"
+  #   # Optional: Wait for CRDs to be established (usually immediate with Kustomize)
+  #   # Uncomment the lines below if you experience CRD-related issues:
+  #   # echo "Waiting for ArgoCD CRDs to be established..."
+  #   # kubectl wait --for condition=established --timeout=60s crd/appprojects.argoproj.io || echo "Warning: appprojects CRD wait failed"
+  #   # kubectl wait --for condition=established --timeout=60s crd/applications.argoproj.io || echo "Warning: applications CRD wait failed"
 
-    # Wait for ArgoCD deployment
-    echo "Waiting for ArgoCD server deployment..."
-    kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || echo "Warning: ArgoCD server deployment wait failed"
+  #   # Wait for ArgoCD deployment
+  #   echo "Waiting for ArgoCD server deployment..."
+  #   kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || echo "Warning: ArgoCD server deployment wait failed"
 
-    echo "ArgoCD deployment completed successfully"
-  EOT
+  #   echo "ArgoCD deployment completed successfully"
+  # EOT
 
   # Additional safeguard: empty kustomization parameters
   extra_kustomize_parameters = {
