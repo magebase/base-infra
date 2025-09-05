@@ -730,7 +730,7 @@ module "kube-hetzner" {
   # k3s_prefer_bundled_bin = true
 
   # Additional flags to pass to the k3s server command (the control plane).
-  k3s_exec_server_args = "--kube-apiserver-arg enable-admission-plugins=PodTolerationRestriction,PodNodeSelector,EventRateLimit --kube-apiserver-arg audit-log-path=/var/log/kubernetes/audit.log --kube-apiserver-arg audit-log-maxage=30 --kube-apiserver-arg audit-log-maxbackup=10 --kube-apiserver-arg audit-log-maxsize=100 --etcd-encryption-provider-config=/etc/rancher/k3s/encryption-config.yaml --secrets-encryption=true --kube-apiserver-arg encryption-provider-config=/etc/rancher/k3s/encryption-config.yaml"
+  k3s_exec_server_args = "--kube-apiserver-arg enable-admission-plugins=PodTolerationRestriction,PodNodeSelector,EventRateLimit --kube-apiserver-arg audit-log-path=/var/log/kubernetes/audit.log --kube-apiserver-arg audit-log-maxage=30 --kube-apiserver-arg audit-log-maxbackup=10 --kube-apiserver-arg audit-log-maxsize=100 --secrets-encryption=true"
 
   # Additional flags to pass to the k3s agent command (every agents nodes, including autoscaler nodepools).
   # k3s_exec_agent_args = "--kubelet-arg kube-reserved=cpu=100m,memory=200Mi,ephemeral-storage=1Gi"
