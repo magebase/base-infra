@@ -56,3 +56,64 @@ patches:
     target:
       kind: ConfigMap
       name: argocd-cmd-params-cm
+  # Rename all conflicting network policies to avoid conflicts
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: default-deny-all
+      namespace: default
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: allow-dns
+      namespace: default
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: allow-api-server
+      namespace: default
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: argocd-allow
+      namespace: argocd
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: argocd-server-network-policy
+      namespace: argocd
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: argocd-redis-network-policy
+      namespace: argocd
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: argocd-repo-server-network-policy
+      namespace: argocd
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: argocd-application-controller-network-policy
+      namespace: argocd
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: argocd-applicationset-controller-network-policy
+      namespace: argocd
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: argocd-dex-server-network-policy
+      namespace: argocd
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: argocd-notifications-controller-network-policy
+      namespace: argocd
+  - patch: kustomization-patch.yaml
+    target:
+      kind: NetworkPolicy
+      name: cert-manager-allow
+      namespace: cert-manager
