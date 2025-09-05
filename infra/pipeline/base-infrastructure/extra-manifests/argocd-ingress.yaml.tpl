@@ -8,11 +8,9 @@ spec:
     - websecure
   routes:
   - kind: Rule
-    match: Host(`{argocd_fqdn}`)
+    match: Host(`argocd-dev.magebase.dev`)
     services:
     - name: argocd-server
       port: 80
-    middlewares:
-    - name: argocd-middleware
   tls:
     secretName: argocd-tls

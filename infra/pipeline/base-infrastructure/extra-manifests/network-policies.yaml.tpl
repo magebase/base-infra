@@ -99,7 +99,11 @@ spec:
       ports:
         - protocol: TCP
           port: 8081
-    - ports:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
         - protocol: UDP
           port: 53
         - protocol: TCP
