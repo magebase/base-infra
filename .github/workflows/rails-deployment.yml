@@ -555,7 +555,7 @@ jobs:
           sleep 30
 
           # Run health checks
-          curl -f https://magebase.dev/health || curl -f https://app-${{ github.event.inputs.environment || 'dev' }}.magebase.dev/health
+          curl -f https://${{ github.event.inputs.environment != 'prod' && format('{0}.', github.event.inputs.environment) || '' }}magebase.dev/health
 
   performance-test:
     name: Performance Testing
