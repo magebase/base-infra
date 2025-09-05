@@ -40,25 +40,6 @@ spec:
       memory: "2Gi"
       cpu: "1000m"
 ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: magebase-redis
-  namespace: magebase
-spec:
-  replicas: 2
-  template:
-    spec:
-      containers:
-        - name: redis
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "200m"
-            limits:
-              memory: "512Mi"
-              cpu: "400m"
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
