@@ -85,16 +85,16 @@ module "cloudflare_dns" {
   ses_mx_record           = module.aws_ses.ses_mx_record
 }
 
-# Cloudflare CDN Configuration for Active Storage
-module "cloudflare_cdn" {
-  source = "./modules/cloudflare/cdn"
+# Cloudflare CDN Configuration for Active Storage (REMOVED - now using R2 custom domain)
+# module "cloudflare_cdn" {
+#   source = "./modules/cloudflare/cdn"
 
-  domain_name              = var.domain_name
-  active_storage_bucket    = module.cloudflare_r2.r2_bucket
-  object_storage_endpoint  = module.cloudflare_r2.r2_endpoint
-  zone_id                  = module.cloudflare_dns.zone_id
-  enable_advanced_features = false # Disable advanced features due to API token limitations
-}
+#   domain_name              = var.domain_name
+#   active_storage_bucket    = module.cloudflare_r2.r2_bucket
+#   object_storage_endpoint  = module.cloudflare_r2.r2_endpoint
+#   zone_id                  = module.cloudflare_dns.zone_id
+#   enable_advanced_features = false # Disable advanced features due to API token limitations
+# }
 
 # AWS SES Configuration (always enabled)
 module "aws_ses" {
@@ -120,6 +120,8 @@ module "cloudflare_r2" {
   cluster_name          = local.cluster_name
   domain_name           = var.domain_name
   cloudflare_account_id = var.cloudflare_account_id
+  environment           = var.environment
+  zone_id               = var.cloudflare_zone_id
 }
 
 output "cloudflare_r2_bucket" {
@@ -144,8 +146,13 @@ output "cloudflare_r2_account_id" {
   sensitive   = true
 }
 
+output "cloudflare_r2_active_storage_custom_domain" {
+  value       = module.cloudflare_r2.r2_active_storage_custom_domain
+  description = "Custom domain for Active Storage R2 bucket"
+}
+
 output "active_storage_cdn_url" {
-  value       = "https://cdn.${var.domain_name}"
+  value       = "https://${module.cloudflare_r2.r2_active_storage_custom_domain}"
   description = "Cloudflare CDN URL for Active Storage files"
 }
 

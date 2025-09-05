@@ -98,26 +98,6 @@ variable "aws_ses_secret_access_key" {
   default     = ""
 }
 
-variable "hetzner_object_storage_access_key" {
-  description = "Hetzner Object Storage access key ID (deprecated - using Cloudflare R2)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "hetzner_object_storage_secret_key" {
-  description = "Hetzner Object Storage secret access key (deprecated - using Cloudflare R2)"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "hetzner_object_storage_endpoint" {
-  description = "Hetzner Object Storage endpoint URL (deprecated - using Cloudflare R2)"
-  type        = string
-  default     = ""
-}
-
 variable "docker_image" {
   description = "Docker image for deployment"
   type        = string
@@ -186,35 +166,4 @@ variable "cloudflare_region" {
     condition     = contains(["EU", "US"], var.cloudflare_region)
     error_message = "Cloudflare region must be either 'EU' or 'US'"
   }
-}
-
-# Kubernetes Configuration
-variable "kubeconfig_path" {
-  description = "Path to the kubeconfig file for accessing the k3s cluster"
-  type        = string
-  default     = "../../../k3s.yaml"
-}
-
-variable "argocd_namespace" {
-  description = "Namespace where ArgoCD is installed"
-  type        = string
-  default     = "argocd"
-}
-
-variable "argocd_repo_url" {
-  description = "Git repository URL containing ArgoCD applications"
-  type        = string
-  default     = "https://github.com/magebase/site"
-}
-
-variable "argocd_repo_branch" {
-  description = "Branch to use for ArgoCD applications"
-  type        = string
-  default     = "main"
-}
-
-variable "argocd_target_revision" {
-  description = "Target revision for ArgoCD applications"
-  type        = string
-  default     = "HEAD"
 }

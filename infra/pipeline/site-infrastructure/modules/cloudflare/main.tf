@@ -133,15 +133,6 @@ resource "cloudflare_dns_record" "wildcard_cname" {
   proxied = true
 }
 
-# CNAME record for CDN subdomain (takes precedence over wildcard)
-resource "cloudflare_dns_record" "cdn_cname" {
-  zone_id = local.zone_id
-  name    = "cdn.${local.subdomain}"
-  content = local.subdomain == "@" ? local.root_domain : "${local.subdomain}.${local.root_domain}"
-  type    = "CNAME"
-  ttl     = 1 # Must be 1 when proxied is true
-  proxied = true
-}
 
 # A record for ArgoCD subdomain pointing to Hetzner LB for SSL termination
 resource "cloudflare_dns_record" "argocd_a" {
