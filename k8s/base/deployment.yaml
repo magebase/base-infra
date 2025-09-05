@@ -24,7 +24,8 @@ spec:
     spec:
       containers:
         - name: magebase
-          image: ${IMAGE_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+          # Use a logical image name so kustomize images directive can rewrite to ${IMAGE_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
+          image: magebase-app:latest
           ports:
             - containerPort: 3000
               name: http
