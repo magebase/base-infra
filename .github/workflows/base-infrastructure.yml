@@ -266,7 +266,6 @@ jobs:
 
       - name: Terraform Plan (Push to Main)
         id: base-tf-plan-main
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         working-directory: infra/pipeline/base-infrastructure
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
