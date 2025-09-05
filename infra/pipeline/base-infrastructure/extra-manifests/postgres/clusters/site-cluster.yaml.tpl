@@ -3,6 +3,8 @@ kind: Cluster
 metadata:
   name: site-db
   namespace: site
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   instances: 1
   imageName: ghcr.io/cloudnative-pg/postgresql:15.6

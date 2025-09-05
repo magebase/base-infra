@@ -8,6 +8,8 @@ kind: Middleware
 metadata:
   name: redirect-https
   namespace: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   labels:
     app.kubernetes.io/name: traefik-middleware
 spec:
@@ -22,6 +24,8 @@ kind: Middleware
 metadata:
   name: security-headers
   namespace: default
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
   labels:
     app.kubernetes.io/name: traefik-middleware
 spec:
@@ -53,6 +57,8 @@ kind: Middleware
 metadata:
   name: argocd-middleware
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
   labels:
     app.kubernetes.io/name: argocd-middleware
 spec:
@@ -68,6 +74,8 @@ kind: Middleware
 metadata:
   name: argocd-server
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
   labels:
     app.kubernetes.io/name: argocd-middleware
 spec:
