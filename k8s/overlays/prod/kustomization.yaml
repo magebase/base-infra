@@ -7,8 +7,8 @@ metadata:
 resources:
   - ../../base
 
-patchesStrategicMerge:
-  - prod-patches.yaml
+patches:
+  - path: prod-patches.yaml
 
 images:
   - name: magebase-app
