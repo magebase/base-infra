@@ -29,11 +29,6 @@ output "r2_bucket" {
   description = "Cloudflare R2 bucket for PostgreSQL backups"
 }
 
-output "r2_active_storage_bucket" {
-  value       = cloudflare_r2_bucket.active_storage.name
-  description = "Cloudflare R2 bucket for Active Storage"
-}
-
 output "r2_endpoint" {
   value       = "https://${var.cloudflare_account_id}.r2.cloudflarestorage.com"
   description = "Cloudflare R2 endpoint URL"
