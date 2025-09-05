@@ -49,6 +49,7 @@ module "cloudflare_r2" {
   cloudflare_account_id = var.cloudflare_account_id
   environment           = var.environment
   zone_id               = var.cloudflare_zone_id
+  cloudflare_api_token  = var.cloudflare_api_token
 }
 
 module "kube-hetzner" {
@@ -1298,14 +1299,4 @@ output "cloudflare_r2_endpoint" {
   value       = module.cloudflare_r2.r2_endpoint
   description = "Cloudflare R2 endpoint URL"
   sensitive   = true
-}
-
-output "cloudflare_r2_active_storage_custom_domain" {
-  value       = module.cloudflare_r2.r2_active_storage_custom_domain
-  description = "Custom domain for Active Storage R2 bucket"
-}
-
-output "active_storage_cdn_url" {
-  value       = "https://${module.cloudflare_r2.r2_active_storage_custom_domain}"
-  description = "Cloudflare CDN URL for Active Storage files"
 }
