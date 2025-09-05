@@ -56,11 +56,14 @@ patches:
     target:
       kind: ConfigMap
       name: argocd-cmd-params-cm
-
-jsonPatches:
+  # Remove the ArgoCD application controller network policy
   - patch: |-
-      - op: remove
-        path: /
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-application-controller-network-policy
+        namespace: argocd
     target:
       kind: NetworkPolicy
       name: argocd-application-controller-network-policy
