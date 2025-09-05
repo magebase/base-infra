@@ -4,7 +4,7 @@ metadata:
   name: k3s-encryption-config
   namespace: kube-system
   labels:
-    environment: ${environment}
+    environment: ${ENVIRONMENT}
     app.kubernetes.io/name: k3s
     app.kubernetes.io/component: encryption-config
 type: Opaque
@@ -19,7 +19,7 @@ stringData:
       - aescbc:
           keys:
           - name: key1
-            secret: ${encryption_key}
+            secret: ${ENCRYPTION_KEY}
       - identity: {}
 ---
 apiVersion: v1
@@ -40,5 +40,5 @@ data:
       - aescbc:
           keys:
           - name: key1
-            secret: ${encryption_key}
+            secret: ${ENCRYPTION_KEY}
       - identity: {}

@@ -40,15 +40,15 @@ resource "random_password" "encryption_key" {
   # This will generate a 32-byte key suitable for AES encryption
 }
 
-# Data source to get Cloudflare R2 outputs from site-infrastructure
-data "terraform_remote_state" "site_infrastructure" {
-  backend = "s3"
-  config = {
-    bucket  = "magebase-tf-state-management-ap-southeast-1"
-    key     = "site-infrastructure/terraform.tfstate"
-    region  = "ap-southeast-1"
-    encrypt = true
-  }
+# Cloudflare R2 Object Storage Configuration
+module "cloudflare_r2" {
+  source = "./modules/cloudflare/r2"
+
+  cluster_name          = local.cluster_name
+  domain_name           = var.domain != "" ? var.domain : "magebase.dev"
+  cloudflare_account_id = var.cloudflare_account_id
+  environment           = var.environment
+  zone_id               = var.cloudflare_zone_id
 }
 
 module "kube-hetzner" {
@@ -965,19 +965,19 @@ module "kube-hetzner" {
 
   # Additional safeguard: empty kustomization parameters
   extra_kustomize_parameters = {
-    environment           = var.environment
+    ENVIRONMENT           = var.environment
     DOMAIN                = var.domain != "" ? var.domain : "magebase.dev"
-    argocd_fqdn           = var.environment == "prod" ? "argocd.${var.domain != "" ? var.domain : "magebase.dev"}" : "argocd-dev.${var.domain != "" ? var.domain : "magebase.dev"}"
-    argocd_admin_password = var.argocd_admin_password
-    argocd_repo_token     = var.argocd_repo_token
-    encryption_key        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
-    cloudflare_api_token  = var.cloudflare_api_token
+    ARGOCD_FQDN           = var.environment == "prod" ? "argocd.${var.domain != "" ? var.domain : "magebase.dev"}" : "argocd-dev.${var.domain != "" ? var.domain : "magebase.dev"}"
+    ARGOCD_ADMIN_PASSWORD = var.argocd_admin_password
+    ARGOCD_REPO_TOKEN     = var.argocd_repo_token
+    ENCRYPTION_KEY        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
+    CLOUDFLARE_API_TOKEN  = var.cloudflare_api_token
 
     # Cloudflare R2 parameters for PostgreSQL backups (with fallbacks)
-    r2_bucket            = try(data.terraform_remote_state.site_infrastructure.outputs.cloudflare_r2_bucket, "dev-magebase-postgres-backups")
-    r2_endpoint          = try(data.terraform_remote_state.site_infrastructure.outputs.cloudflare_r2_endpoint, "https://12345678901234567890.r2.cloudflarestorage.com")
-    r2_access_key_id     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : ""
-    r2_secret_access_key = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : ""
+    R2_BUCKET            = try(module.cloudflare_r2.r2_bucket, "dev-magebase-postgres-backups")
+    R2_ENDPOINT          = try(module.cloudflare_r2.r2_endpoint, "https://12345678901234567890.r2.cloudflarestorage.com")
+    R2_ACCESS_KEY_ID     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : ""
+    R2_SECRET_ACCESS_KEY = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : ""
   }
 
   # Disable export of values files to prevent any kustomization-related operations
@@ -1287,3 +1287,24 @@ output "lb_ipv4" {
 #   terraform apply
 #
 # to update the load balancer. The change may cause a short interruption.
+
+# Cloudflare R2 Outputs
+output "cloudflare_r2_bucket" {
+  value       = module.cloudflare_r2.r2_bucket
+  description = "Cloudflare R2 bucket for PostgreSQL backups"
+}
+
+output "cloudflare_r2_endpoint" {
+  value       = module.cloudflare_r2.r2_endpoint
+  description = "Cloudflare R2 endpoint URL"
+}
+
+output "cloudflare_r2_active_storage_custom_domain" {
+  value       = module.cloudflare_r2.r2_active_storage_custom_domain
+  description = "Custom domain for Active Storage R2 bucket"
+}
+
+output "active_storage_cdn_url" {
+  value       = "https://${module.cloudflare_r2.r2_active_storage_custom_domain}"
+  description = "Cloudflare CDN URL for Active Storage files"
+}

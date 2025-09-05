@@ -4,7 +4,7 @@ metadata:
   name: postgresql-tls
   namespace: database
   labels:
-    environment: ${environment}
+    environment: ${ENVIRONMENT}
     app.kubernetes.io/name: postgresql
     app.kubernetes.io/component: certificate
 spec:

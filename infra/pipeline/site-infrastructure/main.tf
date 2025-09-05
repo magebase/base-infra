@@ -113,49 +113,6 @@ module "aws_ses_users" {
   account_id  = var.management_account_id
 }
 
-# Cloudflare R2 Object Storage Configuration
-module "cloudflare_r2" {
-  source = "./modules/cloudflare/r2"
-
-  cluster_name          = local.cluster_name
-  domain_name           = var.domain_name
-  cloudflare_account_id = var.cloudflare_account_id
-  environment           = var.environment
-  zone_id               = var.cloudflare_zone_id
-}
-
-output "cloudflare_r2_bucket" {
-  value       = module.cloudflare_r2.r2_bucket
-  description = "Cloudflare R2 bucket for PostgreSQL backups"
-}
-
-output "cloudflare_r2_endpoint" {
-  value       = module.cloudflare_r2.r2_endpoint
-  description = "Cloudflare R2 endpoint URL"
-}
-
-output "cloudflare_account_id" {
-  value       = var.cloudflare_account_id
-  description = "Cloudflare Account ID being used for R2 buckets"
-  sensitive   = true
-}
-
-output "cloudflare_r2_account_id" {
-  value       = module.cloudflare_r2.account_id
-  description = "Cloudflare Account ID from R2 module"
-  sensitive   = true
-}
-
-output "cloudflare_r2_active_storage_custom_domain" {
-  value       = module.cloudflare_r2.r2_active_storage_custom_domain
-  description = "Custom domain for Active Storage R2 bucket"
-}
-
-output "active_storage_cdn_url" {
-  value       = "https://${module.cloudflare_r2.r2_active_storage_custom_domain}"
-  description = "Cloudflare CDN URL for Active Storage files"
-}
-
 # AWS Organization Outputs (moved to separate org-sso step)
 # output "development_account_id" {
 #   description = "AWS Account ID for the development account"

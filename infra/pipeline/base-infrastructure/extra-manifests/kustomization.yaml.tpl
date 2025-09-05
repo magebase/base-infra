@@ -30,7 +30,7 @@ secretGenerator:
   - name: argocd-secret
     behavior: merge
     literals:
-      - admin.password=${argocd_admin_password}
+      - admin.password=${ARGOCD_ADMIN_PASSWORD}
       - admin.passwordMtime=MjAyNS0wMS0wMVQwMDowMDowMFo=
     options:
       disableNameSuffixHash: true

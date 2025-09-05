@@ -84,3 +84,16 @@ variable "cloudflare_r2_secret_access_key" {
   default     = ""
   sensitive   = true
 }
+
+variable "cloudflare_account_id" {
+  description = "Cloudflare Account ID for R2 buckets"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "cloudflare_zone_id" {
+  description = "Cloudflare Zone ID for the domain"
+  type        = string
+  default     = ""
+}

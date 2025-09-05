@@ -212,14 +212,14 @@ jobs:
             echo "✅ SES Secret Access Key captured"
           fi
 
-          # Capture Cloudflare R2 endpoint from Terraform outputs
-          echo "☁️ Capturing Cloudflare R2 endpoint..."
-          CLOUDFLARE_R2_ENDPOINT=$(terraform output -raw cloudflare_r2_endpoint 2>/dev/null || echo "")
+          # Capture Cloudflare R2 endpoint from base-infrastructure remote state
+          echo "☁️ Capturing Cloudflare R2 endpoint from base-infrastructure..."
+          CLOUDFLARE_R2_ENDPOINT=$(terraform output -raw -state=../base-infrastructure/terraform.tfstate cloudflare_r2_endpoint 2>/dev/null || echo "")
           if [ -n "$CLOUDFLARE_R2_ENDPOINT" ]; then
             echo "CLOUDFLARE_R2_ENDPOINT=$CLOUDFLARE_R2_ENDPOINT" >> $GITHUB_ENV
             echo "✅ Cloudflare R2 Endpoint: $CLOUDFLARE_R2_ENDPOINT"
           else
-            echo "⚠️ Cloudflare R2 endpoint not found in Terraform outputs, using default"
+            echo "⚠️ Cloudflare R2 endpoint not found, using default"
             echo "CLOUDFLARE_R2_ENDPOINT=https://storage.magebase.dev" >> $GITHUB_ENV
           fi
 
