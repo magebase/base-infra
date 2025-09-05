@@ -66,6 +66,7 @@ patches:
     target:
       kind: NetworkPolicy
       name: argocd-application-controller-network-policy
+      namespace: default
   - patch: |-
       apiVersion: networking.k8s.io/v1
       kind: NetworkPolicy
@@ -75,6 +76,7 @@ patches:
     target:
       kind: NetworkPolicy
       name: argocd-applicationset-controller-network-policy
+      namespace: default
   - patch: |-
       apiVersion: networking.k8s.io/v1
       kind: NetworkPolicy
@@ -84,6 +86,7 @@ patches:
     target:
       kind: NetworkPolicy
       name: argocd-dex-server-network-policy
+      namespace: default
   - patch: |-
       apiVersion: networking.k8s.io/v1
       kind: NetworkPolicy
@@ -93,6 +96,7 @@ patches:
     target:
       kind: NetworkPolicy
       name: argocd-notifications-controller-network-policy
+      namespace: default
   - patch: |-
       apiVersion: networking.k8s.io/v1
       kind: NetworkPolicy
@@ -102,6 +106,7 @@ patches:
     target:
       kind: NetworkPolicy
       name: argocd-redis-network-policy
+      namespace: default
   - patch: |-
       apiVersion: networking.k8s.io/v1
       kind: NetworkPolicy
@@ -111,6 +116,7 @@ patches:
     target:
       kind: NetworkPolicy
       name: argocd-repo-server-network-policy
+      namespace: default
   - patch: |-
       apiVersion: networking.k8s.io/v1
       kind: NetworkPolicy
@@ -120,3 +126,4 @@ patches:
     target:
       kind: NetworkPolicy
       name: argocd-server-network-policy
+      namespace: default
