@@ -28,7 +28,7 @@ on:
       - "Dockerfile"
       - "docker-compose.yml"
       - ".github/workflows/rails-deployment.yml"
-      - "k8s/deployment.yaml"
+      - "k8s/**"
   workflow_dispatch:
     inputs:
       environment:
