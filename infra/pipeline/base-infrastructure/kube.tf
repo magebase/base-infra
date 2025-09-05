@@ -40,6 +40,17 @@ resource "random_password" "encryption_key" {
   # This will generate a 32-byte key suitable for AES encryption
 }
 
+# Data source to get Cloudflare R2 outputs from site-infrastructure
+data "terraform_remote_state" "site_infrastructure" {
+  backend = "s3"
+  config = {
+    bucket  = "magebase-tf-state-management-ap-southeast-1"
+    key     = "site-infrastructure/terraform.tfstate"
+    region  = "ap-southeast-1"
+    encrypt = true
+  }
+}
+
 module "kube-hetzner" {
   providers = {
     hcloud = hcloud
@@ -960,6 +971,12 @@ module "kube-hetzner" {
     argocd_admin_password = var.argocd_admin_password != "" ? base64encode(var.argocd_admin_password) : base64encode("admin123") # Default for dev, should be changed in prod
     encryption_key        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
     cloudflare_api_token  = var.cloudflare_api_token
+
+    # Cloudflare R2 parameters for PostgreSQL backups (with fallbacks)
+    r2_bucket            = try(data.terraform_remote_state.site_infrastructure.outputs.cloudflare_r2_bucket, "dev-magebase-postgres-backups")
+    r2_endpoint          = try(data.terraform_remote_state.site_infrastructure.outputs.cloudflare_r2_endpoint, "https://12345678901234567890.r2.cloudflarestorage.com")
+    r2_access_key_id     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : ""
+    r2_secret_access_key = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : ""
   }
 
   # Disable export of values files to prevent any kustomization-related operations

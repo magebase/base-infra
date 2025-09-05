@@ -106,6 +106,10 @@ inputs = {
   encryption_key = get_env("ENCRYPTION_KEY", "")
   cloudflare_api_token = get_env("CLOUDFLARE_API_TOKEN", "")
 
+  # Cloudflare R2 Configuration
+  cloudflare_r2_access_key_id = get_env("CLOUDFLARE_R2_ACCESS_KEY_ID", "")
+  cloudflare_r2_secret_access_key = get_env("CLOUDFLARE_R2_SECRET_ACCESS_KEY", "")
+
   # Account IDs from org-sso
   development_account_id = dependency.org_sso.outputs.development_account_id
   production_account_id  = dependency.org_sso.outputs.production_account_id

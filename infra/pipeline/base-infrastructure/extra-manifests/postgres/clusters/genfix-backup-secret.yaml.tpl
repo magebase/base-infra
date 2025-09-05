@@ -5,6 +5,6 @@ metadata:
   namespace: genfix
 type: Opaque
 data:
-  # These should be populated with actual AWS credentials
-  access-key-id: ""
-  secret-access-key: ""
+  # Cloudflare R2 credentials for PostgreSQL backups
+  access-key-id: "${r2_access_key_id}"
+  secret-access-key: "${r2_secret_access_key}"

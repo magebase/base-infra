@@ -29,8 +29,8 @@ spec:
   backup:
     retentionPolicy: "30d"
     barmanObjectStore:
-      destinationPath: "s3://genfix-backups/"
-      endpointURL: "https://s3.amazonaws.com"
+      destinationPath: "s3://${r2_bucket}/genfix/"
+      endpointURL: "${r2_endpoint}"
       s3Credentials:
         accessKeyId:
           name: genfix-backup-secret
