@@ -35,125 +35,76 @@ secretGenerator:
     options:
       disableNameSuffixHash: true
 
-# Apply namespace transformation to all resources except NetworkPolicies
-transformers:
-  - |-
-    apiVersion: builtin
-    kind: NamespaceTransformer
-    metadata:
-      name: argocd-namespace-transformer
-    namespace: argocd
-    setRoleBindingSubjects: none
-    unsetOnly: false
-    fieldSpecs:
-    - path: metadata/namespace
-      create: true
-      kind: Secret
-    - path: metadata/namespace
-      create: true
-      kind: ConfigMap
-    - path: metadata/namespace
-      create: true
-      kind: Service
-    - path: metadata/namespace
-      create: true
-      kind: ServiceAccount
-    - path: metadata/namespace
-      create: true
-      kind: Role
-    - path: metadata/namespace
-      create: true
-      kind: RoleBinding
-    - path: metadata/namespace
-      create: true
-      kind: Deployment
-    - path: metadata/namespace
-      create: true
-      kind: StatefulSet
-    - path: metadata/namespace
-      create: true
-      kind: Job
-    - path: metadata/namespace
-      create: true
-      kind: CronJob
-    - path: metadata/namespace
-      create: true
-      kind: Ingress
-    - path: metadata/namespace
-      create: true
-      kind: Application
-    - path: subjects/namespace
-      create: true
-      kind: RoleBinding
-    - path: subjects/namespace
-      create: true
-      kind: ClusterRoleBinding
+# Apply namespace transformation to all ArgoCD components
+namespace: argocd
 
-patches:
-  # Remove ArgoCD NetworkPolicies from the installation manifest
-  - patch: |-
-      $patch: delete
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-application-controller-network-policy
-    target:
+# Remove ArgoCD NetworkPolicies from installation manifest to avoid conflicts
+patchesJson6902:
+  - target:
+      group: networking.k8s.io
+      version: v1
       kind: NetworkPolicy
       name: argocd-application-controller-network-policy
-  - patch: |-
-      $patch: delete
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-applicationset-controller-network-policy
-    target:
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: argocd-application-controller-network-policy-disabled
+  - target:
+      group: networking.k8s.io
+      version: v1
       kind: NetworkPolicy
       name: argocd-applicationset-controller-network-policy
-  - patch: |-
-      $patch: delete
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-dex-server-network-policy
-    target:
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: argocd-applicationset-controller-network-policy-disabled
+  - target:
+      group: networking.k8s.io
+      version: v1
       kind: NetworkPolicy
       name: argocd-dex-server-network-policy
-  - patch: |-
-      $patch: delete
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-notifications-controller-network-policy
-    target:
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: argocd-dex-server-network-policy-disabled
+  - target:
+      group: networking.k8s.io
+      version: v1
       kind: NetworkPolicy
       name: argocd-notifications-controller-network-policy
-  - patch: |-
-      $patch: delete
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-redis-network-policy
-    target:
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: argocd-notifications-controller-network-policy-disabled
+  - target:
+      group: networking.k8s.io
+      version: v1
       kind: NetworkPolicy
       name: argocd-redis-network-policy
-  - patch: |-
-      $patch: delete
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-repo-server-network-policy
-    target:
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: argocd-redis-network-policy-disabled
+  - target:
+      group: networking.k8s.io
+      version: v1
       kind: NetworkPolicy
       name: argocd-repo-server-network-policy
-  - patch: |-
-      $patch: delete
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-server-network-policy
-    target:
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: argocd-repo-server-network-policy-disabled
+  - target:
+      group: networking.k8s.io
+      version: v1
       kind: NetworkPolicy
       name: argocd-server-network-policy
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: argocd-server-network-policy-disabled
+
+patches:
   # Override namespace for Cloudflare secret to place it in cert-manager namespace
   - patch: |-
       - op: replace
