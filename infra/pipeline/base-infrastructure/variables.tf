@@ -43,13 +43,6 @@ variable "domain" {
   default     = ""
 }
 
-variable "argocd_fqdn" {
-  description = "Fully qualified domain name for ArgoCD (e.g. argocd.magebase.dev)"
-  type        = string
-  default     = ""
-
-}
-
 variable "argocd_admin_password" {
   description = "ArgoCD admin password (bcrypt hashed)"
   type        = string
@@ -66,6 +59,20 @@ variable "encryption_key" {
 
 variable "cloudflare_api_token" {
   description = "Cloudflare API token with Zone:DNS:Edit and Zone:Zone:Read permissions for cert-manager DNS01 challenges"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "cloudflare_r2_access_key_id" {
+  description = "Cloudflare R2 Access Key ID for PostgreSQL backups"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "cloudflare_r2_secret_access_key" {
+  description = "Cloudflare R2 Secret Access Key for PostgreSQL backups"
   type        = string
   default     = ""
   sensitive   = true
