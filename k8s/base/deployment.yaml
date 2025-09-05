@@ -22,6 +22,8 @@ spec:
       labels:
         app: magebase-app
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: magebase
           # Use a logical image name so kustomize images directive can rewrite to ${IMAGE_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}
