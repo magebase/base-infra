@@ -7,7 +7,7 @@ metadata:
     argocd.argoproj.io/secret-type: repository
 stringData:
   url: https://github.com/magebase/site.git
-  username: magebase
+  username: ekrata-main
   password: ${ARGOCD_REPO_TOKEN}
 ---
 apiVersion: v1
@@ -19,5 +19,5 @@ metadata:
     argocd.argoproj.io/secret-type: repository
 stringData:
   url: https://github.com/magebase/genfix.git
-  username: magebase
+  username: ekrata-main
   password: ${ARGOCD_REPO_TOKEN}
