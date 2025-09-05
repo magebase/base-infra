@@ -222,6 +222,7 @@ jobs:
 
       - name: Terraform Validate
         id: validate
+        working-directory: infra/pipeline/base-infrastructure
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -235,12 +236,14 @@ jobs:
 
       - name: Terraform Format Check
         id: fmt
+        working-directory: infra/pipeline/base-infrastructure
         run: |
           terraform fmt -check -recursive
 
       - name: Terraform Plan
         id: base-tf-plan
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        working-directory: infra/pipeline/base-infrastructure
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -256,6 +259,7 @@ jobs:
       - name: Terraform Plan (Push to Main)
         id: base-tf-plan-main
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        working-directory: infra/pipeline/base-infrastructure
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -341,14 +345,15 @@ jobs:
       - name: Terraform Apply (Push to Main)
         id: base-tf-apply-main
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        working-directory: infra/pipeline/base-infrastructure
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
           TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
           TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
-          CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
+          TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
         run: |
           echo "🚀 Applying base infrastructure changes..."
 
