@@ -18,9 +18,12 @@ resources:
   - argocd/applications/trivy-operator.yaml
   - argocd/applications/kube-prometheus.yaml
   - argocd/applications/postgres-operator.yaml
-  - argocd/applications/postgres-clusters.yaml
   - argocd/applications/magebase-genfix.yaml
   - argocd/applications/magebase-site.yaml
+  - postgres/clusters/genfix-backup-secret.yaml
+  - postgres/clusters/genfix-cluster.yaml
+  - postgres/clusters/site-backup-secret.yaml
+  - postgres/clusters/site-cluster.yaml
 
 secretGenerator:
   - name: argocd-secret
