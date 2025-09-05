@@ -9,6 +9,7 @@ resources:
   - cert-debug.yaml
   - k3s-encryption.yaml
   - network-policies.yaml
+  - argocd-network-policies.yaml
   - pod-security.yaml
   - audit-policy.yaml
   - argocd-ingress.yaml
@@ -89,6 +90,70 @@ transformers:
       kind: ClusterRoleBinding
 
 patches:
+  # Remove ArgoCD NetworkPolicies from the installation manifest
+  - patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-application-controller-network-policy
+    target:
+      kind: NetworkPolicy
+      name: argocd-application-controller-network-policy
+  - patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-applicationset-controller-network-policy
+    target:
+      kind: NetworkPolicy
+      name: argocd-applicationset-controller-network-policy
+  - patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-dex-server-network-policy
+    target:
+      kind: NetworkPolicy
+      name: argocd-dex-server-network-policy
+  - patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-notifications-controller-network-policy
+    target:
+      kind: NetworkPolicy
+      name: argocd-notifications-controller-network-policy
+  - patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-redis-network-policy
+    target:
+      kind: NetworkPolicy
+      name: argocd-redis-network-policy
+  - patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-repo-server-network-policy
+    target:
+      kind: NetworkPolicy
+      name: argocd-repo-server-network-policy
+  - patch: |-
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-server-network-policy
+    target:
+      kind: NetworkPolicy
+      name: argocd-server-network-policy
   # Override namespace for Cloudflare secret to place it in cert-manager namespace
   - patch: |-
       - op: replace
@@ -109,53 +174,3 @@ patches:
     target:
       kind: ConfigMap
       name: argocd-cmd-params-cm
-  # Set namespace for ArgoCD NetworkPolicies
-  - patch: |-
-      - op: add
-        path: /metadata/namespace
-        value: argocd
-    target:
-      kind: NetworkPolicy
-      name: argocd-application-controller-network-policy
-  - patch: |-
-      - op: add
-        path: /metadata/namespace
-        value: argocd
-    target:
-      kind: NetworkPolicy
-      name: argocd-applicationset-controller-network-policy
-  - patch: |-
-      - op: add
-        path: /metadata/namespace
-        value: argocd
-    target:
-      kind: NetworkPolicy
-      name: argocd-dex-server-network-policy
-  - patch: |-
-      - op: add
-        path: /metadata/namespace
-        value: argocd
-    target:
-      kind: NetworkPolicy
-      name: argocd-notifications-controller-network-policy
-  - patch: |-
-      - op: add
-        path: /metadata/namespace
-        value: argocd
-    target:
-      kind: NetworkPolicy
-      name: argocd-redis-network-policy
-  - patch: |-
-      - op: add
-        path: /metadata/namespace
-        value: argocd
-    target:
-      kind: NetworkPolicy
-      name: argocd-repo-server-network-policy
-  - patch: |-
-      - op: add
-        path: /metadata/namespace
-        value: argocd
-    target:
-      kind: NetworkPolicy
-      name: argocd-server-network-policy
