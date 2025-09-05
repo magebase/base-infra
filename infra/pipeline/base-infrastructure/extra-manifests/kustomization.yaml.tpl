@@ -58,44 +58,56 @@ patches:
       name: argocd-cmd-params-cm
   # Exclude ArgoCD network policies from namespace transformation to avoid conflicts
   - patch: |-
-      - op: replace
-        path: /metadata/namespace
-        value: default
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-application-controller-network-policy
+        namespace: default
     target:
       kind: NetworkPolicy
       name: argocd-application-controller-network-policy
   - patch: |-
-      - op: replace
-        path: /metadata/namespace
-        value: default
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-applicationset-controller-network-policy
+        namespace: default
     target:
       kind: NetworkPolicy
       name: argocd-applicationset-controller-network-policy
   - patch: |-
-      - op: replace
-        path: /metadata/namespace
-        value: default
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-dex-server-network-policy
+        namespace: default
     target:
       kind: NetworkPolicy
       name: argocd-dex-server-network-policy
   - patch: |-
-      - op: replace
-        path: /metadata/namespace
-        value: default
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-notifications-controller-network-policy
+        namespace: default
     target:
       kind: NetworkPolicy
       name: argocd-notifications-controller-network-policy
   - patch: |-
-      - op: replace
-        path: /metadata/namespace
-        value: default
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-redis-network-policy
+        namespace: default
     target:
       kind: NetworkPolicy
       name: argocd-redis-network-policy
   - patch: |-
-      - op: replace
-        path: /metadata/namespace
-        value: default
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-repo-server-network-policy
+        namespace: default
     target:
       kind: NetworkPolicy
       name: argocd-repo-server-network-policy
