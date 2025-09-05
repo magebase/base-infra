@@ -4,7 +4,9 @@ metadata:
   name: postgres-clusters
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    # Operator wave: -2 (see postgres-operator.yaml.tpl)
+    # Give operator extra time; clusters at internal wave 1.
+    argocd.argoproj.io/sync-wave: "-1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

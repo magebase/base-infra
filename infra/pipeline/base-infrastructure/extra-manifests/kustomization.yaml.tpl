@@ -20,10 +20,15 @@ resources:
   - argocd/applications/postgres-operator.yaml
   - argocd/applications/magebase-genfix.yaml
   - argocd/applications/magebase-site.yaml
-  - postgres/clusters/genfix-backup-secret.yaml
-  - postgres/clusters/genfix-cluster.yaml
-  - postgres/clusters/site-backup-secret.yaml
-  - postgres/clusters/site-cluster.yaml
+  # NOTE: PostgreSQL clusters & backup secrets are now managed exclusively via the
+  # ArgoCD Application "postgres-clusters" (see applications/postgres-clusters.yaml.tpl).
+  # They were removed from this base kustomization to prevent race conditions where
+  # Cluster CRDs (installed by the CloudNativePG operator) were not yet present,
+  # producing errors like:
+  #   no matches for kind "Cluster" in version "postgresql.cnpg.io/v1"
+  # Backup secrets and cluster manifests live under
+  # infra/pipeline/base-infrastructure/extra-manifests/postgres/clusters and will
+  # be applied only after the operator is installed.
 
 secretGenerator:
   - name: argocd-secret

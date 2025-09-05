@@ -3,13 +3,14 @@
 
 ---
 # Middleware for HTTPS redirect
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: redirect-https
   namespace: default
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    # Base redirect middleware early so other middleware chains can reference it.
+    argocd.argoproj.io/sync-wave: "0"
   labels:
     app.kubernetes.io/name: traefik-middleware
 spec:
@@ -19,13 +20,13 @@ spec:
 
 ---
 # Security headers middleware
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: security-headers
   namespace: default
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "0"
   labels:
     app.kubernetes.io/name: traefik-middleware
 spec:
@@ -52,12 +53,13 @@ spec:
 
 ---
 # ArgoCD specific middleware chain
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: argocd-middleware
   namespace: argocd
   annotations:
+    # Chain references default namespace middlewares -> higher wave
     argocd.argoproj.io/sync-wave: "2"
   labels:
     app.kubernetes.io/name: argocd-middleware
@@ -69,7 +71,7 @@ spec:
 
 ---
 # ArgoCD server configuration middleware (handle gRPC and insecure mode)
-apiVersion: traefik.containo.us/v1alpha1
+apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
   name: argocd-server
