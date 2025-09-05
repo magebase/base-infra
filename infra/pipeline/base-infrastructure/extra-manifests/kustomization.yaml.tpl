@@ -1,7 +1,6 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: argocd
 resources:
   - namespace.yaml
   - https://raw.githubusercontent.com/argoproj/argo-cd/v3.1.1/manifests/install.yaml
@@ -35,6 +34,80 @@ secretGenerator:
     options:
       disableNameSuffixHash: true
 
+# Apply namespace transformation to all ArgoCD components
+namespace: argocd
+
+# Use strategic merge patches to fix NetworkPolicy namespaces without conflicts
+patchesStrategicMerge:
+  - |-
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: argocd-application-controller-network-policy
+      namespace: argocd
+    spec:
+      ingress:
+      - from:
+        - namespaceSelector: {}
+        ports:
+        - port: 8082
+          protocol: TCP
+  - |-
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: argocd-applicationset-controller-network-policy
+      namespace: argocd
+    spec:
+      ingress:
+      - from:
+        - namespaceSelector: {}
+        ports:
+        - port: 7000
+          protocol: TCP
+        - port: 8080
+          protocol: TCP
+  - |-
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: argocd-dex-server-network-policy
+      namespace: argocd
+  - |-
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: argocd-notifications-controller-network-policy
+      namespace: argocd
+    spec:
+      ingress:
+      - from:
+        - namespaceSelector: {}
+        ports:
+        - port: 9001
+          protocol: TCP
+  - |-
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: argocd-redis-network-policy
+      namespace: argocd
+  - |-
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: argocd-repo-server-network-policy
+      namespace: argocd
+  - |-
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: argocd-server-network-policy
+      namespace: argocd
+    spec:
+      ingress:
+      - {}
+
 patches:
   # Override namespace for Cloudflare secret to place it in cert-manager namespace
   - patch: |-
@@ -56,74 +129,3 @@ patches:
     target:
       kind: ConfigMap
       name: argocd-cmd-params-cm
-  # Exclude ArgoCD network policies from namespace transformation to avoid conflicts
-  - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-application-controller-network-policy
-        namespace: default
-    target:
-      kind: NetworkPolicy
-      name: argocd-application-controller-network-policy
-      namespace: default
-  - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-applicationset-controller-network-policy
-        namespace: default
-    target:
-      kind: NetworkPolicy
-      name: argocd-applicationset-controller-network-policy
-      namespace: default
-  - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-dex-server-network-policy
-        namespace: default
-    target:
-      kind: NetworkPolicy
-      name: argocd-dex-server-network-policy
-      namespace: default
-  - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-notifications-controller-network-policy
-        namespace: default
-    target:
-      kind: NetworkPolicy
-      name: argocd-notifications-controller-network-policy
-      namespace: default
-  - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-redis-network-policy
-        namespace: default
-    target:
-      kind: NetworkPolicy
-      name: argocd-redis-network-policy
-      namespace: default
-  - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-repo-server-network-policy
-        namespace: default
-    target:
-      kind: NetworkPolicy
-      name: argocd-repo-server-network-policy
-      namespace: default
-  - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        name: argocd-server-network-policy
-        namespace: default
-    target:
-      kind: NetworkPolicy
-      name: argocd-server-network-policy
-      namespace: default
