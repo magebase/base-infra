@@ -1297,6 +1297,7 @@ output "cloudflare_r2_bucket" {
 output "cloudflare_r2_endpoint" {
   value       = module.cloudflare_r2.r2_endpoint
   description = "Cloudflare R2 endpoint URL"
+  sensitive   = true
 }
 
 output "cloudflare_r2_active_storage_custom_domain" {
