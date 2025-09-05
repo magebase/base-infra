@@ -100,10 +100,11 @@ patches:
       kind: NetworkPolicy
       name: argocd-repo-server-network-policy
   - patch: |-
-      - op: replace
-        path: /metadata/namespace
-        value: default
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: argocd-server-network-policy
+        namespace: default
     target:
       kind: NetworkPolicy
       name: argocd-server-network-policy
-      namespace: default
