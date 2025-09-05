@@ -34,79 +34,59 @@ secretGenerator:
     options:
       disableNameSuffixHash: true
 
-# Apply namespace transformation to all ArgoCD components
-namespace: argocd
-
-# Use strategic merge patches to fix NetworkPolicy namespaces without conflicts
-patchesStrategicMerge:
+# Apply namespace transformation to all resources except NetworkPolicies
+transformers:
   - |-
-    apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
+    apiVersion: builtin
+    kind: NamespaceTransformer
     metadata:
-      name: argocd-application-controller-network-policy
-      namespace: argocd
-    spec:
-      ingress:
-      - from:
-        - namespaceSelector: {}
-        ports:
-        - port: 8082
-          protocol: TCP
-  - |-
-    apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
-    metadata:
-      name: argocd-applicationset-controller-network-policy
-      namespace: argocd
-    spec:
-      ingress:
-      - from:
-        - namespaceSelector: {}
-        ports:
-        - port: 7000
-          protocol: TCP
-        - port: 8080
-          protocol: TCP
-  - |-
-    apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
-    metadata:
-      name: argocd-dex-server-network-policy
-      namespace: argocd
-  - |-
-    apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
-    metadata:
-      name: argocd-notifications-controller-network-policy
-      namespace: argocd
-    spec:
-      ingress:
-      - from:
-        - namespaceSelector: {}
-        ports:
-        - port: 9001
-          protocol: TCP
-  - |-
-    apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
-    metadata:
-      name: argocd-redis-network-policy
-      namespace: argocd
-  - |-
-    apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
-    metadata:
-      name: argocd-repo-server-network-policy
-      namespace: argocd
-  - |-
-    apiVersion: networking.k8s.io/v1
-    kind: NetworkPolicy
-    metadata:
-      name: argocd-server-network-policy
-      namespace: argocd
-    spec:
-      ingress:
-      - {}
+      name: argocd-namespace-transformer
+    namespace: argocd
+    setRoleBindingSubjects: none
+    unsetOnly: false
+    fieldSpecs:
+    - path: metadata/namespace
+      create: true
+      kind: Secret
+    - path: metadata/namespace
+      create: true
+      kind: ConfigMap
+    - path: metadata/namespace
+      create: true
+      kind: Service
+    - path: metadata/namespace
+      create: true
+      kind: ServiceAccount
+    - path: metadata/namespace
+      create: true
+      kind: Role
+    - path: metadata/namespace
+      create: true
+      kind: RoleBinding
+    - path: metadata/namespace
+      create: true
+      kind: Deployment
+    - path: metadata/namespace
+      create: true
+      kind: StatefulSet
+    - path: metadata/namespace
+      create: true
+      kind: Job
+    - path: metadata/namespace
+      create: true
+      kind: CronJob
+    - path: metadata/namespace
+      create: true
+      kind: Ingress
+    - path: metadata/namespace
+      create: true
+      kind: Application
+    - path: subjects/namespace
+      create: true
+      kind: RoleBinding
+    - path: subjects/namespace
+      create: true
+      kind: ClusterRoleBinding
 
 patches:
   # Override namespace for Cloudflare secret to place it in cert-manager namespace
@@ -129,3 +109,53 @@ patches:
     target:
       kind: ConfigMap
       name: argocd-cmd-params-cm
+  # Set namespace for ArgoCD NetworkPolicies
+  - patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: argocd
+    target:
+      kind: NetworkPolicy
+      name: argocd-application-controller-network-policy
+  - patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: argocd
+    target:
+      kind: NetworkPolicy
+      name: argocd-applicationset-controller-network-policy
+  - patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: argocd
+    target:
+      kind: NetworkPolicy
+      name: argocd-dex-server-network-policy
+  - patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: argocd
+    target:
+      kind: NetworkPolicy
+      name: argocd-notifications-controller-network-policy
+  - patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: argocd
+    target:
+      kind: NetworkPolicy
+      name: argocd-redis-network-policy
+  - patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: argocd
+    target:
+      kind: NetworkPolicy
+      name: argocd-repo-server-network-policy
+  - patch: |-
+      - op: add
+        path: /metadata/namespace
+        value: argocd
+    target:
+      kind: NetworkPolicy
+      name: argocd-server-network-policy
