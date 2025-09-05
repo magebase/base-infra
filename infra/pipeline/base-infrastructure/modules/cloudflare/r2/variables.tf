@@ -22,3 +22,8 @@ variable "zone_id" {
   description = "Cloudflare Zone ID for the domain"
   type        = string
 }
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token with permissions to manage R2 buckets"
+  type        = string
+  sensitive   = true
+}
