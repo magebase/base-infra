@@ -141,10 +141,10 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - ${DOMAIN}
+        - magebase.example.com
       secretName: magebase-tls
   rules:
-    - host: ${DOMAIN}
+    - host: magebase.example.com
       http:
         paths:
           - path: /
