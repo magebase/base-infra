@@ -55,3 +55,9 @@ patches:
     target:
       kind: ConfigMap
       name: argocd-cmd-params-cm
+  # Remove conflicting ArgoCD application controller network policy from install.yaml
+  - patch: |-
+      $patch: delete
+    target:
+      kind: NetworkPolicy
+      name: argocd-application-controller-network-policy
