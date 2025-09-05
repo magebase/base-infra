@@ -106,3 +106,4 @@ patches:
     target:
       kind: NetworkPolicy
       name: argocd-server-network-policy
+      namespace: default
