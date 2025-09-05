@@ -58,58 +58,51 @@ patches:
       name: argocd-cmd-params-cm
   # Exclude ArgoCD network policies from namespace transformation to avoid conflicts
   - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        namespace: default
+      - op: replace
+        path: /metadata/namespace
+        value: default
     target:
       kind: NetworkPolicy
       name: argocd-application-controller-network-policy
   - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        namespace: default
+      - op: replace
+        path: /metadata/namespace
+        value: default
     target:
       kind: NetworkPolicy
       name: argocd-applicationset-controller-network-policy
   - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        namespace: default
+      - op: replace
+        path: /metadata/namespace
+        value: default
     target:
       kind: NetworkPolicy
       name: argocd-dex-server-network-policy
   - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        namespace: default
+      - op: replace
+        path: /metadata/namespace
+        value: default
     target:
       kind: NetworkPolicy
       name: argocd-notifications-controller-network-policy
   - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        namespace: default
+      - op: replace
+        path: /metadata/namespace
+        value: default
     target:
       kind: NetworkPolicy
       name: argocd-redis-network-policy
   - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        namespace: default
+      - op: replace
+        path: /metadata/namespace
+        value: default
     target:
       kind: NetworkPolicy
       name: argocd-repo-server-network-policy
   - patch: |-
-      apiVersion: networking.k8s.io/v1
-      kind: NetworkPolicy
-      metadata:
-        namespace: default
+      - op: replace
+        path: /metadata/namespace
+        value: default
     target:
       kind: NetworkPolicy
       name: argocd-server-network-policy
