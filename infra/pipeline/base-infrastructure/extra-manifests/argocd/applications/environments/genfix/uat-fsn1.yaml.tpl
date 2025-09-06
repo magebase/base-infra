@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/magebase/genfix
     path: k8s
-    targetRevision: ${GENFIX_TARGET_REVISION}
+    targetRevision: main
   destination:
     server: https://fsn1-${ENVIRONMENT}-magebase-k8s:6443
     namespace: genfix-${ENVIRONMENT}

@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/magebase/site
     path: k8s
-    targetRevision: ${SITE_TARGET_REVISION}
+    targetRevision: main
   destination:
     server: https://fsn1-${ENVIRONMENT}-magebase-k8s:6443
     namespace: site-${ENVIRONMENT}
