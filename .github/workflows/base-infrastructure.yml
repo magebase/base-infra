@@ -219,6 +219,23 @@ jobs:
             -backend-config="bucket=${{ needs.bootstrap.outputs.state_bucket }}" \
             -backend-config="key=magebase/base-infrastructure/${ENVIRONMENT}/terraform.tfstate"
 
+      - name: Install ArgoCD CLI for bcrypt generation
+        id: install-argocd
+        run: |
+          # Download and install ArgoCD CLI
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+          rm argocd-linux-amd64
+          argocd version --client
+
+      - name: Generate ArgoCD bcrypt password
+        id: bcrypt-password
+        run: |
+          # Generate bcrypt hash from the plain text password
+          BCRYPT_HASH=$(argocd account bcrypt --password "${{ secrets.ARGOCD_ADMIN_PASSWORD }}")
+          echo "::add-mask::$BCRYPT_HASH"
+          echo "ARGOCD_BCRYPT_PASSWORD=$BCRYPT_HASH" >> $GITHUB_ENV
+
       - name: Terraform Validate
         id: validate
         working-directory: infra/pipeline/base-infrastructure
@@ -232,7 +249,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           terraform validate
@@ -257,7 +274,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           terraform plan -no-color -out=tfplan
@@ -276,7 +293,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           echo "🚀 Running Terraform plan for base infrastructure deployment..."
@@ -365,7 +382,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           echo "🚀 Applying base infrastructure changes..."
@@ -604,7 +621,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           terraform destroy -auto-approve
@@ -722,6 +739,23 @@ jobs:
             -backend-config="bucket=${{ needs.bootstrap.outputs.state_bucket }}" \
             -backend-config="key=magebase/base-infrastructure/${ENVIRONMENT}/terraform.tfstate"
 
+      - name: Install ArgoCD CLI for bcrypt generation
+        id: install-argocd
+        run: |
+          # Download and install ArgoCD CLI
+          curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
+          rm argocd-linux-amd64
+          argocd version --client
+
+      - name: Generate ArgoCD bcrypt password
+        id: bcrypt-password
+        run: |
+          # Generate bcrypt hash from the plain text password
+          BCRYPT_HASH=$(argocd account bcrypt --password "${{ secrets.ARGOCD_ADMIN_PASSWORD }}")
+          echo "::add-mask::$BCRYPT_HASH"
+          echo "ARGOCD_BCRYPT_PASSWORD=$BCRYPT_HASH" >> $GITHUB_ENV
+
       - name: Terraform Validate
         id: validate
         working-directory: infra/pipeline/base-infrastructure
@@ -735,7 +769,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           terraform validate
@@ -760,7 +794,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           terraform plan -no-color -out=tfplan
@@ -779,7 +813,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           echo "🚀 Running Terraform plan for base infrastructure deployment..."
@@ -868,7 +902,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           echo "🚀 Applying base infrastructure changes..."
@@ -1107,7 +1141,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           terraform destroy -auto-approve
