@@ -18,8 +18,6 @@ resources:
   - argocd/applications/kube-prometheus.yaml
   - argocd/applications/postgres-operator.yaml
   - argocd/applications/postgres-clusters.yaml
-  - argocd/applications/magebase-genfix.yaml
-  - argocd/applications/magebase-site.yaml
   # Environment-specific applications (segregated by app)
   - argocd/applications/environments/genfix/${environment}-fsn1.yaml
   - argocd/applications/environments/site/${environment}-fsn1.yaml
