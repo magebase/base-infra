@@ -967,6 +967,7 @@ module "kube-hetzner" {
   # Additional safeguard: empty kustomization parameters
   extra_kustomize_parameters = {
     ENVIRONMENT           = var.environment
+    environment           = var.environment
     DOMAIN                = var.domain != "" ? var.domain : "magebase.dev"
     ARGOCD_FQDN           = var.environment == "prod" ? "argocd.${var.domain != "" ? var.domain : "magebase.dev"}" : "argocd-dev.${var.domain != "" ? var.domain : "magebase.dev"}"
     ARGOCD_ADMIN_PASSWORD = var.argocd_admin_password

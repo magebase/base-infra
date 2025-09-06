@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: magebase-genfix-${environment}-fsn1
+  name: magebase-genfix-${ENVIRONMENT}-fsn1
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "3"
@@ -14,8 +14,8 @@ spec:
     path: k8s
     targetRevision: ${GENFIX_TARGET_REVISION}
   destination:
-    server: https://fsn1-${environment}-magebase-k8s:6443
-    namespace: genfix-${environment}
+    server: https://fsn1-${ENVIRONMENT}-magebase-k8s:6443
+    namespace: genfix-${ENVIRONMENT}
   syncPolicy:
     automated:
       prune: true

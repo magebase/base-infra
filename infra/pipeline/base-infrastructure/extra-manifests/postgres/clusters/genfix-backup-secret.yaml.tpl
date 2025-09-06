@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: genfix-backup-secret
-  namespace: genfix-${environment}
+  namespace: genfix-${ENVIRONMENT}
 type: Opaque
 data:
   # Cloudflare R2 credentials for PostgreSQL backups

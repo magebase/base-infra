@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: site-backup-secret
-  namespace: site-${environment}
+  namespace: site-${ENVIRONMENT}
 type: Opaque
 data:
   # Cloudflare R2 credentials for PostgreSQL backups

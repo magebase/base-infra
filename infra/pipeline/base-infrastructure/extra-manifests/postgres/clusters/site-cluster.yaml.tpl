@@ -2,7 +2,7 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
   name: site-db
-  namespace: site-${environment}
+  namespace: site-${ENVIRONMENT}
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:
