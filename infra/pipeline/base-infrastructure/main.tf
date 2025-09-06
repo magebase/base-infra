@@ -816,7 +816,7 @@ module "kube-hetzner" {
   # Also, see the cilium_values at towards the end of this file, in the advanced section.
   # ⚠️ Depending on your setup, sometimes you need your control-planes to have more than
   # 2GB of RAM if you are going to use Cilium, otherwise the pods will not start.
-  cni_plugin = "calico"
+  cni_plugin = "cilium"
 
   # You can choose the version of Cilium that you want. By default we keep the version up to date and configure Cilium with compatible settings according to the version.
   # See https://github.com/cilium/cilium/releases for the available versions.

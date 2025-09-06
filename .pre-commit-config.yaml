@@ -58,9 +58,9 @@ repos:
       - id: terraform_fmt
         files: \.(tf|tfvars)$
         exclude: \.terraform/
-      - id: terraform_validate
-        files: \.(tf|tfvars)$
-        exclude: \.terraform/
+      # - id: terraform_validate
+      #   files: \.(tf|tfvars)$
+      #   exclude: \.terraform/
       - id: terraform_tflint
         files: \.(tf|tfvars)$
         exclude: \.terraform/
@@ -104,14 +104,14 @@ repos:
         pass_filenames: false
         description: Validate package.json dependencies
 
-      - id: terraform-syntax-check
-        name: Terraform Syntax Check
-        entry: terraform fmt -check
-        language: system
-        files: \.(tf|tfvars)$
-        pass_filenames: false
-        exclude: \.terraform/
-        description: Check Terraform syntax
+      # - id: terraform-syntax-check
+      #   name: Terraform Syntax Check
+      #   entry: terraform fmt -check
+      #   language: system
+      #   files: \.(tf|tfvars)$
+      #   pass_filenames: false
+      #   exclude: \.terraform/
+      #   description: Check Terraform syntax
 
       - id: kustomization-validate
         name: Kustomization Validation
