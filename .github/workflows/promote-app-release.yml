@@ -1,0 +1,133 @@
+name: Promote Application Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Repository to promote"
+        required: true
+        type: choice
+        options:
+          - magebase/genfix
+          - magebase/site
+      tag:
+        description: "Tag to promote"
+        required: true
+        type: string
+      from_environment:
+        description: "Source environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - uat
+      to_environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - qa
+          - uat
+          - prod
+
+jobs:
+  validate-promotion:
+    name: "Validate Promotion"
+    runs-on: ubuntu-latest
+    outputs:
+      can_promote: ${{ steps.validate.outputs.can_promote }}
+    steps:
+      - name: Validate promotion logic
+        id: validate
+        run: |
+          FROM_ENV="${{ github.event.inputs.from_environment }}"
+          TO_ENV="${{ github.event.inputs.to_environment }}"
+
+          # Validate promotion order
+          case "$FROM_ENV-$TO_ENV" in
+            "dev-qa"|"qa-uat"|"uat-prod")
+              echo "✅ Valid promotion: $FROM_ENV → $TO_ENV"
+              echo "can_promote=true" >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "❌ Invalid promotion: $FROM_ENV → $TO_ENV"
+              echo "can_promote=false" >> $GITHUB_OUTPUT
+              exit 1
+              ;;
+          esac
+
+  promote-app:
+    name: "Promote Application"
+    runs-on: ubuntu-latest
+    needs: [validate-promotion]
+    if: needs.validate-promotion.outputs.can_promote == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout base-infra repository
+        uses: actions/checkout@v4
+        with:
+          repository: magebase/base-infra
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update targetRevision for target environment
+        run: |
+          ./scripts/update-argocd-app.sh "${{ github.event.inputs.repository }}" "${{ github.event.inputs.tag }}" "${{ github.event.inputs.to_environment }}"
+
+      - name: Create promotion pull request
+        id: create-pr
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            🚀 Promote ${{ github.event.inputs.repository }} ${{ github.event.inputs.tag }} to ${{ github.event.inputs.to_environment }}
+
+            Promoting ${{ github.event.inputs.repository }} from ${{ github.event.inputs.from_environment }} to ${{ github.event.inputs.to_environment }}
+          title: "🚀 Promote ${{ github.event.inputs.repository }} ${{ github.event.inputs.tag }} to ${{ github.event.inputs.to_environment }}"
+          body: |
+            ## 🚀 Application Promotion
+
+            Promoting **${{ github.event.inputs.repository }}** to **${{ github.event.inputs.to_environment }}** environment.
+
+            ### Details
+            - **Application:** ${{ github.event.inputs.repository }}
+            - **Version:** ${{ github.event.inputs.tag }}
+            - **From:** ${{ github.event.inputs.from_environment }}
+            - **To:** ${{ github.event.inputs.to_environment }}
+
+            ### Changes
+            - Updated targetRevision to `${{ github.event.inputs.tag }}` in ${{ github.event.inputs.to_environment }} environment
+
+            ### Validation Checklist
+            - [ ] Application successfully tested in ${{ github.event.inputs.from_environment }}
+            - [ ] All automated tests passed
+            - [ ] Manual testing completed
+            - [ ] Stakeholders approved promotion
+
+            ### Next Steps
+            1. Review the changes
+            2. Ensure application is stable in ${{ github.event.inputs.from_environment }}
+            3. Merge this PR to deploy to ${{ github.event.inputs.to_environment }}
+            4. ArgoCD will automatically sync the new version
+          branch: promote-${{ github.event.inputs.repository }}-${{ github.event.inputs.tag }}-${{ github.event.inputs.from_environment }}-to-${{ github.event.inputs.to_environment }}
+          delete-branch: true
+          labels: |
+            promotion
+            ${{ github.event.inputs.repository }}
+            ${{ github.event.inputs.to_environment }}
+
+      - name: Output promotion summary
+        run: |
+          echo "🎉 **Promotion Summary**"
+          echo "- Repository: ${{ github.event.inputs.repository }}"
+          echo "- Version: ${{ github.event.inputs.tag }}"
+          echo "- From: ${{ github.event.inputs.from_environment }}"
+          echo "- To: ${{ github.event.inputs.to_environment }}"
+          echo "- PR Created: ${{ steps.create-pr.outputs.pull-request-url }}"
+          echo ""
+          echo "Next steps:"
+          echo "1. Review and merge the PR"
+          echo "2. ArgoCD will automatically sync the new version to ${{ github.event.inputs.to_environment }}"
