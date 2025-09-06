@@ -53,7 +53,7 @@ jobs:
   # ===== TERRAFORM STATE BACKEND BOOTSTRAP =====
   bootstrap:
     name: "Terraform State Backend Bootstrap"
-    runs-on: ubicloud-standard-2-arm
+    runs-on: self-hosted
     permissions:
       id-token: write
       contents: write
@@ -617,8 +617,8 @@ jobs:
       id-token: write
       contents: write
       pull-requests: write
-    # Skip if we're not doing a full deployment (depends on bootstrap only)
-    if: (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
+    # Only run on manual trigger with destroy action
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
     defaults:
       run:
         working-directory: infra/pipeline/base-infrastructure
