@@ -1,0 +1,224 @@
+name: Update ArgoCD Applications on Release
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Repository that created the release"
+        required: true
+        type: choice
+        options:
+          - magebase/genfix
+          - magebase/site
+      tag:
+        description: "Tag to update to"
+        required: true
+        type: string
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      regions:
+        description: "Target regions for the environment (comma-separated)"
+        required: false
+        type: string
+
+jobs:
+  update-argocd-app:
+    name: "Update ArgoCD Application"
+    runs-on: ubicloud-standard-2-arm
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout base-infra repository
+        uses: actions/checkout@v4
+        with:
+          repository: magebase/base-infra
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Determine repository and application details
+        id: repo-info
+        run: |
+          # Get repository name from release event or workflow dispatch
+          if [ "${{ github.event_name }}" = "release" ]; then
+            REPO_NAME="${{ github.event.repository.full_name }}"
+            TAG_NAME="${{ github.event.release.tag_name }}"
+            ENVIRONMENT="prod"  # Default to prod for releases
+          else
+            REPO_NAME="${{ github.event.inputs.repository }}"
+            TAG_NAME="${{ github.event.inputs.tag }}"
+            ENVIRONMENT="${{ github.event.inputs.environment }}"
+          fi
+
+          # Set default regions based on environment
+          case "$ENVIRONMENT" in
+            "dev")
+              DEFAULT_REGIONS="fsn1"
+              ;;
+            # "qa")  # Commented out - QA deployments disabled
+            #   DEFAULT_REGIONS="fsn1,nbg1"
+            #   ;;
+            # "uat") # Commented out - UAT deployments disabled
+            #   DEFAULT_REGIONS="fsn1,nbg1,hel1"
+            #   ;;
+            "prod")
+              DEFAULT_REGIONS="fsn1"
+              ;;
+            *)
+              DEFAULT_REGIONS="fsn1"
+              ;;
+          esac
+
+          # Use provided regions or defaults
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.regions }}" ]; then
+            REGIONS="${{ github.event.inputs.regions }}"
+          else
+            REGIONS="$DEFAULT_REGIONS"
+          fi
+
+          echo "Repository: $REPO_NAME"
+          echo "Tag: $TAG_NAME"
+          echo "Environment: $ENVIRONMENT"
+          echo "Regions: $REGIONS"
+
+          # Validate tag format (should be semantic version)
+          if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "⚠️  Warning: Tag $TAG_NAME does not follow semantic versioning (v1.2.3)"
+          fi
+
+          # Convert comma-separated regions to array
+          IFS=',' read -ra REGION_ARRAY <<< "$REGIONS"
+
+          # Generate manifest files and app names for each environment-region combination
+          MANIFEST_FILES=""
+          APP_NAMES=""
+          for region in "${REGION_ARRAY[@]}"; do
+            region=$(echo $region | xargs)  # trim whitespace
+            case "$REPO_NAME" in
+              "magebase/genfix")
+                APP_NAMES="$APP_NAMES magebase-genfix-$ENVIRONMENT-$region"
+                MANIFEST_FILES="$MANIFEST_FILES infra/pipeline/base-infrastructure/extra-manifests/argocd/applications/environments/genfix/$ENVIRONMENT-$region.yaml.tpl"
+                ;;
+              "magebase/site")
+                APP_NAMES="$APP_NAMES magebase-site-$ENVIRONMENT-$region"
+                MANIFEST_FILES="$MANIFEST_FILES infra/pipeline/base-infrastructure/extra-manifests/argocd/applications/environments/site/$ENVIRONMENT-$region.yaml.tpl"
+                ;;
+              *)
+                echo "❌ Unsupported repository: $REPO_NAME"
+                exit 1
+                ;;
+            esac
+          done
+
+          echo "app_names=$APP_NAMES" >> $GITHUB_OUTPUT
+          echo "manifest_files=$MANIFEST_FILES" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "regions=$REGIONS" >> $GITHUB_OUTPUT
+
+      - name: Update targetRevision in ArgoCD applications
+        run: |
+          # Split manifest files and update each one
+          IFS=' ' read -ra MANIFEST_ARRAY <<< "${{ steps.repo-info.outputs.manifest_files }}"
+          IFS=',' read -ra REGION_ARRAY <<< "${{ steps.repo-info.outputs.regions }}"
+
+          for i in "${!MANIFEST_ARRAY[@]}"; do
+            manifest_file="${MANIFEST_ARRAY[$i]}"
+            region="${REGION_ARRAY[$i]}"
+            echo "Updating $manifest_file for ${{ steps.repo-info.outputs.environment }}-$region"
+            ./scripts/update-argocd-app.sh "${{ github.event.repository.full_name || github.event.inputs.repository }}" "${{ steps.repo-info.outputs.tag_name }}" "${{ steps.repo-info.outputs.environment }}" "$region"
+          done
+
+      - name: Verify the changes
+        run: |
+          TAG_NAME="${{ steps.repo-info.outputs.tag_name }}"
+          IFS=' ' read -ra MANIFEST_ARRAY <<< "${{ steps.repo-info.outputs.manifest_files }}"
+
+          for manifest_file in "${MANIFEST_ARRAY[@]}"; do
+            echo "🔍 Verifying the change in $manifest_file"
+            grep -A 5 -B 5 "targetRevision" "$manifest_file"
+
+            # Verify the tag is correctly set
+            if grep -q "targetRevision: $TAG_NAME" "$manifest_file"; then
+              echo "✅ targetRevision successfully updated to $TAG_NAME in $manifest_file"
+            else
+              echo "❌ Failed to update targetRevision in $manifest_file"
+              exit 1
+            fi
+          done
+
+      - name: Create pull request with the update
+        id: create-pr
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            🚀 [${{ steps.repo-info.outputs.environment }}] Update ${{ steps.repo-info.outputs.app_name }} to ${{ steps.repo-info.outputs.tag_name }}
+
+            This change updates the ArgoCD application ${{ steps.repo-info.outputs.app_name }}
+            to use the new release ${{ steps.repo-info.outputs.tag_name }} for ${{ steps.repo-info.outputs.environment }} environment.
+
+            Triggered by release in ${{ github.event.repository.full_name || github.event.inputs.repository }}
+          title: "🚀 [${{ steps.repo-info.outputs.environment }}] Update ${{ steps.repo-info.outputs.app_name }} to ${{ steps.repo-info.outputs.tag_name }}"
+          body: |
+            ## 🚀 Application Update
+
+            This PR updates the **${{ steps.repo-info.outputs.app_name }}** ArgoCD application to use the new release **${{ steps.repo-info.outputs.tag_name }}**.
+
+            ### Details
+            - **Environment:** ${{ steps.repo-info.outputs.environment }}
+            - **Application:** ${{ steps.repo-info.outputs.app_name }}
+            - **New Version:** ${{ steps.repo-info.outputs.tag_name }}
+            - **Manifest:** `${{ steps.repo-info.outputs.manifest_file }}`
+
+            ### Changes
+            - Updated `targetRevision` to `${{ steps.repo-info.outputs.tag_name }}`
+
+            ### Trigger
+            - Release created in ${{ github.event.repository.full_name || github.event.inputs.repository }}
+            - Tag: ${{ steps.repo-info.outputs.tag_name }}
+
+            ### Next Steps
+            1. Review the changes
+            2. Merge this PR to deploy to ${{ steps.repo-info.outputs.environment }}
+            3. ArgoCD will automatically sync the new version to the ${{ steps.repo-info.outputs.environment }} cluster
+          branch: update-${{ steps.repo-info.outputs.app_name }}-${{ steps.repo-info.outputs.environment }}-${{ steps.repo-info.outputs.tag_name }}
+          delete-branch: true
+          labels: |
+            automated
+            argocd-update
+            ${{ steps.repo-info.outputs.app_name }}
+            ${{ steps.repo-info.outputs.environment }}
+
+      - name: Comment on release
+        if: github.event_name == 'release'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🤖 **ArgoCD Application Update Triggered**\n\nI've created a PR in [base-infra](${{ steps.create-pr.outputs.pull-request-url }}) to update the ArgoCD application with this release.\n\n**Changes:**\n- Updated targetRevision to \`${{ steps.repo-info.outputs.tag_name }}\`\n\nThe PR will be automatically merged once approved, and ArgoCD will sync the new version to the cluster.`
+            })
+
+      - name: Output summary
+        run: |
+          echo "🎉 **Update Summary**"
+          echo "- Repository: ${{ github.event.repository.full_name || github.event.inputs.repository }}"
+          echo "- Application: ${{ steps.repo-info.outputs.app_name }}"
+          echo "- Environment: ${{ steps.repo-info.outputs.environment }}"
+          echo "- New Tag: ${{ steps.repo-info.outputs.tag_name }}"
+          echo "- PR Created: ${{ steps.create-pr.outputs.pull-request-url }}"
+          echo ""
+          echo "Next steps:"
+          echo "1. Review and merge the PR"
+          echo "2. ArgoCD will automatically sync the new version to ${{ steps.repo-info.outputs.environment }}"
