@@ -43,7 +43,6 @@ secretGenerator:
     options:
       disableNameSuffixHash: true
   - name: argocd-redis
-    behavior: merge
     literals:
       - auth=argocd-redis-password
     options:

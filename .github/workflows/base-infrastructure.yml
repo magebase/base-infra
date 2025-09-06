@@ -914,16 +914,16 @@ jobs:
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "📋 Apply attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
 
-            if terraform apply -auto-approve tfplan; then
-              echo "✅ Terraform apply completed successfully"
+            if terraform destroy -auto-approve tfplan; then
+              echo "✅ Terraform destroy completed successfully"
               break
             else
               RETRY_COUNT=$((RETRY_COUNT + 1))
               if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                echo "⚠️  Terraform apply failed, retrying in 30 seconds..."
+                echo "⚠️  Terraform destroy failed, retrying in 30 seconds..."
                 sleep 30
               else
-                echo "❌ Terraform apply failed after $MAX_RETRIES attempts"
+                echo "❌ Terraform destroy failed after $MAX_RETRIES attempts"
                 exit 1
               fi
             fi
