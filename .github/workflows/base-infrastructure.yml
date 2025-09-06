@@ -115,7 +115,7 @@ jobs:
       contents: write
       pull-requests: write
     # Skip if we're not doing a full deployment (depends on bootstrap only)
-    if: (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
+    if: (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || (github.event.inputs.action != 'plan' && github.event.inputs.action != 'destroy'))
     defaults:
       run:
         working-directory: infra/pipeline/base-infrastructure
