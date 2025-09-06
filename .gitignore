@@ -1,3 +1,4 @@
 .env
 .terraform/
+k3s.yaml
 infra/pipeline/base-infrastructure/.terraform
