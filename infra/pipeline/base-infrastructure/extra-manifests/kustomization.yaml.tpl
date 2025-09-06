@@ -6,8 +6,10 @@ resources:
   - https://raw.githubusercontent.com/argoproj/argo-cd/v3.1.1/manifests/install.yaml
   - cloudflare-secret.yaml
   - postgresql-certificate.yaml
+  - argocd-certificate.yaml
   - k3s-encryption.yaml
   - network-policies.yaml
+  - argocd-network-policies.yaml
   - pod-security.yaml
   - audit-policy.yaml
   - argocd-ingress.yaml
@@ -37,6 +39,7 @@ secretGenerator:
     literals:
       - admin.password=${ARGOCD_ADMIN_PASSWORD}
       - admin.passwordMtime=MjAyNS0wMS0wMVQwMDowMDowMFo=
+      - server.insecure=true
     options:
       disableNameSuffixHash: true
 
