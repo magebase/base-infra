@@ -106,6 +106,508 @@ jobs:
 
           echo "state_bucket=$STATE_BUCKET" >> $GITHUB_OUTPUT
           echo "dynamodb_table=$DYNAMODB_TABLE" >> $GITHUB_OUTPUT
+  base-infrastructure-deploy:
+    name: "Base Infrastructure Deployment (k3s Cluster)"
+    runs-on: self-hosted
+    needs: [bootstrap]
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+    # Skip if we're not doing a full deployment (depends on bootstrap only)
+    if: (needs.bootstrap.result == 'success') && (github.event_name != 'workflow_dispatch' || github.event.inputs.action != 'plan')
+    defaults:
+      run:
+        working-directory: infra/pipeline/base-infrastructure
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+
+      - name: Get Infrastructure Account ID
+        id: get-infra-account
+        run: |
+          # Use management account for base infrastructure (SSO is commented out)
+          ACCOUNT_ID="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+          echo "Using management account for base infrastructure: $ACCOUNT_ID"
+          echo "account_id=$ACCOUNT_ID" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials via OIDC
+        id: oidc-auth
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ steps.get-infra-account.outputs.account_id }}:role/${{ vars.AWS_PIPELINE_ROLE }}
+          aws-region: ${{ env.INFRA_REGION }}
+        continue-on-error: true
+
+      - name: Handle State Locks
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan') || (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+        run: |
+          echo "🔍 Checking for existing Terraform state locks..."
+
+          # Wait for any existing locks to be released (with timeout)
+          MAX_WAIT=300  # 5 minutes
+          WAIT_COUNT=0
+
+          while [ $WAIT_COUNT -lt $MAX_WAIT ]; do
+            LOCK_ITEMS=$(aws dynamodb scan \
+              --table-name "magebase-terraform-locks-management" \
+              --region ${{ env.INFRA_REGION }} \
+              --query 'Items[?attribute_exists(LockID)]' \
+              --output json 2>/dev/null || echo "[]")
+
+            LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+
+            if [ "$LOCK_COUNT" -eq 0 ]; then
+              echo "✅ No state locks found - proceeding with Terraform operations"
+              break
+            else
+              echo "🔒 Found $LOCK_COUNT existing state lock(s), waiting..."
+              for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+                LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+                LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+                if [ -n "$LOCK_ID" ]; then
+                  echo "  Lock ID: $LOCK_ID"
+                  echo "  Info: $LOCK_INFO"
+                fi
+              done
+
+              WAIT_COUNT=$((WAIT_COUNT + 30))
+              if [ $WAIT_COUNT -lt $MAX_WAIT ]; then
+                echo "⏳ Waiting 30 seconds before checking again... ($WAIT_COUNT/$MAX_WAIT seconds)"
+                sleep 30
+              fi
+            fi
+          done
+
+          if [ $WAIT_COUNT -ge $MAX_WAIT ]; then
+            echo "❌ Timeout waiting for state locks to be released"
+            echo "🔓 Attempting to force unlock existing locks..."
+
+            # Force unlock any remaining locks
+            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+              if [ -n "$LOCK_ID" ]; then
+                echo "🔓 Force unlocking: $LOCK_ID"
+                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+                  echo "✅ Successfully force unlocked: $LOCK_ID"
+                  break
+                else
+                  echo "⚠️  Force unlock failed for: $LOCK_ID"
+                fi
+              fi
+            done
+          fi
+
+          echo "🔄 Proceeding with Terraform operations..."
+
+      - name: Terraform Init
+        id: init
+        run: |
+          ENVIRONMENT="${{ github.event.inputs.environment || 'dev' }}"
+          terraform init -upgrade \
+            -backend-config="bucket=${{ needs.bootstrap.outputs.state_bucket }}" \
+            -backend-config="key=magebase/base-infrastructure/${ENVIRONMENT}/terraform.tfstate"
+
+      - name: Terraform Validate
+        id: validate
+        working-directory: infra/pipeline/base-infrastructure
+        env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
+          TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+        run: |
+          terraform validate
+
+      - name: Terraform Format Check
+        id: fmt
+        working-directory: infra/pipeline/base-infrastructure
+        run: |
+          terraform fmt -check -recursive
+
+      - name: Terraform Plan
+        id: base-tf-plan
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+        working-directory: infra/pipeline/base-infrastructure
+        env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
+          TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+        run: |
+          terraform plan -no-color -out=tfplan
+        continue-on-error: true
+
+      - name: Terraform Plan (Push to Main)
+        id: base-tf-plan-main
+        working-directory: infra/pipeline/base-infrastructure
+        env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
+          TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+        run: |
+          echo "🚀 Running Terraform plan for base infrastructure deployment..."
+
+          # Retry logic for state lock conflicts
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "📋 Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+
+            if terraform plan -no-color -out=tfplan; then
+              echo "✅ Terraform plan completed successfully"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️  Terraform plan failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Terraform plan failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Update Pull Request
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request' && (steps.tf-plan.outcome == 'success' || steps.tf-plan-main.outcome == 'success')
+        env:
+          PLAN: "terraform\n${{ steps.tf-plan.outputs.stdout || steps.tf-plan-main.outputs.stdout }}"
+        with:
+          script: |
+            const planOutcome = '${{ steps.tf-plan.outcome }}' === 'success' ? '${{ steps.tf-plan.outcome }}' : '${{ steps.tf-plan-main.outcome }}';
+            const output = `#### Base Infrastructure Deployment 🏗️ (k3s Cluster)
+            #### Terraform Format and Validate 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Plan 📖\`${planOutcome}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`\n
+            ${process.env.PLAN}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      # - name: Run Base Infrastructure Terratest
+      #   if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'plan')
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Base Infrastructure Terratest..."
+
+      #     # Install dependencies
+      #     go mod download
+
+      #     # Run base infrastructure test
+      #     go test -v -run TestBaseInfrastructure ./*.go
+
+      #     echo "✅ Base Infrastructure Terratest completed successfully"
+
+      - name: Terraform Apply (Push to Main)
+        id: base-tf-apply-main
+        working-directory: infra/pipeline/base-infrastructure
+        env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
+          TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+        run: |
+          echo "🚀 Applying base infrastructure changes..."
+
+          # Apply with retry logic
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "📋 Apply attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+
+            if terraform apply -auto-approve tfplan; then
+              echo "✅ Terraform apply completed successfully"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⚠️  Terraform apply failed, retrying in 30 seconds..."
+                sleep 30
+              else
+                echo "❌ Terraform apply failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
+
+      - name: Generate Terraform Outputs
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        run: |
+          echo "📊 Generating Terraform outputs for sharing..."
+          terraform output -json > terraform-outputs.json
+          echo "✅ Outputs generated: terraform-outputs.json"
+
+      - name: Create GitHub Release
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: base-outputs-${{ github.run_id }}
+          name: Base Infrastructure Outputs ${{ github.run_id }}
+          body: |
+            Latest Terraform outputs from base infrastructure deployment.
+
+            **Environment:** ${{ github.event.inputs.environment || 'dev' }}
+            **Generated:** ${{ github.event.head_commit.timestamp }}
+            **Commit:** ${{ github.sha }}
+            **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            This release contains the terraform-outputs.json file with all infrastructure outputs that can be consumed by dependent repositories.
+          files: terraform-outputs.json
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+      - name: Display Release Information
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        run: |
+          echo "## 📦 Infrastructure Outputs Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **Release Created:** base-outputs-${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "📊 **Outputs File:** terraform-outputs.json" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 **Download URL:** ${{ github.server_url }}/${{ github.repository }}/releases/download/base-outputs-${{ github.run_id }}/terraform-outputs.json" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📋 Dependent Repositories:" >> $GITHUB_STEP_SUMMARY
+          echo "- Download the terraform-outputs.json from this release" >> $GITHUB_STEP_SUMMARY
+          echo "- Parse the JSON to extract required values" >> $GITHUB_STEP_SUMMARY
+          echo "- Use outputs in your Terraform configurations" >> $GITHUB_STEP_SUMMARY
+
+      # - name: Run Base Infrastructure Terratest
+      #   if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Base Infrastructure Terratest after apply..."
+
+      #     # Install dependencies
+      #     go mod download
+
+      #     # Run base infrastructure test
+      #     go test -v -run TestBaseInfrastructure ./*.go -timeout 30m
+
+      #     echo "✅ Base Infrastructure Terratest completed successfully"
+
+      # - name: Run Integration Terratest
+      #   if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Integration Terratest after apply..."
+
+      #     # Install dependencies
+      #     go mod download
+
+      #     # Run integration test
+      #     go test -v -run TestIntegration ./*.go -timeout 45m
+
+      #     echo "✅ Integration Terratest completed successfully"
+
+      # - name: Run Unified Terratest
+      #   if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Unified Terratest after apply..."
+
+      #     # Install dependencies
+      #     go mod download
+
+      #     # Run unified test (include all test files)
+      #     go test -v -run TestUnifiedInfrastructure ./*.go -timeout 45m
+
+      #     echo "✅ Unified Terratest completed successfully"
+
+      - name: Force Unlock Base Infrastructure on Failure
+        if: failure() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        run: |
+          echo "🔍 Attempting to force unlock base infrastructure Terraform state after failure..."
+
+          # Try to scan DynamoDB for any existing locks
+          echo "🔍 Scanning DynamoDB for existing base infrastructure locks..."
+          LOCK_ITEMS=$(aws dynamodb scan \
+            --table-name "magebase-terraform-locks-management" \
+            --region ${{ env.INFRA_REGION }} \
+            --query 'Items[?attribute_exists(LockID)]' \
+            --output json 2>/dev/null || echo "[]")
+
+          LOCK_COUNT=$(echo "$LOCK_ITEMS" | jq length 2>/dev/null || echo "0")
+
+          if [ "$LOCK_COUNT" -gt 0 ]; then
+            echo "🔒 Found $LOCK_COUNT existing base infrastructure state lock(s), attempting to force unlock..."
+
+            # Process each lock item
+            for i in $(seq 0 $(($LOCK_COUNT - 1))); do
+              LOCK_ID=$(echo "$LOCK_ITEMS" | jq -r ".[$i].LockID.S" 2>/dev/null || echo "")
+              LOCK_INFO=$(echo "$LOCK_ITEMS" | jq -r ".[$i].Info.S" 2>/dev/null || echo "")
+
+              if [ -n "$LOCK_ID" ]; then
+                echo "🔓 Attempting to force unlock base infrastructure: $LOCK_ID"
+                echo "Lock info: $LOCK_INFO"
+
+                # Attempt force unlock
+                if terraform force-unlock -force "$LOCK_ID" 2>/dev/null; then
+                  echo "✅ Successfully force unlocked base infrastructure: $LOCK_ID"
+                  break
+                else
+                  echo "⚠️  Force unlock failed for base infrastructure: $LOCK_ID"
+                fi
+              fi
+            done
+          else
+            echo "ℹ️  No base infrastructure locks found in DynamoDB table"
+          fi
+
+          # Provide manual instructions
+          echo ""
+          echo "📋 If the automatic unlock failed, please manually force-unlock the base infrastructure state:"
+          echo "1. Find the lock ID from the failed base infrastructure deployment step logs above"
+          echo "2. Run: cd infra/pipeline/base-infrastructure && terraform force-unlock -force <lock_id>"
+          echo "3. Re-run the workflow"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
+
+      # - name: Run Integration Terratest
+      #   if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Integration Terratest..."
+
+      #     # Install dependencies
+      #     go mod download
+
+      #     # Run integration test
+      #     go test -v -run TestIntegration ./*.go
+
+      #     echo "✅ Integration Terratest completed successfully"
+
+      # - name: Run Unified Terratest
+      #   if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
+      #   working-directory: infra/tests
+      #   env:
+      #     AWS_REGION: ${{ env.INFRA_REGION }}
+      #     TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+      #     TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+      #     AWS_SSO_START_URL: ${{ secrets.AWS_SSO_START_URL }}
+      #     AWS_SSO_REGION: ${{ env.SSO_REGION }}
+      #     TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+      #   run: |
+      #     echo "🧪 Running Unified Terratest..."
+
+      #     # Install dependencies
+      #     go mod download
+
+      #     # Run unified test (include all test files)
+      #     go test -v -run TestUnifiedInfrastructure ./*.go
+
+      #     echo "✅ Unified Terratest completed successfully"
+
+      - name: Terraform Destroy
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'
+        env:
+          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
+          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
+          TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_argocd_admin_password: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+          TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+        run: |
+          terraform destroy -auto-approve
 
   base-infrastructure-destroy:
     name: "Base Infrastructure Destroy (k3s Cluster)"
