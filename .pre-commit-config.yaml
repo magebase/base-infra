@@ -58,12 +58,20 @@ repos:
       - id: terraform_fmt
         files: \.(tf|tfvars)$
         exclude: \.terraform/
-      # Removed terraform_validate due to missing providers issue
-      # - id: terraform_validate
-      #   files: \.(tf|tfvars)$
-      #   exclude: \.terraform/
-      # Removed terraform_docs as terraform-docs is not installed
-      # Use CI/CD pipeline for full validation and documentation
+      - id: terraform_validate
+        files: \.(tf|tfvars)$
+        exclude: \.terraform/
+      - id: terraform_tflint
+        files: \.(tf|tfvars)$
+        exclude: \.terraform/
+        args:
+          - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
+      - id: terraform_tfsec
+        files: \.(tf|tfvars)$
+        exclude: \.terraform/
+      - id: terraform_checkov
+        files: \.(tf|tfvars)$
+        exclude: \.terraform/
 
   - repo: local
     hooks:

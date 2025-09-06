@@ -9,7 +9,6 @@ resources:
   - argocd-certificate.yaml
   - k3s-encryption.yaml
   - network-policies.yaml
-  - argocd-network-policies.yaml
   - pod-security.yaml
   - audit-policy.yaml
   - argocd-ingress.yaml
