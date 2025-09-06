@@ -66,16 +66,16 @@ repos:
         exclude: \.terraform/
         args:
           - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
-      # - id: terraform_trivy
-      #   files: \.(tf|tfvars)$
-      #   exclude: \.terraform/
-      # - id: terragrunt_providers_lock
-      #   files: \.(hcl)$
-      #   args:
-      #     - --args=--mode=lock
-      # - id: terraform_wrapper_module_for_each
-      #   files: \.(tf)$
-      #   exclude: \.terraform/
+      - id: terraform_trivy
+        files: \.(tf|tfvars)$
+        exclude: \.terraform/
+      - id: terragrunt_providers_lock
+        files: \.(hcl)$
+        args:
+          - --args=--mode=lock
+      - id: terraform_wrapper_module_for_each
+        files: \.(tf)$
+        exclude: \.terraform/
 
   - repo: local
     hooks:
@@ -104,14 +104,14 @@ repos:
         pass_filenames: false
         description: Validate package.json dependencies
 
-      # - id: terraform-syntax-check
-      #   name: Terraform Syntax Check
-      #   entry: terraform fmt -check
-      #   language: system
-      #   files: \.(tf|tfvars)$
-      #   pass_filenames: false
-      #   exclude: \.terraform/
-      #   description: Check Terraform syntax
+      - id: terraform-syntax-check
+        name: Terraform Syntax Check
+        entry: terraform fmt -check
+        language: system
+        files: \.(tf|tfvars)$
+        pass_filenames: false
+        exclude: \.terraform/
+        description: Check Terraform syntax
 
       - id: kustomization-validate
         name: Kustomization Validation
