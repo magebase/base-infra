@@ -29,7 +29,5 @@ spec:
     kind: ClusterIssuer
   dnsNames:
     - postgresql.dev.magebase.dev
-    - postgresql.qa.magebase.dev
-    - postgresql.uat.magebase.dev
     - postgresql.prod.magebase.dev
   isCA: true

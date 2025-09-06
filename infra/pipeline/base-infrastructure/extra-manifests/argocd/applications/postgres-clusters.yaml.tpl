@@ -17,7 +17,7 @@ spec:
     targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
-    namespace: genfix
+    namespace: default
   syncPolicy:
     automated:
       prune: true

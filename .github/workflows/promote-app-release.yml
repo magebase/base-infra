@@ -20,15 +20,15 @@ on:
         type: choice
         options:
           - dev
-          - qa
-          - uat
+          # - qa  # Commented out - QA deployments disabled
+          # - uat # Commented out - UAT deployments disabled
       to_environment:
         description: "Target environment"
         required: true
         type: choice
         options:
-          - qa
-          - uat
+          # - qa  # Commented out - QA deployments disabled
+          # - uat # Commented out - UAT deployments disabled
           - prod
 
 jobs:
@@ -37,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       can_promote: ${{ steps.validate.outputs.can_promote }}
+      target_regions: ${{ steps.validate.outputs.target_regions }}
     steps:
       - name: Validate promotion logic
         id: validate
@@ -44,18 +45,34 @@ jobs:
           FROM_ENV="${{ github.event.inputs.from_environment }}"
           TO_ENV="${{ github.event.inputs.to_environment }}"
 
-          # Validate promotion order
-          case "$FROM_ENV-$TO_ENV" in
-            "dev-qa"|"qa-uat"|"uat-prod")
-              echo "✅ Valid promotion: $FROM_ENV → $TO_ENV"
-              echo "can_promote=true" >> $GITHUB_OUTPUT
+          # Define regions for each environment
+          case "$FROM_ENV" in
+            "dev")
+              FROM_REGIONS="fsn1"
               ;;
-            *)
-              echo "❌ Invalid promotion: $FROM_ENV → $TO_ENV"
-              echo "can_promote=false" >> $GITHUB_OUTPUT
-              exit 1
+            # "qa")  # Commented out - QA deployments disabled
+            #   FROM_REGIONS="fsn1,nbg1"
+            #   ;;
+            # "uat") # Commented out - UAT deployments disabled
+            #   FROM_REGIONS="fsn1,nbg1,hel1"
+            #   ;;
+          esac
+
+          case "$TO_ENV" in
+            # "qa")  # Commented out - QA deployments disabled
+            #   TO_REGIONS="fsn1,nbg1"
+            #   ;;
+            # "uat") # Commented out - UAT deployments disabled
+            #   TO_REGIONS="fsn1,nbg1,hel1"
+            #   ;;
+            "prod")
+              TO_REGIONS="fsn1"
               ;;
           esac
+
+          echo "✅ Promoting from $FROM_ENV ($FROM_REGIONS) to $TO_ENV ($TO_REGIONS)"
+          echo "can_promote=true" >> $GITHUB_OUTPUT
+          echo "target_regions=$TO_REGIONS" >> $GITHUB_OUTPUT
 
   promote-app:
     name: "Promote Application"
@@ -73,9 +90,15 @@ jobs:
           repository: magebase/base-infra
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update targetRevision for target environment
+      - name: Update targetRevision for target regions
         run: |
-          ./scripts/update-argocd-app.sh "${{ github.event.inputs.repository }}" "${{ github.event.inputs.tag }}" "${{ github.event.inputs.to_environment }}"
+          # Split target regions and update each one
+          IFS=',' read -ra REGION_ARRAY <<< "${{ needs.validate-promotion.outputs.target_regions }}"
+          for region in "${REGION_ARRAY[@]}"; do
+            region=$(echo $region | xargs)  # trim whitespace
+            echo "Updating ${{ github.event.inputs.repository }} for ${{ github.event.inputs.to_environment }}-$region"
+            ./scripts/update-argocd-app.sh "${{ github.event.inputs.repository }}" "${{ github.event.inputs.tag }}" "${{ github.event.inputs.to_environment }}" "$region"
+          done
 
       - name: Create promotion pull request
         id: create-pr
@@ -83,20 +106,20 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: |
-            🚀 Promote ${{ github.event.inputs.repository }} ${{ github.event.inputs.tag }} to ${{ github.event.inputs.to_environment }}
+            🚀 Promote ${{ github.event.inputs.repository }} ${{ github.event.inputs.tag }} from ${{ github.event.inputs.from_environment }} to ${{ github.event.inputs.to_environment }}
 
             Promoting ${{ github.event.inputs.repository }} from ${{ github.event.inputs.from_environment }} to ${{ github.event.inputs.to_environment }}
-          title: "🚀 Promote ${{ github.event.inputs.repository }} ${{ github.event.inputs.tag }} to ${{ github.event.inputs.to_environment }}"
+          title: "🚀 Promote ${{ github.event.inputs.repository }} ${{ github.event.inputs.tag }} from ${{ github.event.inputs.from_environment }} to ${{ github.event.inputs.to_environment }}"
           body: |
             ## 🚀 Application Promotion
 
-            Promoting **${{ github.event.inputs.repository }}** to **${{ github.event.inputs.to_environment }}** environment.
+            Promoting **${{ github.event.inputs.repository }}** from **${{ github.event.inputs.from_environment }}** to **${{ github.event.inputs.to_environment }}**.
 
             ### Details
             - **Application:** ${{ github.event.inputs.repository }}
             - **Version:** ${{ github.event.inputs.tag }}
             - **From:** ${{ github.event.inputs.from_environment }}
-            - **To:** ${{ github.event.inputs.to_environment }}
+            - **To:** ${{ github.event.inputs.to_environment }} (${{ needs.validate-promotion.outputs.target_regions }})
 
             ### Changes
             - Updated targetRevision to `${{ github.event.inputs.tag }}` in ${{ github.event.inputs.to_environment }} environment
@@ -125,7 +148,7 @@ jobs:
           echo "- Repository: ${{ github.event.inputs.repository }}"
           echo "- Version: ${{ github.event.inputs.tag }}"
           echo "- From: ${{ github.event.inputs.from_environment }}"
-          echo "- To: ${{ github.event.inputs.to_environment }}"
+          echo "- To: ${{ github.event.inputs.to_environment }} (${{ needs.validate-promotion.outputs.target_regions }})"
           echo "- PR Created: ${{ steps.create-pr.outputs.pull-request-url }}"
           echo ""
           echo "Next steps:"

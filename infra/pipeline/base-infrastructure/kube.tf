@@ -5,7 +5,7 @@ terraform {
   # Backend configuration using management account
   backend "s3" {
     bucket  = "magebase-tf-state-management-ap-southeast-1"
-    key     = "magebase/base-infrastructure/dev/terraform.tfstate"
+    key     = "magebase/base-infrastructure/${var.environment}/terraform.tfstate"
     region  = "ap-southeast-1"
     encrypt = true
   }
@@ -170,11 +170,11 @@ module "kube-hetzner" {
   control_plane_nodepools = [
     {
       name        = "control-plane-${var.hetzner_region}",
-      server_type = "cax11",
+      server_type = var.control_plane_server_type != "" ? var.control_plane_server_type : "cax11",
       location    = var.hetzner_region,
       labels      = [],
       taints      = [],
-      count       = 1
+      count       = var.control_plane_count > 0 ? var.control_plane_count : 1
       # swap_size   = "2G" # remember to add the suffix, examples: 512M, 1G
       # zram_size   = "2G" # remember to add the suffix, examples: 512M, 1G
       # kubelet_args = ["kube-reserved=cpu=250m,memory=1500Mi,ephemeral-storage=1Gi", "system-reserved=cpu=250m,memory=300Mi"]
@@ -196,11 +196,11 @@ module "kube-hetzner" {
   agent_nodepools = [
     {
       name        = "agent-small",
-      server_type = "cax11",
+      server_type = var.agent_server_type != "" ? var.agent_server_type : "cax11",
       location    = var.hetzner_region,
       labels      = [],
       taints      = [],
-      count       = 1
+      count       = var.agent_count > 0 ? var.agent_count : 1
       # swap_size   = "2G" # remember to add the suffix, examples: 512M, 1G
       # zram_size   = "2G" # remember to add the suffix, examples: 512M, 1G
       # kubelet_args = ["kube-reserved=cpu=50m,memory=300Mi,ephemeral-storage=1Gi", "system-reserved=cpu=250m,memory=300Mi"]
@@ -1257,6 +1257,11 @@ output "kubeconfig" {
 output "lb_ipv4" {
   value       = module.kube-hetzner.ingress_public_ipv4
   description = "IPv4 address of the load balancer"
+}
+
+output "cluster_endpoint" {
+  value       = "https://${module.kube-hetzner.ingress_public_ipv4}:6443"
+  description = "Kubernetes API server endpoint"
 }
 
 # IMPORTANT: If you want Traefik TLS passthrough to work end-to-end, the Hetzner Load Balancer

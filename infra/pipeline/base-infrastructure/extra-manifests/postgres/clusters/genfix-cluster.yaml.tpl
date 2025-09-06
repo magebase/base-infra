@@ -2,7 +2,7 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
   name: genfix-db
-  namespace: genfix
+  namespace: genfix-${environment}
   annotations:
     argocd.argoproj.io/sync-wave: "1"
 spec:

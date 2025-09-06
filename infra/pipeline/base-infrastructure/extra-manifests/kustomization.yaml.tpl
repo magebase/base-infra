@@ -20,6 +20,9 @@ resources:
   - argocd/applications/postgres-clusters.yaml
   - argocd/applications/magebase-genfix.yaml
   - argocd/applications/magebase-site.yaml
+  # Environment-specific applications (segregated by app)
+  - argocd/applications/environments/genfix/${environment}-fsn1.yaml
+  - argocd/applications/environments/site/${environment}-fsn1.yaml
   # NOTE: PostgreSQL clusters & backup secrets are now managed exclusively via the
   # ArgoCD Application "postgres-clusters" (see applications/postgres-clusters.yaml.tpl).
   # They were removed from this base kustomization to prevent race conditions where

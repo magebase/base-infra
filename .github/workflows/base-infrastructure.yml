@@ -28,8 +28,8 @@ on:
         type: choice
         options:
           - dev
-          - qa
-          - uat
+          # - qa  # Commented out - QA deployments disabled
+          # - uat # Commented out - UAT deployments disabled
           - prod
       action:
         description: "Action to perform"

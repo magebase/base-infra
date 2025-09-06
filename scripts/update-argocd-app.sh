@@ -1,31 +1,32 @@
 #!/bin/bash
 
 # Script to update ArgoCD application targetRevision
-# Usage: ./update-argocd-app.sh <repository> <tag> [environment]
+# Usage: ./update-argocd-app.sh <repository> <tag> <environment> <region>
 
 set -e
 
 REPOSITORY=$1
 TAG=$2
-ENVIRONMENT=${3:-dev}
+ENVIRONMENT=$3
+REGION=$4
 
-if [ -z "$REPOSITORY" ] || [ -z "$TAG" ]; then
-    echo "❌ Usage: $0 <repository> <tag> [environment]"
-    echo "Example: $0 magebase/genfix v1.2.3 dev"
+if [ -z "$REPOSITORY" ] || [ -z "$TAG" ] || [ -z "$ENVIRONMENT" ] || [ -z "$REGION" ]; then
+    echo "❌ Usage: $0 <repository> <tag> <environment> <region>"
+    echo "Example: $0 magebase/genfix v1.2.3 dev fsn1"
     exit 1
 fi
 
-echo "🔄 Updating ArgoCD application for $REPOSITORY to $TAG in $ENVIRONMENT environment"
+echo "🔄 Updating ArgoCD application for $REPOSITORY to $TAG in $ENVIRONMENT-$REGION"
 
 # Determine application details
 case "$REPOSITORY" in
     "magebase/genfix")
-        APP_NAME="magebase-genfix-$ENVIRONMENT"
-        MANIFEST_FILE="infra/pipeline/base-infrastructure/extra-manifests/argocd/applications/environments/magebase-genfix-$ENVIRONMENT.yaml.tpl"
+        APP_NAME="magebase-genfix-$ENVIRONMENT-$REGION"
+        MANIFEST_FILE="infra/pipeline/base-infrastructure/extra-manifests/argocd/applications/environments/genfix/$ENVIRONMENT-$REGION.yaml.tpl"
         ;;
     "magebase/site")
-        APP_NAME="magebase-site-$ENVIRONMENT"
-        MANIFEST_FILE="infra/pipeline/base-infrastructure/extra-manifests/argocd/applications/environments/magebase-site-$ENVIRONMENT.yaml.tpl"
+        APP_NAME="magebase-site-$ENVIRONMENT-$REGION"
+        MANIFEST_FILE="infra/pipeline/base-infrastructure/extra-manifests/argocd/applications/environments/site/$ENVIRONMENT-$REGION.yaml.tpl"
         ;;
     *)
         echo "❌ Unsupported repository: $REPOSITORY"
@@ -86,5 +87,5 @@ rm -f "${MANIFEST_FILE}.backup"
 
 echo "🎉 Update completed successfully!"
 echo "Application: $APP_NAME"
-echo "Environment: $ENVIRONMENT"
+echo "Environment-Region: $ENVIRONMENT-$REGION"
 echo "New Version: $TAG"

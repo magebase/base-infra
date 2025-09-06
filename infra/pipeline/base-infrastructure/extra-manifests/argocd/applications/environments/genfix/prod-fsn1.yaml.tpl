@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: magebase-genfix-dev
+  name: magebase-genfix-${environment}-fsn1
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "3"
@@ -12,10 +12,10 @@ spec:
   source:
     repoURL: https://github.com/magebase/genfix
     path: k8s
-    targetRevision: v1.2.3
+    targetRevision: ${GENFIX_TARGET_REVISION}
   destination:
-    server: https://kubernetes.default.svc
-    namespace: genfix-dev
+    server: https://fsn1-${environment}-magebase-k8s:6443
+    namespace: genfix-${environment}
   syncPolicy:
     automated:
       prune: true

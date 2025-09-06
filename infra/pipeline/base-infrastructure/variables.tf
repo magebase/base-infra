@@ -97,3 +97,27 @@ variable "cloudflare_zone_id" {
   type        = string
   default     = ""
 }
+
+variable "control_plane_server_type" {
+  description = "Hetzner Cloud server type for control plane nodes"
+  type        = string
+  default     = "cpx11"
+}
+
+variable "control_plane_count" {
+  description = "Number of control plane nodes"
+  type        = number
+  default     = 1
+}
+
+variable "agent_server_type" {
+  description = "Hetzner Cloud server type for agent nodes"
+  type        = string
+  default     = "cax11"
+}
+
+variable "agent_count" {
+  description = "Number of agent nodes"
+  type        = number
+  default     = 1
+}
