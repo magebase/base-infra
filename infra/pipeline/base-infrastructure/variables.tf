@@ -109,7 +109,7 @@ variable "cloudflare_zone_id" {
 variable "control_plane_server_type" {
   description = "Hetzner Cloud server type for control plane nodes"
   type        = string
-  default     = "cpx11"
+  default     = "cx22"
 }
 
 variable "control_plane_count" {
