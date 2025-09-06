@@ -14,7 +14,7 @@ spec:
     path: k8s
     targetRevision: main
   destination:
-    server: https://fsn1-${ENVIRONMENT}-magebase-k8s:6443
+    server: https://kubernetes.default.svc
     namespace: site-${ENVIRONMENT}
   syncPolicy:
     automated:
