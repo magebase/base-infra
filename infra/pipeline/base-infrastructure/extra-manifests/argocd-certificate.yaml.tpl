@@ -10,7 +10,7 @@ metadata:
 spec:
   secretName: argocd-tls
   issuerRef:
-    name: letsencrypt-prod
+    name: letsencrypt-${ENVIRONMENT}
     kind: ClusterIssuer
   dnsNames:
     - ${ARGOCD_FQDN}

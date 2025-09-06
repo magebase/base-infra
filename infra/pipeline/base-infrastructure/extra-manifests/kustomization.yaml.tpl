@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - https://raw.githubusercontent.com/argoproj/argo-cd/v3.1.1/manifests/install.yaml
   - cloudflare-secret.yaml
+  - letsencrypt-clusterissuer.yaml
   - postgresql-certificate.yaml
   - argocd-certificate.yaml
   - k3s-encryption.yaml

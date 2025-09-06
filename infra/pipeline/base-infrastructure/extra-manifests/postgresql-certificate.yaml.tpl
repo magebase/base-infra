@@ -10,7 +10,7 @@ metadata:
 spec:
   secretName: postgresql-tls
   issuerRef:
-    name: letsencrypt-prod
+    name: letsencrypt-${ENVIRONMENT}
     kind: ClusterIssuer
   dnsNames:
     - postgresql.${DOMAIN}
@@ -25,7 +25,7 @@ metadata:
 spec:
   secretName: postgresql-ca
   issuerRef:
-    name: letsencrypt-prod
+    name: letsencrypt-${ENVIRONMENT}
     kind: ClusterIssuer
   dnsNames:
     - postgresql.dev.magebase.dev
