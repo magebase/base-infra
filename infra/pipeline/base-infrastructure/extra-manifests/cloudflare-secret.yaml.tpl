@@ -6,4 +6,4 @@ metadata:
 type: Opaque
 data:
   # This will be populated by the deployment pipeline
-  api-token: ""
+  api-token: ${CLOUDFLARE_API_TOKEN}
