@@ -965,9 +965,11 @@ module "kube-hetzner" {
   EOT
 
   # Additional safeguard: empty kustomization parameters
+  # IMPORTANT: Set the following environment variables before running Terraform:
+  # - TF_VAR_argocd_admin_password: ArgoCD admin password (bcrypt hashed)
+  # - TF_VAR_argocd_repo_token: GitHub Personal Access Token for ArgoCD repository access
   extra_kustomize_parameters = {
     ENVIRONMENT           = var.environment
-    environment           = var.environment
     DOMAIN                = var.domain != "" ? var.domain : "magebase.dev"
     ARGOCD_FQDN           = var.environment == "prod" ? "argocd.${var.domain != "" ? var.domain : "magebase.dev"}" : "argocd-dev.${var.domain != "" ? var.domain : "magebase.dev"}"
     ARGOCD_ADMIN_PASSWORD = var.argocd_admin_password

@@ -48,6 +48,10 @@ variable "argocd_admin_password" {
   type        = string
   default     = ""
   sensitive   = true
+  validation {
+    condition     = var.argocd_admin_password != ""
+    error_message = "ArgoCD admin password must be set and cannot be empty"
+  }
 }
 
 variable "argocd_repo_token" {
@@ -55,6 +59,10 @@ variable "argocd_repo_token" {
   type        = string
   default     = ""
   sensitive   = true
+  validation {
+    condition     = var.argocd_repo_token != ""
+    error_message = "ArgoCD repository token must be set and cannot be empty"
+  }
 }
 
 variable "encryption_key" {
