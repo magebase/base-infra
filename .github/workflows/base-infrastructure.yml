@@ -41,9 +41,9 @@ on:
           - apply
           - destroy
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
 
 env:
   TF_VERSION: "1.8.0"
