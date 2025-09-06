@@ -34,7 +34,7 @@ on:
 jobs:
   validate-promotion:
     name: "Validate Promotion"
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2-arm
     outputs:
       can_promote: ${{ steps.validate.outputs.can_promote }}
       target_regions: ${{ steps.validate.outputs.target_regions }}
@@ -76,7 +76,7 @@ jobs:
 
   promote-app:
     name: "Promote Application"
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2-arm
     needs: [validate-promotion]
     if: needs.validate-promotion.outputs.can_promote == 'true'
     permissions:

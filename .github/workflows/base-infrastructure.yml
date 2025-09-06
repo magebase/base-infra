@@ -41,9 +41,9 @@ on:
           - apply
           - destroy
 
-# concurrency:
-#   group: ${{ github.workflow }}-${{ github.ref }}
-#   cancel-in-progress: true
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   TF_VERSION: "1.8.0"
@@ -53,7 +53,7 @@ jobs:
   # ===== TERRAFORM STATE BACKEND BOOTSTRAP =====
   bootstrap:
     name: "Terraform State Backend Bootstrap"
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     permissions:
       id-token: write
       contents: write
@@ -107,9 +107,9 @@ jobs:
           echo "state_bucket=$STATE_BUCKET" >> $GITHUB_OUTPUT
           echo "dynamodb_table=$DYNAMODB_TABLE" >> $GITHUB_OUTPUT
 
-  base-infrastructure-deploy:
-    name: "Base Infrastructure Deployment (k3s Cluster)"
-    runs-on: self-hosted
+  base-infrastructure-destroy:
+    name: "Base Infrastructure Destroy (k3s Cluster)"
+    runs-on: ubicloud-standard-2-arm
     needs: [bootstrap]
     permissions:
       id-token: write
@@ -612,7 +612,7 @@ jobs:
 
   security-scan:
     name: Security and Compliance Scan
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs: base-infrastructure-deploy
     permissions:
       contents: read
@@ -679,7 +679,7 @@ jobs:
   # ===== NOTIFICATION =====
   notify:
     name: "Pipeline Notification"
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs: [bootstrap, base-infrastructure-deploy, security-scan]
     if: always()
     steps:
