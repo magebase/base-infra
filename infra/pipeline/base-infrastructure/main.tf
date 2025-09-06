@@ -2,6 +2,14 @@
 terraform {
   required_version = ">= 1.8.0"
 
+  # Backend configuration using management account
+  backend "s3" {
+    bucket  = "magebase-tf-state-management-ap-southeast-1"
+    key     = "magebase/base-infrastructure/${var.environment}/terraform.tfstate"
+    region  = "ap-southeast-1"
+    encrypt = true
+  }
+
   # Backend configuration is handled by Terragrunt
   required_providers {
     hcloud = {
