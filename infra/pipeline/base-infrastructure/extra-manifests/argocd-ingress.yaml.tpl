@@ -11,6 +11,6 @@ spec:
     match: Host(`${ARGOCD_FQDN}`)
     services:
     - name: argocd-server
-      port: 80
+      port: 443
   tls:
     secretName: argocd-tls

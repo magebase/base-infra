@@ -66,7 +66,7 @@ repos:
         exclude: \.terraform/
         args:
           - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
-      - id: terraform_tfsec
+      - id: terraform_trivy
         files: \.(tf|tfvars)$
         exclude: \.terraform/
       - id: terraform_checkov
