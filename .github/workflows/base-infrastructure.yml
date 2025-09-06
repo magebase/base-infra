@@ -53,7 +53,7 @@ jobs:
   # ===== TERRAFORM STATE BACKEND BOOTSTRAP =====
   bootstrap:
     name: "Terraform State Backend Bootstrap"
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     permissions:
       id-token: write
       contents: write
@@ -108,7 +108,7 @@ jobs:
           echo "dynamodb_table=$DYNAMODB_TABLE" >> $GITHUB_OUTPUT
   base-infrastructure-deploy:
     name: "Base Infrastructure Deployment (k3s Cluster)"
-    runs-on: self-hosted
+    runs-on: ubicloud-standard-2-arm
     needs: [bootstrap]
     permissions:
       id-token: write
