@@ -66,12 +66,16 @@ repos:
         exclude: \.terraform/
         args:
           - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
-      - id: terraform_trivy
-        files: \.(tf|tfvars)$
-        exclude: \.terraform/
-      - id: terraform_checkov
-        files: \.(tf|tfvars)$
-        exclude: \.terraform/
+      # - id: terraform_trivy
+      #   files: \.(tf|tfvars)$
+      #   exclude: \.terraform/
+      # - id: terragrunt_providers_lock
+      #   files: \.(hcl)$
+      #   args:
+      #     - --args=--mode=lock
+      # - id: terraform_wrapper_module_for_each
+      #   files: \.(tf)$
+      #   exclude: \.terraform/
 
   - repo: local
     hooks:

@@ -2,14 +2,7 @@
 terraform {
   required_version = ">= 1.8.0"
 
-  # Backend configuration using management account
-  backend "s3" {
-    bucket  = "magebase-tf-state-management-ap-southeast-1"
-    key     = "magebase/base-infrastructure/${var.environment}/terraform.tfstate"
-    region  = "ap-southeast-1"
-    encrypt = true
-  }
-
+  # Backend configuration is handled by Terragrunt
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
@@ -18,6 +11,10 @@ terraform {
     cloudflare = {
       source  = "cloudflare/cloudflare"
       version = "~> 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
     }
   }
 }
@@ -995,7 +992,7 @@ module "kube-hetzner" {
     ARGOCD_ADMIN_PASSWORD = var.argocd_admin_password
     ARGOCD_REPO_TOKEN     = var.argocd_repo_token
     ENCRYPTION_KEY        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
-    CLOUDFLARE_API_TOKEN  = var.cloudflare_api_token
+    CLOUDFLARE_API_TOKEN  = base64encode(var.cloudflare_api_token)
 
     # Cloudflare R2 parameters for PostgreSQL backups (with fallbacks)
     R2_BUCKET            = try(module.cloudflare_r2.r2_bucket, "dev-magebase-postgres-backups")
@@ -1266,27 +1263,6 @@ bootstrapPassword: "supermario"
 
 }
 
-# Outputs
-output "cluster_name" {
-  value       = local.cluster_name
-  description = "Name of the k3s cluster"
-}
-
-output "kubeconfig" {
-  value     = module.kube-hetzner.kubeconfig
-  sensitive = true
-}
-
-output "lb_ipv4" {
-  value       = module.kube-hetzner.ingress_public_ipv4
-  description = "IPv4 address of the load balancer"
-}
-
-output "cluster_endpoint" {
-  value       = "https://${module.kube-hetzner.ingress_public_ipv4}:6443"
-  description = "Kubernetes API server endpoint"
-}
-
 # IMPORTANT: If you want Traefik TLS passthrough to work end-to-end, the Hetzner Load Balancer
 # must forward raw TCP on port 443 (no TLS termination). By default the module may create an
 # HTTPS listener that terminates TLS. To switch to passthrough you need to update the
@@ -1316,15 +1292,3 @@ output "cluster_endpoint" {
 #   terraform apply
 #
 # to update the load balancer. The change may cause a short interruption.
-
-# Cloudflare R2 Outputs
-output "cloudflare_r2_bucket" {
-  value       = module.cloudflare_r2.r2_bucket
-  description = "Cloudflare R2 bucket for PostgreSQL backups"
-}
-
-output "cloudflare_r2_endpoint" {
-  value       = module.cloudflare_r2.r2_endpoint
-  description = "Cloudflare R2 endpoint URL"
-  sensitive   = true
-}
