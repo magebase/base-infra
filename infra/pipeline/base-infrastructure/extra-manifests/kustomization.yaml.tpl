@@ -42,6 +42,12 @@ secretGenerator:
       - server.insecure=true
     options:
       disableNameSuffixHash: true
+  - name: argocd-redis
+    behavior: merge
+    literals:
+      - auth=argocd-redis-password
+    options:
+      disableNameSuffixHash: true
 
 # Apply namespace transformation to all ArgoCD components
 namespace: argocd
