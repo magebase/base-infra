@@ -15,12 +15,21 @@ terraform {
       source  = "hetznercloud/hcloud"
       version = ">= 1.52.0"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.0"
+    }
   }
 }
 
 # Hetzner Cloud Provider
 provider "hcloud" {
   token = var.hcloud_token
+}
+
+# Cloudflare Provider
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
 }
 
 locals {
@@ -50,6 +59,17 @@ module "cloudflare_r2" {
   environment           = var.environment
   zone_id               = var.cloudflare_zone_id
   cloudflare_api_token  = var.cloudflare_api_token
+}
+
+# Cloudflare DNS Record for ArgoCD
+resource "cloudflare_dns_record" "argocd_a" {
+  zone_id = var.cloudflare_zone_id
+  # Use environment prefix: dev-argocd.magebase.dev, prod-argocd.magebase.dev
+  name    = var.environment == "prod" ? "argocd" : "argocd-${var.environment}"
+  content = module.kube-hetzner.ingress_public_ipv4 # Hetzner LB IP for SSL termination
+  type    = "A"
+  ttl     = 1    # Use 1 for proxied records
+  proxied = true # Enable Cloudflare proxying for SSL termination
 }
 
 module "kube-hetzner" {
