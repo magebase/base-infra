@@ -33,7 +33,14 @@ Sample scaled objects for different scaling scenarios:
 - Scales YugabyteDB tserver pods based on database connections, CPU, and memory usage
 - Supports scaling to zero when database load is low
 - Includes multiple triggers for comprehensive autoscaling
-- Configured for the genfix-cluster (can be adapted for other clusters)
+- Configured for both genfix-cluster and site-cluster with CPU-based scaling
+
+#### Environment-Specific Scaled Objects
+
+- **Dev Scaled Object** (`dev-scaledobject.yaml.tpl`): Minimal scaling for development
+- **QA Scaled Object** (`qa-scaledobject.yaml.tpl`): Standard scaling for QA environment
+- **UAT Scaled Object** (`uat-scaledobject.yaml.tpl`): Standard scaling for UAT environment
+- **Prod Scaled Object** (`prod-scaledobject.yaml.tpl`): Conservative scaling for production (min 1 replica)
 
 ## Usage
 
@@ -137,6 +144,21 @@ The YugabyteDB scaled objects are configured to:
 - Scale based on CPU and memory utilization
 - Allow scaling to zero during periods of low activity
 - Maintain minimum performance during scale-up events
+
+### CPU-Based Scaling for Genfix and Site Clusters
+
+Both genfix and site clusters are configured with dedicated CPU-based scaled objects:
+
+```yaml
+triggers:
+- type: cpu
+  metadata:
+    type: Utilization
+    value: "70"          # Scale up at 70% CPU
+    activationThreshold: "30"  # Scale down at 30% CPU
+```
+
+This ensures optimal resource utilization while maintaining performance for application workloads.
 
 ### Configuration for Scale to Zero
 

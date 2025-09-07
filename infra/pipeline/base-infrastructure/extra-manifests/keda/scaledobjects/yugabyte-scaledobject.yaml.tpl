@@ -78,3 +78,84 @@ spec:
       type: Utilization
       value: "80"
       activationThreshold: "40"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: site-tserver-scaledobject
+  namespace: yb
+  labels:
+    app.kubernetes.io/name: site-tserver-scaledobject
+    app.kubernetes.io/component: autoscaling
+    app.kubernetes.io/part-of: keda
+spec:
+  scaleTargetRef:
+    apiVersion: yugabyte.com/v1alpha1
+    kind: YBCluster
+    name: site-cluster
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 0  # Allow scaling to zero
+  maxReplicaCount: 5
+  triggers:
+  - type: prometheus
+    metadata:
+      serverAddress: http://prometheus-operated.kube-prometheus.svc.cluster.local:9090
+      metricName: yugabyte_tserver_connections_active
+      threshold: "10"
+      activationThreshold: "5"
+      query: |
+        sum(yugabyte_tserver_connections_active{namespace="yb",cluster="site-cluster"})
+      authModes: "bearer"
+    authenticationRef:
+      name: keda-prometheus-auth
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: site-cpu-scaledobject
+  namespace: yb
+  labels:
+    app.kubernetes.io/name: site-cpu-scaledobject
+    app.kubernetes.io/component: autoscaling
+    app.kubernetes.io/part-of: keda
+spec:
+  scaleTargetRef:
+    apiVersion: yugabyte.com/v1alpha1
+    kind: YBCluster
+    name: site-cluster
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 0  # Allow scaling to zero
+  maxReplicaCount: 5
+  triggers:
+  - type: cpu
+    metadata:
+      type: Utilization
+      value: "70"
+      activationThreshold: "30"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: site-memory-scaledobject
+  namespace: yb
+  labels:
+    app.kubernetes.io/name: site-memory-scaledobject
+    app.kubernetes.io/component: autoscaling
+    app.kubernetes.io/part-of: keda
+spec:
+  scaleTargetRef:
+    apiVersion: yugabyte.com/v1alpha1
+    kind: YBCluster
+    name: site-cluster
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 0  # Allow scaling to zero
+  maxReplicaCount: 5
+  triggers:
+  - type: memory
+    metadata:
+      type: Utilization
+      value: "80"
+      activationThreshold: "40"
