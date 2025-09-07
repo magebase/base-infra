@@ -20,6 +20,8 @@ resources:
   - argocd/applications/kube-prometheus.yaml
   - argocd/applications/postgres-operator.yaml
   - argocd/applications/postgres-clusters.yaml
+  - argocd/applications/keda.yaml
+  - argocd/applications/keda-scaledobjects.yaml
   # External Secrets Operator
   - eso/
   # Environment-specific applications (segregated by app)
@@ -55,7 +57,7 @@ secretGenerator:
 # to prevent conflicts with their own namespace declarations
 namespace: argocd
 
-# Exclude ESO resources from global namespace transformation
+# Exclude ESO and KEDA resources from global namespace transformation
 namespaceSelector:
   matchExpressions:
     - key: app.kubernetes.io/name
@@ -63,11 +65,13 @@ namespaceSelector:
       values:
         - external-secrets-operator
         - external-secrets
+        - keda
     - key: app.kubernetes.io/instance
       operator: NotIn
       values:
         - external-secrets-operator
         - external-secrets
+        - keda
 
 ## NOTE:
 ## We previously attempted to supply our own NetworkPolicies and rename upstream ones.

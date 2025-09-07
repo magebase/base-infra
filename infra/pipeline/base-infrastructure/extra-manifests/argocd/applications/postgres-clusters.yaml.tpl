@@ -1,11 +1,10 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: postgres-clusters
+  name: yugabyte-clusters
   namespace: argocd
   annotations:
-    # Operator wave: -2 (see postgres-operator.yaml.tpl)
-    # Give operator extra time; clusters at internal wave 1.
+    # YugabyteDB clusters at internal wave 1
     argocd.argoproj.io/sync-wave: "-1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -13,11 +12,11 @@ spec:
   project: default
   source:
     repoURL: https://github.com/magebase/site
-    path: infra/pipeline/base-infrastructure/extra-manifests/postgres/clusters
+    path: infra/pipeline/base-infrastructure/extra-manifests/yugabyte/clusters
     targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: yb-demo
   syncPolicy:
     automated:
       prune: true
