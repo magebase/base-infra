@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/magebase/base-infra/compare/v1.1.0...v1.1.1) (2025-09-07)
+
+
+### Bug Fixes
+
+* Add missing kustomize parameters for ESO templates ([f0456b7](https://github.com/magebase/base-infra/commit/f0456b7d11cebdb0b8bba9ec4ff56acafcb4626d))
+
 # [1.1.0](https://github.com/magebase/base-infra/compare/v1.0.1...v1.1.0) (2025-09-07)
 
 
