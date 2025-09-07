@@ -1017,9 +1017,6 @@ module "kube-hetzner" {
     ESO_SITE_SECRET_ACCESS_KEY   = module.external_secrets_roles.site_secret_access_key
     ESO_GENFIX_POLICY_ARN        = module.external_secrets_roles.genfix_policy_arn
     ESO_SITE_POLICY_ARN          = module.external_secrets_roles.site_policy_arn
-    ESO_CLIENT_ACCESS_KEY_ID     = module.external_secrets_roles.client_access_key_id
-    ESO_CLIENT_SECRET_ACCESS_KEY = module.external_secrets_roles.client_secret_access_key
-    ESO_CLIENT_POLICY_ARN        = module.external_secrets_roles.client_policy_arn
   }
 
   # Disable export of values files to prevent any kustomization-related operations
