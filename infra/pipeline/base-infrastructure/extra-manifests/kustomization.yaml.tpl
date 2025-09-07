@@ -51,7 +51,23 @@ secretGenerator:
       disableNameSuffixHash: true
 
 # Apply namespace transformation to all ArgoCD components
+# Note: ESO resources are excluded from global namespace transformation
+# to prevent conflicts with their own namespace declarations
 namespace: argocd
+
+# Exclude ESO resources from global namespace transformation
+namespaceSelector:
+  matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: NotIn
+      values:
+        - external-secrets-operator
+        - external-secrets
+    - key: app.kubernetes.io/instance
+      operator: NotIn
+      values:
+        - external-secrets-operator
+        - external-secrets
 
 ## NOTE:
 ## We previously attempted to supply our own NetworkPolicies and rename upstream ones.
