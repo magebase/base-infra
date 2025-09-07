@@ -9,6 +9,11 @@ variable "environment" {
   }
 }
 
+variable "management_account_id" {
+  description = "AWS Account ID for management account (used for accessing SSM parameters)"
+  type        = string
+}
+
 variable "hcloud_token" {
   description = "Hetzner Cloud API token"
   type        = string
@@ -104,6 +109,17 @@ variable "cloudflare_zone_id" {
   description = "Cloudflare Zone ID for the domain"
   type        = string
   default     = ""
+}
+
+variable "client_name" {
+  description = "Name of the client for external secrets roles (optional, defaults to genfix)"
+  type        = string
+  default     = ""
+}
+
+variable "external_secrets_trust_account_arn" {
+  description = "ARN of the account that can assume the external secrets roles"
+  type        = string
 }
 
 variable "control_plane_server_type" {

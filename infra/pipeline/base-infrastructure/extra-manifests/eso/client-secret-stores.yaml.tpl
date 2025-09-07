@@ -12,7 +12,7 @@ spec:
     aws:
       service: ParameterStore
       region: ${AWS_REGION}
-      role: arn:aws:iam::${AWS_ACCOUNT_ID}:role/external-secrets-genfix
+      role: ${ESO_GENFIX_ROLE_ARN}
       auth:
         secretRef:
           accessKeyIDSecretRef:
@@ -33,7 +33,7 @@ spec:
     aws:
       service: ParameterStore
       region: ${AWS_REGION}
-      role: arn:aws:iam::${AWS_ACCOUNT_ID}:role/external-secrets-site
+      role: ${ESO_SITE_ROLE_ARN}
       auth:
         secretRef:
           accessKeyIDSecretRef:
@@ -56,7 +56,7 @@ spec:
     aws:
       service: ParameterStore
       region: ${AWS_REGION}
-      role: arn:aws:iam::${AWS_ACCOUNT_ID}:role/external-secrets-${CLIENT_NAME}
+      role: ${ESO_CLIENT_ROLE_ARN}
       auth:
         secretRef:
           accessKeyIDSecretRef:

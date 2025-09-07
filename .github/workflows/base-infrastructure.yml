@@ -138,6 +138,7 @@ jobs:
             echo "✅ Bootstrap resources already exist"
           else
             export TF_VAR_management_account_id="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
+            export AWS_REGION="${{ env.INFRA_REGION }}"
             terraform init -upgrade
             terraform apply -auto-approve -var-file=terraform.tfvars
           fi
@@ -335,6 +336,7 @@ jobs:
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
         run: |
           echo "🚀 Running Terraform plan for base infrastructure deployment..."
 
@@ -425,6 +427,7 @@ jobs:
           TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
         run: |
           echo "🚀 Applying base infrastructure changes..."
 
@@ -665,6 +668,7 @@ jobs:
           TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
+          AWS_REGION: ${{ env.INFRA_REGION }}
         run: |
           terraform destroy -auto-approve
 

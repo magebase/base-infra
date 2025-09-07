@@ -1001,12 +1001,21 @@ module "kube-hetzner" {
     ARGOCD_REPO_TOKEN     = var.argocd_repo_token
     ENCRYPTION_KEY        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
     CLOUDFLARE_API_TOKEN  = base64encode(var.cloudflare_api_token)
+    AWS_ACCOUNT_ID        = var.management_account_id
 
     # Cloudflare R2 parameters for PostgreSQL backups (with fallbacks)
     R2_BUCKET            = try(module.cloudflare_r2.r2_bucket, "dev-magebase-postgres-backups")
     R2_ENDPOINT          = try(module.cloudflare_r2.r2_endpoint, "https://12345678901234567890.r2.cloudflarestorage.com")
     R2_ACCESS_KEY_ID     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : ""
     R2_SECRET_ACCESS_KEY = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : ""
+
+    # External Secrets Operator IAM role ARNs
+    ESO_GENFIX_ROLE_ARN   = module.external_secrets_roles.genfix_role_arn
+    ESO_SITE_ROLE_ARN     = module.external_secrets_roles.site_role_arn
+    ESO_GENFIX_POLICY_ARN = module.external_secrets_roles.genfix_policy_arn
+    ESO_SITE_POLICY_ARN   = module.external_secrets_roles.site_policy_arn
+    ESO_CLIENT_ROLE_ARN   = module.external_secrets_roles.client_role_arn
+    ESO_CLIENT_POLICY_ARN = module.external_secrets_roles.client_policy_arn
   }
 
   # Disable export of values files to prevent any kustomization-related operations
@@ -1269,6 +1278,14 @@ replicas: 1
 bootstrapPassword: "supermario"
   EOT */
 
+}
+# External Secrets Operator roles module
+module "external_secrets_roles" {
+  source = "./modules/external-secrets-roles"
+
+  # Pass required configuration
+  external_secrets_trust_account_arn = var.external_secrets_trust_account_arn
+  client_name                        = var.client_name != "" ? var.client_name : "genfix"
 }
 
 # IMPORTANT: If you want Traefik TLS passthrough to work end-to-end, the Hetzner Load Balancer
