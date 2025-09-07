@@ -155,3 +155,53 @@ spec:
       region: auto
       endpoint: https://<account-id>.r2.cloudflarestorage.com
       credentialsSecret: yugabyte-r2-credentials
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: genfix-uat-cpu-scaledobject
+  namespace: yb
+  labels:
+    app.kubernetes.io/name: genfix-uat-cpu-scaledobject
+    app.kubernetes.io/component: autoscaling
+    app.kubernetes.io/part-of: keda
+spec:
+  scaleTargetRef:
+    apiVersion: yugabyte.com/v1alpha1
+    kind: YBCluster
+    name: genfix-uat-cluster
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 0  # Allow scaling to zero
+  maxReplicaCount: 4
+  triggers:
+  - type: cpu
+    metadata:
+      type: Utilization
+      value: "65"
+      activationThreshold: "25"
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: genfix-uat-memory-scaledobject
+  namespace: yb
+  labels:
+    app.kubernetes.io/name: genfix-uat-memory-scaledobject
+    app.kubernetes.io/component: autoscaling
+    app.kubernetes.io/part-of: keda
+spec:
+  scaleTargetRef:
+    apiVersion: yugabyte.com/v1alpha1
+    kind: YBCluster
+    name: genfix-uat-cluster
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 0  # Allow scaling to zero
+  maxReplicaCount: 4
+  triggers:
+  - type: memory
+    metadata:
+      type: Utilization
+      value: "75"
+      activationThreshold: "35"
