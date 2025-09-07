@@ -1,6 +1,9 @@
 name: Promote Application Release
 
 on:
+  release:
+    types:
+      - published
   workflow_dispatch:
     inputs:
       repository:
@@ -32,18 +35,77 @@ on:
           - prod
 
 jobs:
+  semantic-release:
+    name: "Semantic Release"
+    runs-on: ubicloud-standard-2-arm
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run semantic-release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          branches: main
+          dry_run: ${{ github.event_name == 'pull_request' }}
+          extra_plugins: |
+            @semantic-release/git
+            @semantic-release/github
+            @semantic-release/changelog
+            @semantic-release/exec
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set outputs for dry run
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "new_release_published=false" >> $GITHUB_OUTPUT
+          echo "new_release_version=dry-run" >> $GITHUB_OUTPUT
+
   validate-promotion:
     name: "Validate Promotion"
     runs-on: ubicloud-standard-2-arm
     outputs:
       can_promote: ${{ steps.validate.outputs.can_promote }}
       target_regions: ${{ steps.validate.outputs.target_regions }}
+      repository: ${{ steps.validate.outputs.repository }}
+      tag: ${{ steps.validate.outputs.tag }}
+      from_environment: ${{ steps.validate.outputs.from_environment }}
+      to_environment: ${{ steps.validate.outputs.to_environment }}
     steps:
       - name: Validate promotion logic
         id: validate
         run: |
-          FROM_ENV="${{ github.event.inputs.from_environment }}"
-          TO_ENV="${{ github.event.inputs.to_environment }}"
+          # Handle different trigger types
+          if [ "${{ github.event_name }}" = "release" ]; then
+            # Extract repository from release event
+            REPO_FULL="${{ github.event.release.html_url }}"
+            REPO_NAME=$(echo "$REPO_FULL" | sed 's|https://github.com/||' | sed 's|/releases/tag/.*||')
+            TAG="${{ github.event.release.tag_name }}"
+            FROM_ENV="dev"  # Default for releases
+            TO_ENV="prod"   # Default for releases
+            echo "📦 Release detected: $REPO_NAME $TAG"
+          else
+            # Workflow dispatch
+            REPO_NAME="${{ github.event.inputs.repository }}"
+            TAG="${{ github.event.inputs.tag }}"
+            FROM_ENV="${{ github.event.inputs.from_environment }}"
+            TO_ENV="${{ github.event.inputs.to_environment }}"
+          fi
+
+          echo "repository=$REPO_NAME" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "from_environment=$FROM_ENV" >> $GITHUB_OUTPUT
+          echo "to_environment=$TO_ENV" >> $GITHUB_OUTPUT
 
           # Define regions for each environment
           case "$FROM_ENV" in
@@ -77,7 +139,7 @@ jobs:
   promote-app:
     name: "Promote Application"
     runs-on: ubicloud-standard-2-arm
-    needs: [validate-promotion]
+    needs: [semantic-release, validate-promotion]
     if: needs.validate-promotion.outputs.can_promote == 'true'
     permissions:
       contents: write
@@ -96,8 +158,8 @@ jobs:
           IFS=',' read -ra REGION_ARRAY <<< "${{ needs.validate-promotion.outputs.target_regions }}"
           for region in "${REGION_ARRAY[@]}"; do
             region=$(echo $region | xargs)  # trim whitespace
-            echo "Updating ${{ github.event.inputs.repository }} for ${{ github.event.inputs.to_environment }}-$region"
-            ./scripts/update-argocd-app.sh "${{ github.event.inputs.repository }}" "${{ github.event.inputs.tag }}" "${{ github.event.inputs.to_environment }}" "$region"
+            echo "Updating ${{ needs.validate-promotion.outputs.repository }} for ${{ needs.validate-promotion.outputs.to_environment }}-$region"
+            ./scripts/update-argocd-app.sh "${{ needs.validate-promotion.outputs.repository }}" "${{ needs.validate-promotion.outputs.tag }}" "${{ needs.validate-promotion.outputs.to_environment }}" "$region"
           done
 
       - name: Create promotion pull request
@@ -106,51 +168,51 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: |
-            🚀 Promote ${{ github.event.inputs.repository }} ${{ github.event.inputs.tag }} from ${{ github.event.inputs.from_environment }} to ${{ github.event.inputs.to_environment }}
+            🚀 Promote ${{ needs.validate-promotion.outputs.repository }} ${{ needs.validate-promotion.outputs.tag }} from ${{ needs.validate-promotion.outputs.from_environment }} to ${{ needs.validate-promotion.outputs.to_environment }}
 
-            Promoting ${{ github.event.inputs.repository }} from ${{ github.event.inputs.from_environment }} to ${{ github.event.inputs.to_environment }}
-          title: "🚀 Promote ${{ github.event.inputs.repository }} ${{ github.event.inputs.tag }} from ${{ github.event.inputs.from_environment }} to ${{ github.event.inputs.to_environment }}"
+            Promoting ${{ needs.validate-promotion.outputs.repository }} from ${{ needs.validate-promotion.outputs.from_environment }} to ${{ needs.validate-promotion.outputs.to_environment }}
+          title: "🚀 Promote ${{ needs.validate-promotion.outputs.repository }} ${{ needs.validate-promotion.outputs.tag }} from ${{ needs.validate-promotion.outputs.from_environment }} to ${{ needs.validate-promotion.outputs.to_environment }}"
           body: |
             ## 🚀 Application Promotion
 
-            Promoting **${{ github.event.inputs.repository }}** from **${{ github.event.inputs.from_environment }}** to **${{ github.event.inputs.to_environment }}**.
+            Promoting **${{ needs.validate-promotion.outputs.repository }}** from **${{ needs.validate-promotion.outputs.from_environment }}** to **${{ needs.validate-promotion.outputs.to_environment }}**.
 
             ### Details
-            - **Application:** ${{ github.event.inputs.repository }}
-            - **Version:** ${{ github.event.inputs.tag }}
-            - **From:** ${{ github.event.inputs.from_environment }}
-            - **To:** ${{ github.event.inputs.to_environment }} (${{ needs.validate-promotion.outputs.target_regions }})
+            - **Application:** ${{ needs.validate-promotion.outputs.repository }}
+            - **Version:** ${{ needs.validate-promotion.outputs.tag }}
+            - **From:** ${{ needs.validate-promotion.outputs.from_environment }}
+            - **To:** ${{ needs.validate-promotion.outputs.to_environment }} (${{ needs.validate-promotion.outputs.target_regions }})
 
             ### Changes
-            - Updated targetRevision to `${{ github.event.inputs.tag }}` in ${{ github.event.inputs.to_environment }} environment
+            - Updated targetRevision to `${{ needs.validate-promotion.outputs.tag }}` in ${{ needs.validate-promotion.outputs.to_environment }} environment
 
             ### Validation Checklist
-            - [ ] Application successfully tested in ${{ github.event.inputs.from_environment }}
+            - [ ] Application successfully tested in ${{ needs.validate-promotion.outputs.from_environment }}
             - [ ] All automated tests passed
             - [ ] Manual testing completed
             - [ ] Stakeholders approved promotion
 
             ### Next Steps
             1. Review the changes
-            2. Ensure application is stable in ${{ github.event.inputs.from_environment }}
-            3. Merge this PR to deploy to ${{ github.event.inputs.to_environment }}
+            2. Ensure application is stable in ${{ needs.validate-promotion.outputs.from_environment }}
+            3. Merge this PR to deploy to ${{ needs.validate-promotion.outputs.to_environment }}
             4. ArgoCD will automatically sync the new version
-          branch: promote-${{ github.event.inputs.repository }}-${{ github.event.inputs.tag }}-${{ github.event.inputs.from_environment }}-to-${{ github.event.inputs.to_environment }}
+          branch: promote-${{ needs.validate-promotion.outputs.repository }}-${{ needs.validate-promotion.outputs.tag }}-${{ needs.validate-promotion.outputs.from_environment }}-to-${{ needs.validate-promotion.outputs.to_environment }}
           delete-branch: true
           labels: |
             promotion
-            ${{ github.event.inputs.repository }}
-            ${{ github.event.inputs.to_environment }}
+            ${{ needs.validate-promotion.outputs.repository }}
+            ${{ needs.validate-promotion.outputs.to_environment }}
 
       - name: Output promotion summary
         run: |
           echo "🎉 **Promotion Summary**"
-          echo "- Repository: ${{ github.event.inputs.repository }}"
-          echo "- Version: ${{ github.event.inputs.tag }}"
-          echo "- From: ${{ github.event.inputs.from_environment }}"
-          echo "- To: ${{ github.event.inputs.to_environment }} (${{ needs.validate-promotion.outputs.target_regions }})"
+          echo "- Repository: ${{ needs.validate-promotion.outputs.repository }}"
+          echo "- Version: ${{ needs.validate-promotion.outputs.tag }}"
+          echo "- From: ${{ needs.validate-promotion.outputs.from_environment }}"
+          echo "- To: ${{ needs.validate-promotion.outputs.to_environment }} (${{ needs.validate-promotion.outputs.target_regions }})"
           echo "- PR Created: ${{ steps.create-pr.outputs.pull-request-url }}"
           echo ""
           echo "Next steps:"
           echo "1. Review and merge the PR"
-          echo "2. ArgoCD will automatically sync the new version to ${{ github.event.inputs.to_environment }}"
+          echo "2. ArgoCD will automatically sync the new version to ${{ needs.validate-promotion.outputs.to_environment }}"
