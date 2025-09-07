@@ -20,8 +20,9 @@ resources:
   - argocd/applications/kube-prometheus.yaml
   - argocd/applications/postgres-operator.yaml
   - argocd/applications/postgres-clusters.yaml
-  - argocd/applications/keda.yaml
-  - argocd/applications/keda-scaledobjects.yaml
+  - keda/
+  - knative/
+  - yugabyte/
   # External Secrets Operator
   - eso/
   # Environment-specific applications (segregated by app)

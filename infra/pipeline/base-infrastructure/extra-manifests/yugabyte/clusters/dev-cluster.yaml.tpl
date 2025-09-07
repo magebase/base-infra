@@ -42,12 +42,12 @@ data:
 apiVersion: yugabyte.com/v1alpha1
 kind: YBCluster
 metadata:
-  name: site-cluster
+  name: dev-cluster
   namespace: yb
   labels:
     app.kubernetes.io/name: yugabyte
     app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: site
+    app.kubernetes.io/part-of: dev
 spec:
   # Number of master and tserver pods (single master node)
   numNodes: 1
@@ -63,11 +63,11 @@ spec:
       - name: yb-master
         resources:
           requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
             cpu: 1
             memory: 2Gi
-          limits:
-            cpu: 2
-            memory: 4Gi
         volumeMounts:
         - name: datadir
           mountPath: /mnt/disk0
@@ -90,11 +90,11 @@ spec:
       - name: yb-tserver
         resources:
           requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
             cpu: 1
             memory: 2Gi
-          limits:
-            cpu: 2
-            memory: 4Gi
         volumeMounts:
         - name: datadir
           mountPath: /mnt/disk0
@@ -122,7 +122,7 @@ spec:
       size: 100Gi
 
   # Replication factor
-  replicationFactor: 3
+  replicationFactor: 1
 
   # Enable YSQL API
   enableYSQL: true
@@ -136,7 +136,7 @@ spec:
     certManager:
       clusterIssuer: letsencrypt-prod
       dnsNames:
-      - site-cluster.yb.svc.cluster.local
+      - dev-cluster.yb.svc.cluster.local
 
   # Monitoring configuration
   prometheus:
@@ -146,11 +146,11 @@ spec:
   # Backup configuration
   backup:
     enabled: true
-    schedule: "0 3 * * *"
-    retention: "30d"
+    schedule: "0 4 * * *"
+    retention: "7d"
     storage:
       type: s3
-      bucket: site-yugabyte-backups
+      bucket: dev-yugabyte-backups
       region: auto
       endpoint: https://<account-id>.r2.cloudflarestorage.com
       credentialsSecret: yugabyte-r2-credentials

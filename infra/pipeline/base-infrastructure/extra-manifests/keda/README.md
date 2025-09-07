@@ -28,10 +28,12 @@ Sample scaled objects for different scaling scenarios:
 - Scales based on CPU and memory utilization
 - Traditional resource-based autoscaling
 
-#### Prometheus Scaled Object (`prometheus-scaledobject.yaml.tpl`)
+#### YugabyteDB Scaled Object (`yugabyte-scaledobject.yaml.tpl`)
 
-- Scales based on custom Prometheus metrics
-- Supports complex queries and authentication
+- Scales YugabyteDB tserver pods based on database connections, CPU, and memory usage
+- Supports scaling to zero when database load is low
+- Includes multiple triggers for comprehensive autoscaling
+- Configured for the genfix-cluster (can be adapted for other clusters)
 
 ## Usage
 
@@ -123,6 +125,27 @@ KEDA exposes metrics that can be scraped by Prometheus:
    kubectl get --raw "/apis/external.metrics.k8s.io/v1beta1/namespaces/default/scaledobjects/http-scaledobject"
    ```
 
+## Scaling to Zero
+
+KEDA supports scaling workloads to zero replicas when there is no activity, which can significantly reduce costs for development and staging environments.
+
+### YugabyteDB Integration
+
+The YugabyteDB scaled objects are configured to:
+
+- Scale based on active database connections
+- Scale based on CPU and memory utilization
+- Allow scaling to zero during periods of low activity
+- Maintain minimum performance during scale-up events
+
+### Configuration for Scale to Zero
+
+```yaml
+minReplicaCount: 0  # Allow scaling to zero
+maxReplicaCount: 5  # Maximum replicas during high load
+cooldownPeriod: 300  # 5 minutes cooldown after scaling
+```
+
 ## Integration with Knative
 
 KEDA works seamlessly with Knative Serving for advanced serverless capabilities:
@@ -130,6 +153,7 @@ KEDA works seamlessly with Knative Serving for advanced serverless capabilities:
 - Use KEDA for event-driven scaling
 - Knative handles request routing and cold starts
 - Combine both for optimal resource utilization
+- YugabyteDB provides the data layer with automatic scaling
 
 ## Security Considerations
 

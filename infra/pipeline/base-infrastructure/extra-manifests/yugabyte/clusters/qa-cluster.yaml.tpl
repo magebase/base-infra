@@ -42,12 +42,12 @@ data:
 apiVersion: yugabyte.com/v1alpha1
 kind: YBCluster
 metadata:
-  name: site-cluster
+  name: qa-cluster
   namespace: yb
   labels:
     app.kubernetes.io/name: yugabyte
     app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: site
+    app.kubernetes.io/part-of: qa
 spec:
   # Number of master and tserver pods (single master node)
   numNodes: 1
@@ -114,15 +114,15 @@ spec:
     # Master storage
     master:
       storageClass: "local-path"
-      size: 50Gi
+      size: 100Gi
 
     # TServer storage
     tserver:
       storageClass: "local-path"
-      size: 100Gi
+      size: 200Gi
 
   # Replication factor
-  replicationFactor: 3
+  replicationFactor: 1
 
   # Enable YSQL API
   enableYSQL: true
@@ -136,7 +136,7 @@ spec:
     certManager:
       clusterIssuer: letsencrypt-prod
       dnsNames:
-      - site-cluster.yb.svc.cluster.local
+      - qa-cluster.yb.svc.cluster.local
 
   # Monitoring configuration
   prometheus:
@@ -150,7 +150,7 @@ spec:
     retention: "30d"
     storage:
       type: s3
-      bucket: site-yugabyte-backups
+      bucket: qa-yugabyte-backups
       region: auto
       endpoint: https://<account-id>.r2.cloudflarestorage.com
       credentialsSecret: yugabyte-r2-credentials

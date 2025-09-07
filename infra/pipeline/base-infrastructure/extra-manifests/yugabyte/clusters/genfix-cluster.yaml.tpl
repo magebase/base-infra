@@ -1,15 +1,15 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: yb-demo
+  name: yb
   labels:
-    name: yb-demo
+    name: yb
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: yugabyte-tls-certs
-  namespace: yb-demo
+  namespace: yb
 type: Opaque
 data:
   # Base64 encoded TLS certificates will be populated during deployment
@@ -21,25 +21,36 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: yugabyte-db-credentials
-  namespace: yb-demo
+  namespace: yb
 type: Opaque
 data:
   # Base64 encoded database credentials
   username: "YWRtaW4="  # admin
   password: ""  # Will be populated during deployment
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: yugabyte-r2-credentials
+  namespace: yb
+type: Opaque
+data:
+  # Cloudflare R2 credentials for backups
+  accessKey: ""  # Base64 encoded R2 access key
+  secretKey: ""  # Base64 encoded R2 secret key
+---
 apiVersion: yugabyte.com/v1alpha1
 kind: YBCluster
 metadata:
   name: genfix-cluster
-  namespace: yb-demo
+  namespace: yb
   labels:
     app.kubernetes.io/name: yugabyte
     app.kubernetes.io/component: database
     app.kubernetes.io/part-of: genfix
 spec:
-  # Number of master and tserver pods
-  numNodes: 3
+  # Number of master and tserver pods (single master node)
+  numNodes: 1
 
   # YugabyteDB version
   version: "2.20.5.0"
@@ -125,7 +136,7 @@ spec:
     certManager:
       clusterIssuer: letsencrypt-prod
       dnsNames:
-      - genfix-cluster.yb-demo.svc.cluster.local
+      - genfix-cluster.yb.svc.cluster.local
 
   # Monitoring configuration
   prometheus:
@@ -140,4 +151,6 @@ spec:
     storage:
       type: s3
       bucket: genfix-yugabyte-backups
-      region: us-east-1
+      region: auto
+      endpoint: https://<account-id>.r2.cloudflarestorage.com
+      credentialsSecret: yugabyte-r2-credentials

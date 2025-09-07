@@ -6,6 +6,7 @@ resources:
   - scaledobjects/http-scaledobject.yaml.tpl
   - scaledobjects/cpu-scaledobject.yaml.tpl
   - scaledobjects/prometheus-scaledobject.yaml.tpl
+  - scaledobjects/yugabyte-scaledobject.yaml.tpl
 
 # Common labels for KEDA resources
 commonLabels:
