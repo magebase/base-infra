@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/magebase/base-infra/compare/v1.0.1...v1.1.0) (2025-09-07)
+
+
+### Features
+
+* Convert ESO from IAM roles to IAM users for Hetzner k3s ([4c2837f](https://github.com/magebase/base-infra/commit/4c2837fa3de6206e4916b168771977d9d66f5eac))
+
 ## [1.0.1](https://github.com/magebase/base-infra/compare/v1.0.0...v1.0.1) (2025-09-07)
 
 
