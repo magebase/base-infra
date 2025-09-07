@@ -12,6 +12,10 @@ jobs:
     steps:
       - name: Trigger base-infra promotion workflow
         run: |
+          # NOTE: This workflow should be added to magebase/genfix and magebase/site repositories
+          # When run from those repos, github.repository will be 'magebase/genfix' or 'magebase/site'
+          echo "Triggering from repository: ${{ github.repository }}"
+
           curl -X POST \
             -H "Authorization: token ${{ secrets.BASE_INFRA_TRIGGER_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \

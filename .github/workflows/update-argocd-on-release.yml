@@ -1,6 +1,9 @@
 name: Update ArgoCD Applications on Release
 
 on:
+  release:
+    types:
+      - published
   repository_dispatch:
     types:
       - release-published
@@ -80,26 +83,53 @@ jobs:
           repository: magebase/base-infra
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check if ArgoCD update is needed
+        id: should-update
+        run: |
+          if [ "${{ steps.repo-info.outputs.repository }}" = "magebase/base-infra" ]; then
+            echo "ℹ️  Skipping ArgoCD update for base-infra release"
+            echo "should_update=false" >> $GITHUB_OUTPUT
+          else
+            echo "should_update=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Determine repository and application details
         id: repo-info
         run: |
-          # Get repository name from repository_dispatch or workflow dispatch
-          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+          echo "🔍 Debug: Event name is ${{ github.event_name }}"
+          echo "🔍 Debug: Current repository is ${{ github.repository }}"
+
+          # Get repository name from release, repository_dispatch, or workflow dispatch
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "🔍 Debug: Release event detected"
+            REPO_NAME="${{ github.repository }}"
+            TAG_NAME="${{ github.event.release.tag_name }}"
+            ENVIRONMENT="prod"  # Default to prod for releases in base-infra
+          elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "🔍 Debug: Client payload repository: ${{ github.event.client_payload.repository }}"
             REPO_NAME="${{ github.event.client_payload.repository }}"
             TAG_NAME="${{ github.event.client_payload.tag }}"
             ENVIRONMENT="${{ github.event.client_payload.to_environment || 'prod' }}"
 
             # Validate that only allowed repositories can trigger this workflow
-            if [[ "$REPO_NAME" != "magebase/genfix" && "$REPO_NAME" != "magebase/site" ]]; then
+            if [[ "$REPO_NAME" != "magebase/genfix" && "$REPO_NAME" != "magebase/site" && "$REPO_NAME" != "magebase/base-infra" ]]; then
               echo "❌ Unauthorized repository: $REPO_NAME"
               exit 1
             fi
 
             echo "📦 Repository dispatch detected: $REPO_NAME $TAG_NAME"
           else
+            echo "🔍 Debug: Workflow dispatch repository input: ${{ github.event.inputs.repository }}"
             REPO_NAME="${{ github.event.inputs.repository }}"
             TAG_NAME="${{ github.event.inputs.tag }}"
             ENVIRONMENT="${{ github.event.inputs.environment }}"
+
+            # Validate repository name for workflow dispatch as well
+            if [[ "$REPO_NAME" != "magebase/genfix" && "$REPO_NAME" != "magebase/site" && "$REPO_NAME" != "magebase/base-infra" ]]; then
+              echo "❌ Invalid repository for workflow dispatch: $REPO_NAME"
+              echo "Allowed repositories: magebase/genfix, magebase/site, magebase/base-infra"
+              exit 1
+            fi
           fi
 
           # Set default regions based on environment
@@ -157,6 +187,10 @@ jobs:
                 APP_NAMES="$APP_NAMES magebase-site-$ENVIRONMENT-$region"
                 MANIFEST_FILES="$MANIFEST_FILES infra/pipeline/base-infrastructure/extra-manifests/argocd/applications/environments/site/$ENVIRONMENT-$region.yaml.tpl"
                 ;;
+              "magebase/base-infra")
+                # Base-infra releases don't need ArgoCD updates
+                echo "ℹ️  Base-infra release - no ArgoCD applications to process"
+                ;;
               *)
                 echo "❌ Unsupported repository: $REPO_NAME"
                 exit 1
@@ -172,7 +206,14 @@ jobs:
           echo "regions=$REGIONS" >> $GITHUB_OUTPUT
 
       - name: Update targetRevision in ArgoCD applications
+        if: steps.should-update.outputs.should_update == 'true'
         run: |
+          echo "🔍 Debug: About to call update-argocd-app.sh with:"
+          echo "  Repository: ${{ steps.repo-info.outputs.repository }}"
+          echo "  Tag: ${{ steps.repo-info.outputs.tag_name }}"
+          echo "  Environment: ${{ steps.repo-info.outputs.environment }}"
+          echo "  Region: $region"
+
           # Split manifest files and update each one
           IFS=' ' read -ra MANIFEST_ARRAY <<< "${{ steps.repo-info.outputs.manifest_files }}"
           IFS=',' read -ra REGION_ARRAY <<< "${{ steps.repo-info.outputs.regions }}"
@@ -185,6 +226,7 @@ jobs:
           done
 
       - name: Verify the changes
+        if: steps.should-update.outputs.should_update == 'true'
         run: |
           TAG_NAME="${{ steps.repo-info.outputs.tag_name }}"
           IFS=' ' read -ra MANIFEST_ARRAY <<< "${{ steps.repo-info.outputs.manifest_files }}"
@@ -203,6 +245,7 @@ jobs:
           done
 
       - name: Create pull request with the update
+        if: steps.should-update.outputs.should_update == 'true'
         id: create-pr
         uses: peter-evans/create-pull-request@v5
         with:
@@ -246,7 +289,19 @@ jobs:
             ${{ steps.repo-info.outputs.environment }}
 
       - name: Comment on release
-        if: github.event_name == 'repository_dispatch'
+        if: github.event_name == 'release'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🤖 **ArgoCD Application Update Triggered**\n\nI've created a PR in [base-infra](${{ steps.create-pr.outputs.pull-request-url }}) to update the ArgoCD application with this release.\n\n**Changes:**\n- Updated targetRevision to \`${{ steps.repo-info.outputs.tag_name }}\`\n\nThe PR will be automatically merged once approved, and ArgoCD will sync the new version to the cluster.`
+            })
+
+      - name: Comment on repository dispatch
+        if: github.event_name == 'repository_dispatch' && steps.should-update.outputs.should_update == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -255,6 +310,7 @@ jobs:
             console.log('Repository dispatch detected - skipping release comment')
 
       - name: Output summary
+        if: steps.should-update.outputs.should_update == 'true'
         run: |
           echo "🎉 **Update Summary**"
           echo "- Repository: ${{ steps.repo-info.outputs.repository }}"

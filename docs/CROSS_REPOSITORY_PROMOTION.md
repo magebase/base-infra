@@ -26,6 +26,8 @@ For each application repository (`magebase/genfix`, `magebase/site`):
 
 Add the following workflow file to each application repository:
 
+**Important:** This workflow must be added to the `magebase/genfix` and `magebase/site` repositories, NOT to the `magebase/base-infra` repository. When the workflow runs in those repositories, `${{ github.repository }}` will correctly resolve to `magebase/genfix` or `magebase/site`.
+
 ```yaml
 # .github/workflows/trigger-base-infra-promotion.yml
 name: Trigger Base Infra Promotion
@@ -42,6 +44,8 @@ jobs:
     steps:
       - name: Trigger base-infra promotion workflow
         run: |
+          echo "Triggering promotion from ${{ github.repository }}"
+
           curl -X POST \
             -H "Authorization: token ${{ secrets.BASE_INFRA_TRIGGER_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
