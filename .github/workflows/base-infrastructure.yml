@@ -427,11 +427,24 @@ jobs:
 
           # Run kubectl diff to show what will change
           echo "📋 Running kubectl diff to preview changes..."
-          if kubectl diff -f ./extra-manifests/ --server-side --force-conflicts; then
+
+          # Handle template files by creating temporary copies without .tpl extension
+          echo "🔧 Processing template files..."
+          find ./extra-manifests/ -name "*.yaml.tpl" -exec bash -c 'cp "$1" "${1%.tpl}"' _ {} \;
+
+          # Create temporary kustomization file
+          cp ./extra-manifests/kustomization.yaml.tpl ./extra-manifests/kustomization.yaml
+
+          # Run kubectl diff using kustomize
+          if kubectl diff -k ./extra-manifests/ --server-side --force-conflicts; then
             echo "✅ No differences found or diff completed successfully"
           else
             echo "⚠️  kubectl diff found changes or encountered issues (this is normal)"
           fi
+
+          # Clean up temporary files
+          find ./extra-manifests/ -name "*.yaml" -exec bash -c 'if [ -f "${1%.yaml}.yaml.tpl" ]; then rm "$1"; fi' _ {} \;
+          rm -f ./extra-manifests/kustomization.yaml
 
           # Clean up kubeconfig file
           rm -f kubeconfig.yaml
