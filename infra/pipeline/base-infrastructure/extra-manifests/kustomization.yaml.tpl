@@ -22,7 +22,7 @@ resources:
   - argocd/applications/postgres-clusters.yaml
   - keda/
   - knative/
-  - yugabyte/
+  - citus/
   # External Secrets Operator
   - eso/
   # Environment-specific applications (segregated by app)

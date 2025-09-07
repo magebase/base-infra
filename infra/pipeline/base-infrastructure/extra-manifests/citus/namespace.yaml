@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stackgres
+  labels:
+    name: stackgres
+    app.kubernetes.io/name: stackgres
+    app.kubernetes.io/component: database-operator
