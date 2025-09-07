@@ -126,6 +126,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Calculate semantic version (dry run)
+        id: calculate-version
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          branches: main
+          dry_run: true
+          extra_plugins: |
+            @semantic-release/git
+            @semantic-release/github
+            @semantic-release/changelog
+            @semantic-release/exec
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -1236,6 +1250,27 @@ jobs:
             @semantic-release/exec
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish package with Docker image link
+        if: steps.semantic.outputs.new_release_published == 'true'
+        run: |
+          echo "📦 Publishing package with Docker image link..."
+
+          # Get the release version from semantic release output
+          RELEASE_VERSION="${{ steps.semantic.outputs.new_release_version }}"
+
+          # Create Docker image link (assuming standard naming convention)
+          DOCKER_IMAGE="magebase/base-infra:${RELEASE_VERSION}"
+
+          echo "🚀 New release published: ${RELEASE_VERSION}"
+          echo "🐳 Docker image: ${DOCKER_IMAGE}"
+
+          # Add Docker image link to release notes
+          gh release edit ${RELEASE_VERSION} \
+            --notes "**Docker Image:** \`${DOCKER_IMAGE}\`\n\n[View on Docker Hub](https://hub.docker.com/r/magebase/base-infra/tags)" \
+            --repo ${{ github.repository }}
+
+          echo "✅ Package published with Docker image link"
 
       - name: Set outputs for dry run
         if: github.event_name == 'pull_request'
