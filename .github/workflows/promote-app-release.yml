@@ -1,9 +1,9 @@
 name: Promote Application Release
 
 on:
-  release:
+  repository_dispatch:
     types:
-      - published
+      - release-published
   workflow_dispatch:
     inputs:
       repository:
@@ -94,6 +94,21 @@ jobs:
             FROM_ENV="dev"  # Default for releases
             TO_ENV="prod"   # Default for releases
             echo "📦 Release detected: $REPO_NAME $TAG"
+          elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            # Handle repository dispatch from genfix or site repos
+            REPO_NAME="${{ github.event.client_payload.repository }}"
+            TAG="${{ github.event.client_payload.tag }}"
+            FROM_ENV="${{ github.event.client_payload.from_environment || 'dev' }}"
+            TO_ENV="${{ github.event.client_payload.to_environment || 'prod' }}"
+
+            # Validate that only allowed repositories can trigger this workflow
+            if [[ "$REPO_NAME" != "magebase/genfix" && "$REPO_NAME" != "magebase/site" ]]; then
+              echo "❌ Unauthorized repository: $REPO_NAME"
+              echo "can_promote=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+
+            echo "📦 Repository dispatch detected: $REPO_NAME $TAG"
           else
             # Workflow dispatch
             REPO_NAME="${{ github.event.inputs.repository }}"
@@ -136,11 +151,68 @@ jobs:
           echo "can_promote=true" >> $GITHUB_OUTPUT
           echo "target_regions=$TO_REGIONS" >> $GITHUB_OUTPUT
 
+  performance-test:
+    name: "Performance Testing"
+    runs-on: ubicloud-standard-2-arm
+    needs: validate-promotion
+    if: needs.validate-promotion.outputs.can_promote == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get application URL
+        id: get-url
+        run: |
+          # Get the application URL from environment or repository output
+          # This can be customized based on your repository's output format
+          if [ -n "${{ secrets.APP_URL }}" ]; then
+            APP_URL="${{ secrets.APP_URL }}"
+          elif [ -n "${{ vars.APP_URL }}" ]; then
+            APP_URL="${{ vars.APP_URL }}"
+          else
+            # Fallback to environment-based URL construction
+            case "${{ needs.validate-promotion.outputs.to_environment }}" in
+              "dev")
+                APP_URL="https://dev.magebase.dev"
+                ;;
+              "qa")
+                APP_URL="https://qa.magebase.dev"
+                ;;
+              "prod")
+                APP_URL="https://magebase.dev"
+                ;;
+              *)
+                APP_URL="https://magebase.dev"
+                ;;
+            esac
+          fi
+
+          echo "Testing URL: $APP_URL"
+          echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
+
+      - name: Run Lighthouse Performance Test
+        uses: treosh/lighthouse-ci-action@v10
+        with:
+          urls: ${{ steps.get-url.outputs.app_url }}
+          configPath: .lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+      - name: Performance Test Results
+        if: always()
+        run: |
+          echo "🎯 **Performance Test Results**"
+          echo "- Application: ${{ needs.validate-promotion.outputs.repository }}"
+          echo "- Environment: ${{ needs.validate-promotion.outputs.to_environment }}"
+          echo "- Test URL: ${{ steps.get-url.outputs.app_url }}"
+          echo "- Results uploaded to temporary storage"
+
   promote-app:
     name: "Promote Application"
     runs-on: ubicloud-standard-2-arm
-    needs: [semantic-release, validate-promotion]
-    if: needs.validate-promotion.outputs.can_promote == 'true'
+    needs: [semantic-release, validate-promotion, performance-test]
+    if: needs.validate-promotion.outputs.can_promote == 'true' && needs.performance-test.result == 'success'
     permissions:
       contents: write
       pull-requests: write

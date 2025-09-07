@@ -1,0 +1,27 @@
+name: Trigger Base Infra Promotion
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  trigger-promotion:
+    name: "Trigger Promotion in Base Infra"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger base-infra promotion workflow
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.BASE_INFRA_TRIGGER_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/magebase/base-infra/dispatches \
+            -d '{
+              "event_type": "release-published",
+              "client_payload": {
+                "repository": "${{ github.repository }}",
+                "tag": "${{ github.event.release.tag_name }}",
+                "from_environment": "dev",
+                "to_environment": "prod"
+              }
+            }'
