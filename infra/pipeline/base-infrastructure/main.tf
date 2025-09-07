@@ -1019,8 +1019,8 @@ module "kube-hetzner" {
     ESO_SITE_POLICY_ARN          = module.external_secrets_roles.site_policy_arn
   }
 
-  # Disable export of values files to prevent any kustomization-related operations
-  export_values = false
+  # Prevent namespace conflicts by disabling global namespace transformation for kustomize
+  kustomize_namespace = ""
 
   # MicroOS snapshot IDs to be used. Per default empty, the most recent image created using createkh will be used.
   # We recommend the default, but if you want to use specific IDs you can.
