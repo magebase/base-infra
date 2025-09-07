@@ -20,6 +20,8 @@ resources:
   - argocd/applications/kube-prometheus.yaml
   - argocd/applications/postgres-operator.yaml
   - argocd/applications/postgres-clusters.yaml
+  # External Secrets Operator
+  - eso/
   # Environment-specific applications (segregated by app)
   - argocd/applications/environments/genfix/${ENVIRONMENT}-fsn1.yaml
   - argocd/applications/environments/site/${ENVIRONMENT}-fsn1.yaml

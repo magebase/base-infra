@@ -100,6 +100,7 @@ jobs:
           if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1 && aws dynamodb describe-table --table-name "$DYNAMODB_TABLE" >/dev/null 2>&1; then
             echo "✅ Bootstrap resources already exist"
           else
+            export TF_VAR_management_account_id="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
             terraform init -upgrade
             terraform apply -auto-approve -var-file=terraform.tfvars
           fi
@@ -274,6 +275,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -294,6 +296,7 @@ jobs:
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
           echo "🚀 Running Terraform plan for base infrastructure deployment..."
@@ -382,6 +385,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -621,6 +625,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -769,6 +774,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -794,6 +800,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -813,6 +820,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -889,8 +897,8 @@ jobs:
 
       #     echo "✅ Base Infrastructure Terratest completed successfully"
 
-      - name: Terraform Apply (Push to Main)
-        id: base-tf-apply-main
+      - name: Terraform Destroy
+        id: base-tf-destroy-main
         working-directory: infra/pipeline/base-infrastructure
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -902,6 +910,7 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
+          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
