@@ -24,14 +24,3 @@ data:
   secret-access-key: "${ESO_SITE_SECRET_ACCESS_KEY}"
 
 ---
-# Template for additional client AWS credentials
-# Copy this block and modify for new clients
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ${CLIENT_NAME}-aws-credentials
-  namespace: external-secrets-system
-type: Opaque
-data:
-  access-key-id: "${ESO_CLIENT_ACCESS_KEY_ID}"
-  secret-access-key: "${ESO_CLIENT_SECRET_ACCESS_KEY}"
