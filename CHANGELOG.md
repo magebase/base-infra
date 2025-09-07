@@ -1,3 +1,10 @@
+## [1.1.3](https://github.com/magebase/base-infra/compare/v1.1.2...v1.1.3) (2025-09-07)
+
+
+### Bug Fixes
+
+* Remove global namespace transformation from ESO kustomization ([f0e409f](https://github.com/magebase/base-infra/commit/f0e409fbeeceea68d50bcd35175ce303b9d91cfb))
+
 ## [1.1.2](https://github.com/magebase/base-infra/compare/v1.1.1...v1.1.2) (2025-09-07)
 
 
