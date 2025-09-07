@@ -1247,7 +1247,8 @@ jobs:
   notify:
     name: "Pipeline Notification"
     runs-on: ubicloud-standard-2-arm
-    needs: [bootstrap, base-infrastructure-deploy, security-scan, semantic-release]
+    needs:
+      [bootstrap, base-infrastructure-deploy, security-scan, semantic-release]
     if: always()
     steps:
       - name: Success

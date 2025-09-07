@@ -71,12 +71,12 @@ spec:
     name: database-secret
     creationPolicy: Owner
   data:
-  - secretKey: username
-    remoteRef:
-      key: /genfix/dev/database/username
-  - secretKey: password
-    remoteRef:
-      key: /genfix/dev/database/password
+    - secretKey: username
+      remoteRef:
+        key: /genfix/dev/database/username
+    - secretKey: password
+      remoteRef:
+        key: /genfix/dev/database/password
 ```
 
 ### 5. Terraform Module Usage
@@ -103,10 +103,7 @@ Each client gets a scoped policy like:
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": [
-        "ssm:GetParameter*",
-        "ssm:DescribeParameters"
-      ],
+      "Action": ["ssm:GetParameter*", "ssm:DescribeParameters"],
       "Resource": "arn:aws:ssm:us-east-1:123456789012:parameter/genfix/*"
     }
   ]
@@ -164,12 +161,12 @@ spec:
     name: database-credentials
     creationPolicy: Owner
   data:
-  - secretKey: username
-    remoteRef:
-      key: /myclient/dev/database/username
-  - secretKey: password
-    remoteRef:
-      key: /myclient/dev/database/password
+    - secretKey: username
+      remoteRef:
+        key: /myclient/dev/database/username
+    - secretKey: password
+      remoteRef:
+        key: /myclient/dev/database/password
 ```
 
 ## Environment Variables

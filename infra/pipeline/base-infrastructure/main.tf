@@ -1002,8 +1002,7 @@ module "kube-hetzner" {
     ENCRYPTION_KEY        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
     CLOUDFLARE_API_TOKEN  = base64encode(var.cloudflare_api_token)
     AWS_ACCOUNT_ID        = var.management_account_id
-    AWS_REGION            = "ap-southeast-1"
-    CLIENT_NAME           = var.client_name != "" ? var.client_name : "genfix"
+    AWS_REGION            = var.aws_region
 
     # Cloudflare R2 parameters for PostgreSQL backups (with fallbacks)
     R2_BUCKET            = try(module.cloudflare_r2.r2_bucket, "dev-magebase-postgres-backups")
@@ -1288,8 +1287,6 @@ bootstrapPassword: "supermario"
 module "external_secrets_roles" {
   source = "./modules/external-secrets-roles"
 
-  # Pass required configuration
-  client_name = var.client_name != "" ? var.client_name : "genfix"
 }
 
 # IMPORTANT: If you want Traefik TLS passthrough to work end-to-end, the Hetzner Load Balancer

@@ -111,10 +111,11 @@ variable "cloudflare_zone_id" {
   default     = ""
 }
 
-variable "client_name" {
-  description = "Name of the client for external secrets roles (optional, defaults to genfix)"
+
+variable "aws_region" {
+  description = "AWS region for IAM users and policies"
   type        = string
-  default     = ""
+  default     = "ap-southeast-1"
 }
 
 variable "control_plane_server_type" {
