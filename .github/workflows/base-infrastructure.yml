@@ -454,14 +454,14 @@ jobs:
           done
 
       - name: Generate Terraform Outputs
-        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        if: steps.base-tf-apply-main.outcome == 'success' && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
         run: |
           echo "📊 Generating Terraform outputs for sharing..."
           terraform output -json > terraform-outputs.json
           echo "✅ Outputs generated: terraform-outputs.json"
 
       - name: Create GitHub Release
-        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        if: steps.base-tf-apply-main.outcome == 'success' && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
         uses: softprops/action-gh-release@v2
         with:
           tag_name: base-outputs-${{ github.run_id }}
@@ -481,7 +481,7 @@ jobs:
           generate_release_notes: true
 
       - name: Display Release Information
-        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        if: steps.base-tf-apply-main.outcome == 'success' && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
         run: |
           echo "## 📦 Infrastructure Outputs Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
