@@ -1,3 +1,10 @@
+## [1.1.2](https://github.com/magebase/base-infra/compare/v1.1.1...v1.1.2) (2025-09-07)
+
+
+### Bug Fixes
+
+* kustomize url ([f676280](https://github.com/magebase/base-infra/commit/f6762807a8d7a45644157f65db0f9174f2553f8f))
+
 ## [1.1.1](https://github.com/magebase/base-infra/compare/v1.1.0...v1.1.1) (2025-09-07)
 
 
