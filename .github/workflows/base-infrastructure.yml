@@ -436,10 +436,18 @@ jobs:
           cp ./extra-manifests/kustomization.yaml.tpl ./extra-manifests/kustomization.yaml
 
           # Run kubectl diff using kustomize
-          if kubectl diff -k ./extra-manifests/ --server-side --force-conflicts; then
-            echo "✅ No differences found or diff completed successfully"
+          echo "🔍 Running kubectl diff with detailed output..."
+          set +e  # Don't exit on diff command failure
+          kubectl diff -k ./extra-manifests/ --server-side --force-conflicts 2>&1 | head -100
+          DIFF_EXIT_CODE=$?
+          set -e  # Re-enable exit on error
+
+          if [ $DIFF_EXIT_CODE -eq 0 ]; then
+            echo "✅ No differences found - manifests are up to date"
+          elif [ $DIFF_EXIT_CODE -eq 1 ]; then
+            echo "📋 Differences found - manifests will be updated during apply"
           else
-            echo "⚠️  kubectl diff found changes or encountered issues (this is normal)"
+            echo "⚠️  kubectl diff encountered issues (exit code: $DIFF_EXIT_CODE)"
           fi
 
           # Clean up temporary files
