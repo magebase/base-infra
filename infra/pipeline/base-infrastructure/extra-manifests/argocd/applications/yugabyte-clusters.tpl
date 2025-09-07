@@ -11,12 +11,12 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/magebase/site
+    repoURL: https://github.com/magebase/base-infra
     path: infra/pipeline/base-infrastructure/extra-manifests/yugabyte/clusters
     targetRevision: HEAD
   destination:
     server: https://kubernetes.default.svc
-    namespace: yb-demo
+    namespace: yb
   syncPolicy:
     automated:
       prune: true
