@@ -12,14 +12,13 @@ spec:
     aws:
       service: ParameterStore
       region: ${AWS_REGION}
-      role: ${ESO_GENFIX_ROLE_ARN}
       auth:
         secretRef:
           accessKeyIDSecretRef:
-            name: awssm-secret
-            key: access-key
+            name: genfix-aws-credentials
+            key: access-key-id
           secretAccessKeySecretRef:
-            name: awssm-secret
+            name: genfix-aws-credentials
             key: secret-access-key
 
 ---
@@ -33,14 +32,13 @@ spec:
     aws:
       service: ParameterStore
       region: ${AWS_REGION}
-      role: ${ESO_SITE_ROLE_ARN}
       auth:
         secretRef:
           accessKeyIDSecretRef:
-            name: awssm-secret
-            key: access-key
+            name: site-aws-credentials
+            key: access-key-id
           secretAccessKeySecretRef:
-            name: awssm-secret
+            name: site-aws-credentials
             key: secret-access-key
 
 ---
@@ -56,12 +54,11 @@ spec:
     aws:
       service: ParameterStore
       region: ${AWS_REGION}
-      role: ${ESO_CLIENT_ROLE_ARN}
       auth:
         secretRef:
           accessKeyIDSecretRef:
-            name: awssm-secret
-            key: access-key
+            name: ${CLIENT_NAME}-aws-credentials
+            key: access-key-id
           secretAccessKeySecretRef:
-            name: awssm-secret
+            name: ${CLIENT_NAME}-aws-credentials
             key: secret-access-key

@@ -117,11 +117,6 @@ variable "client_name" {
   default     = ""
 }
 
-variable "external_secrets_trust_account_arn" {
-  description = "ARN of the account that can assume the external secrets roles"
-  type        = string
-}
-
 variable "control_plane_server_type" {
   description = "Hetzner Cloud server type for control plane nodes"
   type        = string

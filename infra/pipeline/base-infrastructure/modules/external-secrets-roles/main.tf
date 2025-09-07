@@ -1,5 +1,6 @@
-# AWS IAM roles and policies for External Secrets Operator
-# Each client gets a scoped role with access only to their parameters
+# AWS IAM users and policies for External Secrets Operator
+# Each client gets a scoped user with access only to their parameters
+# Since ESO runs in Hetzner k3s (outside AWS), we use access keys instead of role assumption
 
 terraform {
   required_version = ">= 1.8"
@@ -39,29 +40,20 @@ resource "aws_iam_policy" "external_secrets_genfix" {
   tags = var.tags
 }
 
-# IAM role for genfix client
-resource "aws_iam_role" "external_secrets_genfix" {
+# IAM user for genfix client
+resource "aws_iam_user" "external_secrets_genfix" {
   name = "external-secrets-genfix"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = var.external_secrets_trust_account_arn
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
   tags = var.tags
 }
 
-# Attach policy to genfix role
-resource "aws_iam_role_policy_attachment" "external_secrets_genfix" {
-  role       = aws_iam_role.external_secrets_genfix.name
+# Access key for genfix user
+resource "aws_iam_access_key" "external_secrets_genfix" {
+  user = aws_iam_user.external_secrets_genfix.name
+}
+
+# Attach policy to genfix user
+resource "aws_iam_user_policy_attachment" "external_secrets_genfix" {
+  user       = aws_iam_user.external_secrets_genfix.name
   policy_arn = aws_iam_policy.external_secrets_genfix.arn
 }
 
@@ -87,33 +79,24 @@ resource "aws_iam_policy" "external_secrets_site" {
   tags = var.tags
 }
 
-# IAM role for site client
-resource "aws_iam_role" "external_secrets_site" {
+# IAM user for site client
+resource "aws_iam_user" "external_secrets_site" {
   name = "external-secrets-site"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = var.external_secrets_trust_account_arn
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
   tags = var.tags
 }
 
-# Attach policy to site role
-resource "aws_iam_role_policy_attachment" "external_secrets_site" {
-  role       = aws_iam_role.external_secrets_site.name
+# Access key for site user
+resource "aws_iam_access_key" "external_secrets_site" {
+  user = aws_iam_user.external_secrets_site.name
+}
+
+# Attach policy to site user
+resource "aws_iam_user_policy_attachment" "external_secrets_site" {
+  user       = aws_iam_user.external_secrets_site.name
   policy_arn = aws_iam_policy.external_secrets_site.arn
 }
 
-# Template for additional client roles
+# Template for additional client users
 # Copy and modify this block for new clients
 resource "aws_iam_policy" "external_secrets_client_template" {
   count       = var.client_name != "" ? 1 : 0
@@ -137,28 +120,19 @@ resource "aws_iam_policy" "external_secrets_client_template" {
   tags = var.tags
 }
 
-resource "aws_iam_role" "external_secrets_client_template" {
+resource "aws_iam_user" "external_secrets_client_template" {
   count = var.client_name != "" ? 1 : 0
   name  = "external-secrets-${var.client_name}"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          AWS = var.external_secrets_trust_account_arn
-        }
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-
-  tags = var.tags
+  tags  = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "external_secrets_client_template" {
+resource "aws_iam_access_key" "external_secrets_client_template" {
+  count = var.client_name != "" ? 1 : 0
+  user  = aws_iam_user.external_secrets_client_template[0].name
+}
+
+resource "aws_iam_user_policy_attachment" "external_secrets_client_template" {
   count      = var.client_name != "" ? 1 : 0
-  role       = aws_iam_role.external_secrets_client_template[0].name
+  user       = aws_iam_user.external_secrets_client_template[0].name
   policy_arn = aws_iam_policy.external_secrets_client_template[0].arn
 }

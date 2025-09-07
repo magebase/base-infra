@@ -1009,13 +1009,16 @@ module "kube-hetzner" {
     R2_ACCESS_KEY_ID     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : ""
     R2_SECRET_ACCESS_KEY = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : ""
 
-    # External Secrets Operator IAM role ARNs
-    ESO_GENFIX_ROLE_ARN   = module.external_secrets_roles.genfix_role_arn
-    ESO_SITE_ROLE_ARN     = module.external_secrets_roles.site_role_arn
-    ESO_GENFIX_POLICY_ARN = module.external_secrets_roles.genfix_policy_arn
-    ESO_SITE_POLICY_ARN   = module.external_secrets_roles.site_policy_arn
-    ESO_CLIENT_ROLE_ARN   = module.external_secrets_roles.client_role_arn
-    ESO_CLIENT_POLICY_ARN = module.external_secrets_roles.client_policy_arn
+    # External Secrets Operator IAM user access keys
+    ESO_GENFIX_ACCESS_KEY_ID     = module.external_secrets_roles.genfix_access_key_id
+    ESO_GENFIX_SECRET_ACCESS_KEY = module.external_secrets_roles.genfix_secret_access_key
+    ESO_SITE_ACCESS_KEY_ID       = module.external_secrets_roles.site_access_key_id
+    ESO_SITE_SECRET_ACCESS_KEY   = module.external_secrets_roles.site_secret_access_key
+    ESO_GENFIX_POLICY_ARN        = module.external_secrets_roles.genfix_policy_arn
+    ESO_SITE_POLICY_ARN          = module.external_secrets_roles.site_policy_arn
+    ESO_CLIENT_ACCESS_KEY_ID     = module.external_secrets_roles.client_access_key_id
+    ESO_CLIENT_SECRET_ACCESS_KEY = module.external_secrets_roles.client_secret_access_key
+    ESO_CLIENT_POLICY_ARN        = module.external_secrets_roles.client_policy_arn
   }
 
   # Disable export of values files to prevent any kustomization-related operations
@@ -1284,8 +1287,7 @@ module "external_secrets_roles" {
   source = "./modules/external-secrets-roles"
 
   # Pass required configuration
-  external_secrets_trust_account_arn = var.external_secrets_trust_account_arn
-  client_name                        = var.client_name != "" ? var.client_name : "genfix"
+  client_name = var.client_name != "" ? var.client_name : "genfix"
 }
 
 # IMPORTANT: If you want Traefik TLS passthrough to work end-to-end, the Hetzner Load Balancer
