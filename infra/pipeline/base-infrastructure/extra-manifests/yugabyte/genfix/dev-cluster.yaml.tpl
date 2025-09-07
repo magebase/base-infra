@@ -42,12 +42,13 @@ data:
 apiVersion: yugabyte.com/v1alpha1
 kind: YBCluster
 metadata:
-  name: dev-cluster
+  name: genfix-dev-cluster
   namespace: yb
   labels:
     app.kubernetes.io/name: yugabyte
     app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: dev
+    app.kubernetes.io/part-of: genfix
+    environment: dev
 spec:
   # Number of master and tserver pods (single master node)
   numNodes: 1
@@ -122,7 +123,7 @@ spec:
       size: 100Gi
 
   # Replication factor
-  replicationFactor: 1
+  replicationFactor: 3
 
   # Enable YSQL API
   enableYSQL: true
@@ -136,7 +137,7 @@ spec:
     certManager:
       clusterIssuer: letsencrypt-prod
       dnsNames:
-      - dev-cluster.yb.svc.cluster.local
+      - genfix-dev-cluster.yb.svc.cluster.local
 
   # Monitoring configuration
   prometheus:
@@ -150,7 +151,7 @@ spec:
     retention: "7d"
     storage:
       type: s3
-      bucket: dev-yugabyte-backups
+      bucket: genfix-dev-yugabyte-backups
       region: auto
       endpoint: https://<account-id>.r2.cloudflarestorage.com
       credentialsSecret: yugabyte-r2-credentials

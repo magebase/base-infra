@@ -11,7 +11,7 @@ spec:
   scaleTargetRef:
     apiVersion: yugabyte.com/v1alpha1
     kind: YBCluster
-    name: genfix-cluster
+    name: genfix-dev-cluster
   pollingInterval: 30
   cooldownPeriod: 300
   minReplicaCount: 0  # Allow scaling to zero
@@ -24,7 +24,7 @@ spec:
       threshold: "10"
       activationThreshold: "5"
       query: |
-        sum(yugabyte_tserver_connections_active{namespace="yb",cluster="genfix-cluster"})
+        sum(yugabyte_tserver_connections_active{namespace="yb",cluster="genfix-dev-cluster"})
       authModes: "bearer"
     authenticationRef:
       name: keda-prometheus-auth
@@ -42,7 +42,7 @@ spec:
   scaleTargetRef:
     apiVersion: yugabyte.com/v1alpha1
     kind: YBCluster
-    name: genfix-cluster
+    name: genfix-dev-cluster
   pollingInterval: 30
   cooldownPeriod: 300
   minReplicaCount: 0  # Allow scaling to zero
@@ -67,7 +67,7 @@ spec:
   scaleTargetRef:
     apiVersion: yugabyte.com/v1alpha1
     kind: YBCluster
-    name: genfix-cluster
+    name: genfix-dev-cluster
   pollingInterval: 30
   cooldownPeriod: 300
   minReplicaCount: 0  # Allow scaling to zero
@@ -92,7 +92,7 @@ spec:
   scaleTargetRef:
     apiVersion: yugabyte.com/v1alpha1
     kind: YBCluster
-    name: site-cluster
+    name: site-dev-cluster
   pollingInterval: 30
   cooldownPeriod: 300
   minReplicaCount: 0  # Allow scaling to zero
@@ -105,7 +105,7 @@ spec:
       threshold: "10"
       activationThreshold: "5"
       query: |
-        sum(yugabyte_tserver_connections_active{namespace="yb",cluster="site-cluster"})
+        sum(yugabyte_tserver_connections_active{namespace="yb",cluster="site-dev-cluster"})
       authModes: "bearer"
     authenticationRef:
       name: keda-prometheus-auth
@@ -123,7 +123,7 @@ spec:
   scaleTargetRef:
     apiVersion: yugabyte.com/v1alpha1
     kind: YBCluster
-    name: site-cluster
+    name: site-dev-cluster
   pollingInterval: 30
   cooldownPeriod: 300
   minReplicaCount: 0  # Allow scaling to zero
@@ -148,7 +148,7 @@ spec:
   scaleTargetRef:
     apiVersion: yugabyte.com/v1alpha1
     kind: YBCluster
-    name: site-cluster
+    name: site-dev-cluster
   pollingInterval: 30
   cooldownPeriod: 300
   minReplicaCount: 0  # Allow scaling to zero

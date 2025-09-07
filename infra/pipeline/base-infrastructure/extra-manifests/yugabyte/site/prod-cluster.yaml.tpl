@@ -3,7 +3,32 @@ kind: Namespace
 metadata:
   name: yb
   labels:
-    name: yb
+      containers:
+      - name: yb-      containers:
+      - name  # Storage configuration
+  storage:
+    # Master storage
+    master:
+      storageClass: "local-path"
+      size: 500Gi
+
+    # TServer storage
+    tserver:
+      storageClass: "local-path"
+      size: 1Tir
+        resources:
+          requests:
+            cpu: 4
+            memory: 8Gi
+          limits:
+            cpu: 8
+            memory: 16Gi      resources:
+          requests:
+            cpu: 4
+            memory: 8Gi
+          limits:
+            cpu: 8
+            memory: 16Gi yb
 ---
 apiVersion: v1
 kind: Secret
@@ -42,12 +67,13 @@ data:
 apiVersion: yugabyte.com/v1alpha1
 kind: YBCluster
 metadata:
-  name: uat-cluster
+  name: site-prod-cluster
   namespace: yb
   labels:
     app.kubernetes.io/name: yugabyte
     app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: uat
+    app.kubernetes.io/part-of: site
+    environment: prod
 spec:
   # Number of master and tserver pods (single master node)
   numNodes: 1
@@ -114,15 +140,15 @@ spec:
     # Master storage
     master:
       storageClass: "local-path"
-      size: 100Gi
+      size: 50Gi
 
     # TServer storage
     tserver:
       storageClass: "local-path"
-      size: 200Gi
+      size: 100Gi
 
   # Replication factor
-  replicationFactor: 1
+  replicationFactor: 3
 
   # Enable YSQL API
   enableYSQL: true
@@ -136,7 +162,7 @@ spec:
     certManager:
       clusterIssuer: letsencrypt-prod
       dnsNames:
-      - uat-cluster.yb.svc.cluster.local
+      - site-prod-cluster.yb.svc.cluster.local
 
   # Monitoring configuration
   prometheus:
@@ -146,11 +172,11 @@ spec:
   # Backup configuration
   backup:
     enabled: true
-    schedule: "0 2 * * *"
-    retention: "30d"
+    schedule: "0 1 * * *"
+    retention: "90d"
     storage:
       type: s3
-      bucket: uat-yugabyte-backups
+      bucket: site-prod-yugabyte-backups
       region: auto
       endpoint: https://<account-id>.r2.cloudflarestorage.com
       credentialsSecret: yugabyte-r2-credentials

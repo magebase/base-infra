@@ -42,12 +42,13 @@ data:
 apiVersion: yugabyte.com/v1alpha1
 kind: YBCluster
 metadata:
-  name: prod-cluster
+  name: site-qa-cluster
   namespace: yb
   labels:
     app.kubernetes.io/name: yugabyte
     app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: prod
+    app.kubernetes.io/part-of: site
+    environment: qa
 spec:
   # Number of master and tserver pods (single master node)
   numNodes: 1
@@ -63,11 +64,11 @@ spec:
       - name: yb-master
         resources:
           requests:
-            cpu: 4
-            memory: 8Gi
+            cpu: 1
+            memory: 2Gi
           limits:
-            cpu: 8
-            memory: 16Gi
+            cpu: 2
+            memory: 4Gi
         volumeMounts:
         - name: datadir
           mountPath: /mnt/disk0
@@ -90,11 +91,11 @@ spec:
       - name: yb-tserver
         resources:
           requests:
-            cpu: 4
-            memory: 8Gi
+            cpu: 1
+            memory: 2Gi
           limits:
-            cpu: 8
-            memory: 16Gi
+            cpu: 2
+            memory: 4Gi
         volumeMounts:
         - name: datadir
           mountPath: /mnt/disk0
@@ -114,15 +115,15 @@ spec:
     # Master storage
     master:
       storageClass: "local-path"
-      size: 500Gi
+      size: 50Gi
 
     # TServer storage
     tserver:
       storageClass: "local-path"
-      size: 1Ti
+      size: 100Gi
 
   # Replication factor
-  replicationFactor: 1
+  replicationFactor: 3
 
   # Enable YSQL API
   enableYSQL: true
@@ -136,7 +137,7 @@ spec:
     certManager:
       clusterIssuer: letsencrypt-prod
       dnsNames:
-      - prod-cluster.yb.svc.cluster.local
+      - site-qa-cluster.yb.svc.cluster.local
 
   # Monitoring configuration
   prometheus:
@@ -146,11 +147,11 @@ spec:
   # Backup configuration
   backup:
     enabled: true
-    schedule: "0 1 * * *"
-    retention: "90d"
+    schedule: "0 3 * * *"
+    retention: "30d"
     storage:
       type: s3
-      bucket: prod-yugabyte-backups
+      bucket: site-qa-yugabyte-backups
       region: auto
       endpoint: https://<account-id>.r2.cloudflarestorage.com
       credentialsSecret: yugabyte-r2-credentials

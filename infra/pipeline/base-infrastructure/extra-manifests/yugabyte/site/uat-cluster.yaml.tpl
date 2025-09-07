@@ -8,8 +8,25 @@ metadata:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: yugabyte-tls-certs
-  namespace: yb
+  name: yugabyte-tls-      dnsNames:
+      - site-uat-cluster.yb.svc.cluster.local
+
+  # Monitoring configuration
+  prometheus:
+    enabled: true
+    scrapeInterval: 30s
+
+  # Backup configuration
+  backup:
+    enabled: true
+    schedule: "0 2 * * *"
+    retention: "30d"
+    storage:
+      type: s3
+      bucket: site-uat-yugabyte-backups
+      region: auto
+      endpoint: https://<account-id>.r2.cloudflarestorage.com
+      credentialsSecret: yugabyte-r2-credentialsyb
 type: Opaque
 data:
   # Base64 encoded TLS certificates will be populated during deployment
@@ -42,12 +59,13 @@ data:
 apiVersion: yugabyte.com/v1alpha1
 kind: YBCluster
 metadata:
-  name: qa-cluster
+  name: site-uat-cluster
   namespace: yb
   labels:
     app.kubernetes.io/name: yugabyte
     app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: qa
+    app.kubernetes.io/part-of: site
+    environment: uat
 spec:
   # Number of master and tserver pods (single master node)
   numNodes: 1
@@ -114,15 +132,15 @@ spec:
     # Master storage
     master:
       storageClass: "local-path"
-      size: 100Gi
+      size: 50Gi
 
     # TServer storage
     tserver:
       storageClass: "local-path"
-      size: 200Gi
+      size: 100Gi
 
   # Replication factor
-  replicationFactor: 1
+  replicationFactor: 3
 
   # Enable YSQL API
   enableYSQL: true
@@ -136,7 +154,7 @@ spec:
     certManager:
       clusterIssuer: letsencrypt-prod
       dnsNames:
-      - qa-cluster.yb.svc.cluster.local
+      - site-cluster.yb.svc.cluster.local
 
   # Monitoring configuration
   prometheus:
@@ -150,7 +168,7 @@ spec:
     retention: "30d"
     storage:
       type: s3
-      bucket: qa-yugabyte-backups
+      bucket: site-yugabyte-backups
       region: auto
       endpoint: https://<account-id>.r2.cloudflarestorage.com
       credentialsSecret: yugabyte-r2-credentials
