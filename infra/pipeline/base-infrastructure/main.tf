@@ -1174,6 +1174,45 @@ module "kube-hetzner" {
       exit 1
     fi
 
+    # Wait for CRDs to be established
+    echo "Waiting for External Secrets CRDs to be established..."
+    kubectl wait --for condition=established --timeout=120s crd/externalsecrets.external-secrets.io || echo "Warning: ExternalSecret CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/secretstores.external-secrets.io || echo "Warning: SecretStore CRD wait failed"
+
+    echo "Waiting for StackGres CRDs to be established..."
+    kubectl wait --for condition=established --timeout=120s crd/sgclusters.stackgres.io || echo "Warning: SGClusters CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sgshardedclusters.stackgres.io || echo "Warning: SGShardedClusters CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sgdistributedlogs.stackgres.io || echo "Warning: SGDistributedLogs CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sginstanceprofiles.stackgres.io || echo "Warning: SGInstanceProfiles CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sgpostgresconfigs.stackgres.io || echo "Warning: SGPostgresConfigs CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sgpoolingconfigs.stackgres.io || echo "Warning: SGPoolingConfigs CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sgobjectstorages.stackgres.io || echo "Warning: SGObjectStorages CRD wait failed"
+
+    # Wait for operators to be ready
+    echo "Waiting for External Secrets Operator to be ready..."
+    kubectl wait --for=condition=available --timeout=300s deployment/external-secrets -n external-secrets-system || echo "Warning: External Secrets Operator deployment wait failed"
+
+    echo "Waiting for StackGres Operator to be ready..."
+    kubectl wait --for=condition=available --timeout=300s deployment/stackgres-operator -n stackgres || echo "Warning: StackGres Operator deployment wait failed"
+
+    # Apply External Secrets resources now that CRDs are available
+    echo "Applying External Secrets resources..."
+    if [ -f "/var/user_kustomize/eso/client-secret-stores.yaml" ]; then
+      kubectl apply -f "/var/user_kustomize/eso/client-secret-stores.yaml" || echo "Warning: Failed to apply client secret stores"
+    fi
+    if [ -f "/var/user_kustomize/eso/database-credentials.yaml" ]; then
+      kubectl apply -f "/var/user_kustomize/eso/database-credentials.yaml" || echo "Warning: Failed to apply database credentials"
+    fi
+
+    # Apply StackGres custom resources now that CRDs are available
+    echo "Applying StackGres custom resources..."
+    if [ -f "/var/user_kustomize/database/environments/genfix/${ENVIRONMENT}.yaml" ]; then
+      kubectl apply -f "/var/user_kustomize/database/environments/genfix/${ENVIRONMENT}.yaml" || echo "Warning: Failed to apply genfix environment"
+    fi
+    if [ -f "/var/user_kustomize/database/environments/site/${ENVIRONMENT}.yaml" ]; then
+      kubectl apply -f "/var/user_kustomize/database/environments/site/${ENVIRONMENT}.yaml" || echo "Warning: Failed to apply site environment"
+    fi
+
     # Since CLIENTS is empty (StackGres not deployed yet), skip all database operations
     echo "Skipping database credential processing - StackGres clusters deployed via ArgoCD"
 
@@ -1203,8 +1242,8 @@ module "kube-hetzner" {
     # Cloudflare R2 parameters for PostgreSQL backups (with fallbacks)
     R2_BUCKET            = try(module.cloudflare_r2.r2_bucket, "dev-magebase-postgres-backups")
     R2_ENDPOINT          = try(module.cloudflare_r2.r2_endpoint, "https://12345678901234567890.r2.cloudflarestorage.com")
-    R2_ACCESS_KEY_ID     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : ""
-    R2_SECRET_ACCESS_KEY = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : ""
+    R2_ACCESS_KEY_ID     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : base64encode("placeholder")
+    R2_SECRET_ACCESS_KEY = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : base64encode("placeholder")
 
     # SSH keys for cluster access
     SSH_PRIVATE_KEY = base64encode(var.ssh_private_key)

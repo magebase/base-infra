@@ -2,12 +2,16 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  - namespace.yaml
+  - namespace-stackgres.yaml
   - database-r2-credentials.yaml
   - operator/rbac.yaml
   - operator/deployment.yaml
   - operator/restapi.yaml
   - operator/certificates.yaml
-  - environments/genfix/${ENVIRONMENT}.yaml
-  - environments/site/${ENVIRONMENT}.yaml
+  # NOTE: StackGres custom resources are deployed via ArgoCD after operators are installed
+  # to avoid CRD dependency issues during initial deployment
+  # - environments/genfix/${ENVIRONMENT}.yaml
+  # - environments/site/${ENVIRONMENT}.yaml
 
 namespace: database
