@@ -2,6 +2,10 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  # Operator applications (deployed first)
+  - external-secrets-operator.yaml
+  - stackgres-operator.yaml
+
   # Base applications
   - kube-prometheus.yaml
   - trivy-operator.yaml
