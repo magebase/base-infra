@@ -16,9 +16,9 @@ resources:
   - traefik-middleware.yaml
   - argocd/github-pat-secret.yaml
   - argocd/applications/
+  - database/
   - knative/
   - eso/
-  - database/
 
 
 secretGenerator:

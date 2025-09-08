@@ -7,6 +7,8 @@ kind: Secret
 metadata:
   name: genfix-aws-credentials
   namespace: external-secrets-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 type: Opaque
 data:
   access-key-id: "${ESO_GENFIX_ACCESS_KEY_ID}"
@@ -18,6 +20,8 @@ kind: Secret
 metadata:
   name: site-aws-credentials
   namespace: external-secrets-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 type: Opaque
 data:
   access-key-id: "${ESO_SITE_ACCESS_KEY_ID}"

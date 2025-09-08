@@ -1200,6 +1200,28 @@ module "kube-hetzner" {
     echo "Waiting for StackGres Operator to be ready..."
     kubectl wait --for=condition=available --timeout=300s deployment/stackgres-operator -n stackgres || echo "Warning: StackGres Operator deployment wait failed"
 
+    # Additional check for StackGres webhooks to be ready
+    echo "Waiting for StackGres webhooks to be ready..."
+    WEBHOOK_TIMEOUT=180
+    WEBHOOK_ELAPSED=0
+    while [ $WEBHOOK_ELAPSED -lt $WEBHOOK_TIMEOUT ]; do
+      # Check if the validating webhooks are registered
+      WEBHOOK_COUNT=$(kubectl get validatingwebhookconfigurations -o name | grep -c stackgres || echo "0")
+      if [ "$WEBHOOK_COUNT" -gt 0 ]; then
+        echo "✅ StackGres validating webhooks found"
+        break
+      else
+        echo "Waiting for StackGres webhooks to be registered... ($WEBHOOK_ELAPSED/$WEBHOOK_TIMEOUT seconds)"
+        sleep 10
+        WEBHOOK_ELAPSED=$((WEBHOOK_ELAPSED + 10))
+      fi
+    done
+
+    if [ $WEBHOOK_ELAPSED -ge $WEBHOOK_TIMEOUT ]; then
+      echo "⚠️ Warning: StackGres webhooks not ready within $WEBHOOK_TIMEOUT seconds"
+      echo "Continuing with deployment - webhooks may still be initializing..."
+    fi
+
     # Apply External Secrets resources now that CRDs are available
     echo "Applying External Secrets resources..."
     if [ -f "/var/user_kustomize/eso/client-secret-stores.yaml" ]; then
@@ -1209,14 +1231,9 @@ module "kube-hetzner" {
       kubectl apply -f "/var/user_kustomize/eso/database-credentials.yaml" || echo "Warning: Failed to apply database credentials"
     fi
 
-    # Apply StackGres custom resources now that CRDs are available
-    echo "Applying StackGres custom resources..."
-    if [ -f "/var/user_kustomize/database/environments/genfix/$ENVIRONMENT.yaml" ]; then
-      kubectl apply -f "/var/user_kustomize/database/environments/genfix/$ENVIRONMENT.yaml" || echo "Warning: Failed to apply genfix environment"
-    fi
-    if [ -f "/var/user_kustomize/database/environments/site/$ENVIRONMENT.yaml" ]; then
-      kubectl apply -f "/var/user_kustomize/database/environments/site/$ENVIRONMENT.yaml" || echo "Warning: Failed to apply site environment"
-    fi
+    # NOTE: StackGres custom resources are now managed by ArgoCD applications
+    # They will be deployed after the operator is fully ready via sync waves
+    echo "StackGres custom resources will be managed by ArgoCD applications with proper sync ordering"
 
     # Since CLIENTS is empty (StackGres not deployed yet), skip all database operations
     echo "Skipping database credential processing - StackGres clusters deployed via ArgoCD"
@@ -1226,7 +1243,7 @@ module "kube-hetzner" {
     echo "Skipping SSM parameter verification - database operations deferred to ArgoCD"
 
     echo "✅ Base infrastructure deployment completed successfully"
-    echo "StackGres clusters and credentials will be managed by ArgoCD applications"
+    echo "StackGres clusters and credentials will be managed by ArgoCD applications with proper sync ordering"
   EOT
 
   # Additional safeguard: empty kustomization parameters

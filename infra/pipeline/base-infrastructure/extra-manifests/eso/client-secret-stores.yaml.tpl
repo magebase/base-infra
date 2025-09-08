@@ -7,6 +7,8 @@ kind: SecretStore
 metadata:
   name: genfix-secret-store
   namespace: external-secrets-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   provider:
     aws:
@@ -27,6 +29,8 @@ kind: SecretStore
 metadata:
   name: site-secret-store
   namespace: external-secrets-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   provider:
     aws:

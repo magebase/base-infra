@@ -4,6 +4,8 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - namespace-stackgres.yaml
+  - genfix/namespace.yaml
+  - site/namespace.yaml
   - database-r2-credentials.yaml
   # NOTE: StackGres operator resources are deployed via Helm to avoid conflicts
   # The operator, RBAC, certificates, and CRDs are managed by Helm installation
