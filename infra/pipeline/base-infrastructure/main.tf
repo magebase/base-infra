@@ -1145,6 +1145,35 @@ module "kube-hetzner" {
       exit 1
     fi
 
+    # Install StackGres Operator using Helm
+    echo "Installing StackGres Operator..."
+    if command -v helm &> /dev/null; then
+      # Add stackgres helm repo if not already added
+      helm repo add stackgres https://stackgres.io/downloads/stackgres-k8s/stackgres/helm/ || echo "stackgres repo already exists"
+
+      # Update helm repos
+      helm repo update
+
+      # Install StackGres operator with CRDs
+      helm upgrade --install stackgres-operator stackgres/stackgres-operator \
+        --namespace stackgres \
+        --create-namespace \
+        --version 1.10.0 \
+        --set installCRDs=true \
+        --wait \
+        --timeout=600s
+
+      if [ $? -eq 0 ]; then
+        echo "✅ StackGres Operator installed successfully"
+      else
+        echo "❌ Failed to install StackGres Operator"
+        exit 1
+      fi
+    else
+      echo "❌ Helm not found, cannot install StackGres Operator"
+      exit 1
+    fi
+
     # Since CLIENTS is empty (StackGres not deployed yet), skip all database operations
     echo "Skipping database credential processing - StackGres clusters deployed via ArgoCD"
 
