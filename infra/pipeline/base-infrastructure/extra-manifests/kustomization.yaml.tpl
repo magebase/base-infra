@@ -15,9 +15,9 @@ resources:
   - argocd-ingress.yaml
   - traefik-middleware.yaml
   - argocd/github-pat-secret.yaml
-  - argocd/applications/kustomization.yaml
-  - knative/kustomization.yaml
-  - eso/kustomization.yaml
+  - argocd/applications/
+  - knative/
+  - eso/
   - database/environments/site/${ENVIRONMENT}.yaml
   - database/environments/genfix/${ENVIRONMENT}.yaml
   # External Secrets Operator
