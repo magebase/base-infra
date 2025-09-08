@@ -9,7 +9,7 @@ resources:
   - serving-hpa.yaml.tpl
 
 patches:
-  - config-network-patch.yaml.tpl
+  - path: config-network-patch.yaml.tpl
 
 images:
   - name: gcr.io/knative-releases/knative.dev/serving/cmd/controller
