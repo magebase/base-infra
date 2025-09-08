@@ -1035,44 +1035,70 @@ module "kube-hetzner" {
     export ENVIRONMENT="${var.environment}"
     export CLIENTS_JSON='${jsonencode(local.clients)}'
 
+    # Create checkpoint file to track deployment progress
+    CHECKPOINT_FILE="/tmp/terraform_deployment_checkpoint"
+    touch $CHECKPOINT_FILE
+
+    # Function to check if step is already completed
+    is_step_completed() {
+      local step=$1
+      grep -q "^$step:completed$" $CHECKPOINT_FILE
+    }
+
+    # Function to mark step as completed
+    mark_step_completed() {
+      local step=$1
+      echo "$step:completed" >> $CHECKPOINT_FILE
+    }
+
     # Install jq if not present (required for JSON processing)
-    if ! command -v jq &> /dev/null; then
-      echo "Installing jq..."
-      # Try different package managers
-      if command -v apt-get &> /dev/null; then
-        apt-get update && apt-get install -y jq
-      elif command -v yum &> /dev/null; then
-        yum install -y jq
-      elif command -v dnf &> /dev/null; then
-        dnf install -y jq
-      elif command -v apk &> /dev/null; then
-        apk add jq
-      else
-        echo "Warning: Could not install jq - package manager not found"
-        # Try to download jq binary directly
-        if command -v curl &> /dev/null; then
-          curl -L -o /usr/local/bin/jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-          chmod +x /usr/local/bin/jq
+    if ! is_step_completed "jq_install"; then
+      if ! command -v jq &> /dev/null; then
+        echo "Installing jq..."
+        # Try different package managers
+        if command -v apt-get &> /dev/null; then
+          apt-get update && apt-get install -y jq
+        elif command -v yum &> /dev/null; then
+          yum install -y jq
+        elif command -v dnf &> /dev/null; then
+          dnf install -y jq
+        elif command -v apk &> /dev/null; then
+          apk add jq
+        else
+          echo "Warning: Could not install jq - package manager not found"
+          # Try to download jq binary directly
+          if command -v curl &> /dev/null; then
+            curl -L -o /usr/local/bin/jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+            chmod +x /usr/local/bin/jq
+          fi
         fi
       fi
+      mark_step_completed "jq_install"
+    else
+      echo "✅ jq installation already completed"
     fi
 
     # Install Helm if not present (required for ESO installation)
-    if ! command -v helm &> /dev/null; then
-      echo "Installing Helm..."
-      if command -v curl &> /dev/null; then
-        # Download and install Helm
-        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-        chmod 700 get_helm.sh
-        ./get_helm.sh
-        rm get_helm.sh
-        echo "✅ Helm installed successfully"
+    if ! is_step_completed "helm_install"; then
+      if ! command -v helm &> /dev/null; then
+        echo "Installing Helm..."
+        if command -v curl &> /dev/null; then
+          # Download and install Helm
+          curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+          chmod 700 get_helm.sh
+          ./get_helm.sh
+          rm get_helm.sh
+          echo "✅ Helm installed successfully"
+        else
+          echo "❌ curl not found, cannot install Helm"
+          exit 1
+        fi
       else
-        echo "❌ curl not found, cannot install Helm"
-        exit 1
+        echo "Helm is already installed"
       fi
+      mark_step_completed "helm_install"
     else
-      echo "Helm is already installed"
+      echo "✅ Helm installation already completed"
     fi
 
     # Brief delay to allow Kustomize application to complete
@@ -1117,267 +1143,403 @@ module "kube-hetzner" {
     fi
 
     # Install External Secrets Operator using Helm
-    echo "Installing External Secrets Operator..."
-    if command -v helm &> /dev/null; then
-      # Ensure KUBECONFIG is set properly
-      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    if ! is_step_completed "eso_install"; then
+      echo "Installing External Secrets Operator..."
+      if command -v helm &> /dev/null; then
+        # Ensure KUBECONFIG is set properly
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-      # Add external-secrets helm repo if not already added
-      helm repo add external-secrets https://charts.external-secrets.io || echo "external-secrets repo already exists"
-
-      # Update helm repos
-      helm repo update
-
-      # Check if ESO CRDs already exist to determine installation approach
-      if kubectl get crd externalsecrets.external-secrets.io >/dev/null 2>&1; then
-        echo "External Secrets CRDs already exist, cleaning up existing resources before upgrade..."
-        # Clean up existing ESO resources that might conflict with Helm ownership
-        kubectl delete clusterrole external-secrets-cert-controller --ignore-not-found=true
-        kubectl delete clusterrole external-secrets-controller --ignore-not-found=true
-        kubectl delete clusterrole external-secrets-view-secrets --ignore-not-found=true
-        kubectl delete clusterrole external-secrets-edit-secrets --ignore-not-found=true
-        kubectl delete clusterrole external-secrets-view-secrets-local --ignore-not-found=true
-        kubectl delete clusterrole external-secrets-edit-secrets-local --ignore-not-found=true
-        kubectl delete clusterrole external-secrets-leaderelection-role --ignore-not-found=true
-        kubectl delete clusterrolebinding external-secrets-cert-controller --ignore-not-found=true
-        kubectl delete clusterrolebinding external-secrets-controller --ignore-not-found=true
-        kubectl delete clusterrolebinding external-secrets-view-secrets --ignore-not-found=true
-        kubectl delete clusterrolebinding external-secrets-edit-secrets --ignore-not-found=true
-        kubectl delete clusterrolebinding external-secrets-view-secrets-local --ignore-not-found=true
-        kubectl delete clusterrolebinding external-secrets-edit-secrets-local --ignore-not-found=true
-        kubectl delete clusterrolebinding external-secrets-leaderelection-rolebinding --ignore-not-found=true
-        # Clean up ValidatingWebhookConfigurations and MutatingWebhookConfigurations
-        kubectl delete validatingwebhookconfiguration secretstore-validate --ignore-not-found=true
-        kubectl delete validatingwebhookconfiguration externalsecret-validate --ignore-not-found=true
-        kubectl delete mutatingwebhookconfiguration secretstore-mutate --ignore-not-found=true
-        # Also clean up any remaining ESO clusterroles/clusterrolebindings with pattern matching
-        kubectl delete clusterrole -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
-        kubectl delete clusterrolebinding -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
-        # Clean up webhook configurations with pattern matching
-        kubectl delete validatingwebhookconfiguration -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
-        kubectl delete mutatingwebhookconfiguration -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
-        # Additional cleanup for any ESO-related webhook configurations
-        kubectl delete validatingwebhookconfiguration -l external-secrets.io/component=webhook --ignore-not-found=true
-        kubectl delete mutatingwebhookconfiguration -l external-secrets.io/component=webhook --ignore-not-found=true
-        # Force cleanup any remaining ESO webhook configurations by name pattern
-        kubectl get validatingwebhookconfiguration -o name | grep -E "(external-secrets|eso|secretstore|externalsecret)" | xargs -r kubectl delete --ignore-not-found=true || true
-        kubectl get mutatingwebhookconfiguration -o name | grep -E "(external-secrets|eso|secretstore|externalsecret)" | xargs -r kubectl delete --ignore-not-found=true || true
-        # Wait a moment for cleanup to complete
-        sleep 5
-        # Verify cleanup was successful
-        if kubectl get validatingwebhookconfiguration secretstore-validate >/dev/null 2>&1; then
-          echo "Warning: secretstore-validate still exists after cleanup, forcing deletion..."
-          kubectl delete validatingwebhookconfiguration secretstore-validate --force --grace-period=0 --ignore-not-found=true
-          sleep 2
+        # Step 1: Add helm repo (with checkpoint)
+        if ! is_step_completed "eso_repo_add"; then
+          echo "Adding External Secrets helm repository..."
+          helm repo add external-secrets https://charts.external-secrets.io || echo "external-secrets repo already exists"
+          mark_step_completed "eso_repo_add"
+        else
+          echo "✅ External Secrets helm repository already added"
         fi
-        if kubectl get validatingwebhookconfiguration externalsecret-validate >/dev/null 2>&1; then
-          echo "Warning: externalsecret-validate still exists after cleanup, forcing deletion..."
-          kubectl delete validatingwebhookconfiguration externalsecret-validate --force --grace-period=0 --ignore-not-found=true
-          sleep 2
-        fi
-        if kubectl get mutatingwebhookconfiguration secretstore-mutate >/dev/null 2>&1; then
-          echo "Warning: secretstore-mutate still exists after cleanup, forcing deletion..."
-          kubectl delete mutatingwebhookconfiguration secretstore-mutate --force --grace-period=0 --ignore-not-found=true
-          sleep 2
-        fi
-        # If CRDs exist, skip CRD installation to avoid ownership conflicts
-        echo "Installing External Secrets Operator (async mode to prevent timeout)..."
-        helm upgrade --install external-secrets external-secrets/external-secrets \
-          --namespace external-secrets-system \
-          --create-namespace \
-          --version 0.19.2 \
-          --set installCRDs=false
 
-        # Wait for ESO deployment with manual timeout and progress monitoring
-        echo "Waiting for External Secrets Operator deployment..."
-        TIMEOUT=900  # 15 minutes
-        ELAPSED=0
-        while [ $ELAPSED -lt $TIMEOUT ]; do
-          if kubectl get deployment external-secrets -n external-secrets-system >/dev/null 2>&1; then
-            if kubectl wait --for=condition=available --timeout=30s deployment/external-secrets -n external-secrets-system >/dev/null 2>&1; then
-              echo "✅ External Secrets Operator deployment is ready"
-              break
-            else
-              echo "Waiting for External Secrets Operator deployment... ($ELAPSED/$TIMEOUT seconds)"
+        # Step 2: Update helm repos (with checkpoint)
+        if ! is_step_completed "eso_repo_update"; then
+          echo "Updating helm repositories..."
+          helm repo update
+          mark_step_completed "eso_repo_update"
+        else
+          echo "✅ Helm repositories already updated"
+        fi
+
+        # Step 3: Cleanup existing resources (with checkpoint)
+        if ! is_step_completed "eso_cleanup"; then
+          echo "Cleaning up existing ESO resources..."
+          # Check if ESO CRDs already exist to determine installation approach
+          if kubectl get crd externalsecrets.external-secrets.io >/dev/null 2>&1; then
+            echo "External Secrets CRDs already exist, cleaning up existing resources before upgrade..."
+            # Clean up existing ESO resources that might conflict with Helm ownership
+            kubectl delete clusterrole external-secrets-cert-controller --ignore-not-found=true
+            kubectl delete clusterrole external-secrets-controller --ignore-not-found=true
+            kubectl delete clusterrole external-secrets-view-secrets --ignore-not-found=true
+            kubectl delete clusterrole external-secrets-edit-secrets --ignore-not-found=true
+            kubectl delete clusterrole external-secrets-view-secrets-local --ignore-not-found=true
+            kubectl delete clusterrole external-secrets-edit-secrets-local --ignore-not-found=true
+            kubectl delete clusterrole external-secrets-leaderelection-role --ignore-not-found=true
+            kubectl delete clusterrolebinding external-secrets-cert-controller --ignore-not-found=true
+            kubectl delete clusterrolebinding external-secrets-controller --ignore-not-found=true
+            kubectl delete clusterrolebinding external-secrets-view-secrets --ignore-not-found=true
+            kubectl delete clusterrolebinding external-secrets-edit-secrets --ignore-not-found=true
+            kubectl delete clusterrolebinding external-secrets-view-secrets-local --ignore-not-found=true
+            kubectl delete clusterrolebinding external-secrets-edit-secrets-local --ignore-not-found=true
+            kubectl delete clusterrolebinding external-secrets-leaderelection-rolebinding --ignore-not-found=true
+            # Clean up ValidatingWebhookConfigurations and MutatingWebhookConfigurations
+            kubectl delete validatingwebhookconfiguration secretstore-validate --ignore-not-found=true
+            kubectl delete validatingwebhookconfiguration externalsecret-validate --ignore-not-found=true
+            kubectl delete mutatingwebhookconfiguration secretstore-mutate --ignore-not-found=true
+            # Also clean up any remaining ESO clusterroles/clusterrolebindings with pattern matching
+            kubectl delete clusterrole -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
+            kubectl delete clusterrolebinding -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
+            # Clean up webhook configurations with pattern matching
+            kubectl delete validatingwebhookconfiguration -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
+            kubectl delete mutatingwebhookconfiguration -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
+            # Additional cleanup for any ESO-related webhook configurations
+            kubectl delete validatingwebhookconfiguration -l external-secrets.io/component=webhook --ignore-not-found=true
+            kubectl delete mutatingwebhookconfiguration -l external-secrets.io/component=webhook --ignore-not-found=true
+            # Force cleanup any remaining ESO webhook configurations by name pattern
+            kubectl get validatingwebhookconfiguration -o name | grep -E "(external-secrets|eso|secretstore|externalsecret)" | xargs -r kubectl delete --ignore-not-found=true || true
+            kubectl get mutatingwebhookconfiguration -o name | grep -E "(external-secrets|eso|secretstore|externalsecret)" | xargs -r kubectl delete --ignore-not-found=true || true
+            # Wait a moment for cleanup to complete
+            sleep 5
+            # Verify cleanup was successful
+            if kubectl get validatingwebhookconfiguration secretstore-validate >/dev/null 2>&1; then
+              echo "Warning: secretstore-validate still exists after cleanup, forcing deletion..."
+              kubectl delete validatingwebhookconfiguration secretstore-validate --force --grace-period=0 --ignore-not-found=true
+              sleep 2
             fi
-          else
-            echo "Waiting for External Secrets Operator deployment to be created... ($ELAPSED/$TIMEOUT seconds)"
+            if kubectl get validatingwebhookconfiguration externalsecret-validate >/dev/null 2>&1; then
+              echo "Warning: externalsecret-validate still exists after cleanup, forcing deletion..."
+              kubectl delete validatingwebhookconfiguration externalsecret-validate --force --grace-period=0 --ignore-not-found=true
+              sleep 2
+            fi
+            if kubectl get mutatingwebhookconfiguration secretstore-mutate >/dev/null 2>&1; then
+              echo "Warning: secretstore-mutate still exists after cleanup, forcing deletion..."
+              kubectl delete mutatingwebhookconfiguration secretstore-mutate --force --grace-period=0 --ignore-not-found=true
+              sleep 2
+            fi
           fi
-          sleep 30
-          ELAPSED=$((ELAPSED + 30))
-        done
+          mark_step_completed "eso_cleanup"
+        else
+          echo "✅ ESO cleanup already completed"
+        fi
 
-        if [ $ELAPSED -ge $TIMEOUT ]; then
-          echo "⚠️ Warning: External Secrets Operator deployment did not become ready within $TIMEOUT seconds"
-          echo "Continuing with deployment - operator may still be starting up..."
+        # Step 4: Install ESO with Helm (with checkpoint and timeout)
+        if ! is_step_completed "eso_helm_install"; then
+          echo "Installing External Secrets Operator with Helm..."
+
+          # Determine if we need to install CRDs
+          INSTALL_CRDS="true"
+          if kubectl get crd externalsecrets.external-secrets.io >/dev/null 2>&1; then
+            INSTALL_CRDS="false"
+            echo "ESO CRDs already exist, installing without CRDs..."
+          else
+            echo "Installing ESO for the first time with CRDs..."
+          fi
+
+          # Run Helm install with timeout in background and monitor
+          echo "Starting Helm installation (with 10-minute timeout)..."
+          (
+            timeout 600 helm upgrade --install external-secrets external-secrets/external-secrets \
+              --namespace external-secrets-system \
+              --create-namespace \
+              --version 0.19.2 \
+              --set installCRDs=$INSTALL_CRDS \
+              --timeout=10m \
+              --wait
+          ) &
+
+          HELM_PID=$!
+          HELM_TIMEOUT=600  # 10 minutes
+          HELM_ELAPSED=0
+
+          # Monitor Helm installation progress
+          while [ $HELM_ELAPSED -lt $HELM_TIMEOUT ]; do
+            if ! kill -0 $HELM_PID 2>/dev/null; then
+              # Helm process finished
+              wait $HELM_PID
+              HELM_EXIT_CODE=$?
+              if [ $HELM_EXIT_CODE -eq 0 ]; then
+                echo "✅ Helm installation completed successfully"
+                mark_step_completed "eso_helm_install"
+                break
+              else
+                echo "❌ Helm installation failed with exit code $HELM_EXIT_CODE"
+                exit 1
+              fi
+            fi
+
+            # Show progress every 30 seconds
+            if [ $((HELM_ELAPSED % 30)) -eq 0 ] && [ $HELM_ELAPSED -gt 0 ]; then
+              echo "Helm installation in progress... ($HELM_ELAPSED/$HELM_TIMEOUT seconds)"
+              # Check if ESO namespace exists as a sign of progress
+              if kubectl get namespace external-secrets-system >/dev/null 2>&1; then
+                echo "✓ External Secrets namespace created"
+              fi
+              # Check if deployment is being created
+              if kubectl get deployment external-secrets -n external-secrets-system >/dev/null 2>&1; then
+                echo "✓ External Secrets deployment found"
+              fi
+            fi
+
+            sleep 10
+            HELM_ELAPSED=$((HELM_ELAPSED + 10))
+          done
+
+          # If we reached timeout, kill the process
+          if [ $HELM_ELAPSED -ge $HELM_TIMEOUT ]; then
+            echo "⚠️ Helm installation timed out after $HELM_TIMEOUT seconds, terminating..."
+            kill $HELM_PID 2>/dev/null || true
+            echo "❌ Failed to install External Secrets Operator within timeout"
+            exit 1
+          fi
+        else
+          echo "✅ ESO Helm installation already completed"
+        fi
+
+        # Step 5: Wait for deployment to be ready (with checkpoint)
+        if ! is_step_completed "eso_deployment_ready"; then
+          echo "Waiting for External Secrets Operator deployment to be ready..."
+          TIMEOUT=300  # 5 minutes
+          ELAPSED=0
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            if kubectl get deployment external-secrets -n external-secrets-system >/dev/null 2>&1; then
+              if kubectl wait --for=condition=available --timeout=30s deployment/external-secrets -n external-secrets-system >/dev/null 2>&1; then
+                echo "✅ External Secrets Operator deployment is ready"
+                mark_step_completed "eso_deployment_ready"
+                break
+              else
+                echo "Waiting for External Secrets Operator deployment... ($ELAPSED/$TIMEOUT seconds)"
+              fi
+            else
+              echo "Waiting for External Secrets Operator deployment to be created... ($ELAPSED/$TIMEOUT seconds)"
+            fi
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
+
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "⚠️ Warning: External Secrets Operator deployment did not become ready within $TIMEOUT seconds"
+            echo "Checking deployment status..."
+            kubectl get deployment external-secrets -n external-secrets-system -o wide || true
+            kubectl describe deployment external-secrets -n external-secrets-system || true
+            echo "Continuing with deployment - operator may still be starting up..."
+            mark_step_completed "eso_deployment_ready"  # Mark as completed to avoid retry loop
+          fi
+        else
+          echo "✅ ESO deployment readiness already verified"
+        fi
+
+        # Final verification
+        if helm status external-secrets -n external-secrets-system >/dev/null 2>&1; then
+          echo "✅ External Secrets Operator installed/upgraded successfully"
+          mark_step_completed "eso_install"
+        else
+          echo "❌ Failed to install/upgrade External Secrets Operator"
+          exit 1
         fi
       else
-        echo "Installing External Secrets Operator for the first time with CRDs..."
-        # First time installation, install CRDs
-        helm upgrade --install external-secrets external-secrets/external-secrets \
-          --namespace external-secrets-system \
-          --create-namespace \
-          --version 0.19.2 \
-          --set installCRDs=true
-
-        # Wait for ESO deployment with manual timeout and progress monitoring
-        echo "Waiting for External Secrets Operator deployment..."
-        TIMEOUT=900  # 15 minutes
-        ELAPSED=0
-        while [ $ELAPSED -lt $TIMEOUT ]; do
-          if kubectl get deployment external-secrets -n external-secrets-system >/dev/null 2>&1; then
-            if kubectl wait --for=condition=available --timeout=30s deployment/external-secrets -n external-secrets-system >/dev/null 2>&1; then
-              echo "✅ External Secrets Operator deployment is ready"
-              break
-            else
-              echo "Waiting for External Secrets Operator deployment... ($ELAPSED/$TIMEOUT seconds)"
-            fi
-          else
-            echo "Waiting for External Secrets Operator deployment to be created... ($ELAPSED/$TIMEOUT seconds)"
-          fi
-          sleep 30
-          ELAPSED=$((ELAPSED + 30))
-        done
-
-        if [ $ELAPSED -ge $TIMEOUT ]; then
-          echo "⚠️ Warning: External Secrets Operator deployment did not become ready within $TIMEOUT seconds"
-          echo "Continuing with deployment - operator may still be starting up..."
-        fi
-      fi
-
-      # Check if Helm installation was successful
-      if helm status external-secrets -n external-secrets-system >/dev/null 2>&1; then
-        echo "✅ External Secrets Operator installed/upgraded successfully"
-      else
-        echo "❌ Failed to install/upgrade External Secrets Operator"
+        echo "❌ Helm not found, cannot install External Secrets Operator"
         exit 1
       fi
     else
-      echo "❌ Helm not found, cannot install External Secrets Operator"
-      exit 1
+      echo "✅ External Secrets Operator installation already completed"
     fi
 
     # Install StackGres Operator using Helm
-    echo "Installing StackGres Operator..."
-    if command -v helm &> /dev/null; then
-      # Ensure KUBECONFIG is set properly
-      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
-      # Add stackgres helm repo if not already added
-      helm repo add stackgres https://stackgres.io/downloads/stackgres-k8s/stackgres/helm/ || echo "stackgres repo already exists"
+    if ! is_step_completed "stackgres_install"; then
+      echo "Installing StackGres Operator..."
+      if command -v helm &> /dev/null; then
+        # Ensure KUBECONFIG is set properly
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 
-      # Update helm repos
-      helm repo update
-
-      # Check if StackGres CRDs already exist to determine installation approach
-      if kubectl get crd sgclusters.stackgres.io >/dev/null 2>&1; then
-        echo "StackGres CRDs already exist, cleaning up existing resources before upgrade..."
-        # Clean up existing StackGres resources that might conflict with Helm ownership
-        kubectl delete clusterrole stackgres-operator --ignore-not-found=true
-        kubectl delete clusterrole stackgres-restapi --ignore-not-found=true
-        kubectl delete clusterrolebinding stackgres-operator --ignore-not-found=true
-        kubectl delete clusterrolebinding stackgres-restapi --ignore-not-found=true
-        # Clean up ValidatingWebhookConfigurations and MutatingWebhookConfigurations for StackGres
-        kubectl delete validatingwebhookconfiguration stackgres-operator --ignore-not-found=true
-        kubectl delete mutatingwebhookconfiguration stackgres-operator --ignore-not-found=true
-        # Also clean up any remaining StackGres clusterroles/clusterrolebindings with pattern matching
-        kubectl delete clusterrole -l app.kubernetes.io/name=stackgres --ignore-not-found=true
-        kubectl delete clusterrolebinding -l app.kubernetes.io/name=stackgres --ignore-not-found=true
-        # Clean up webhook configurations with pattern matching
-        kubectl delete validatingwebhookconfiguration -l app.kubernetes.io/name=stackgres --ignore-not-found=true
-        kubectl delete mutatingwebhookconfiguration -l app.kubernetes.io/name=stackgres --ignore-not-found=true
-        # Additional cleanup for any StackGres-related webhook configurations
-        kubectl delete validatingwebhookconfiguration -l stackgres.io/component=webhook --ignore-not-found=true
-        kubectl delete mutatingwebhookconfiguration -l stackgres.io/component=webhook --ignore-not-found=true
-        # Force cleanup any remaining StackGres webhook configurations by name pattern
-        kubectl get validatingwebhookconfiguration -o name | grep -E "(stackgres|sg)" | xargs -r kubectl delete --ignore-not-found=true || true
-        kubectl get mutatingwebhookconfiguration -o name | grep -E "(stackgres|sg)" | xargs -r kubectl delete --ignore-not-found=true || true
-        # Wait a moment for cleanup to complete
-        sleep 5
-        # Verify cleanup was successful
-        if kubectl get validatingwebhookconfiguration stackgres-operator >/dev/null 2>&1; then
-          echo "Warning: stackgres-operator validating webhook still exists after cleanup, forcing deletion..."
-          kubectl delete validatingwebhookconfiguration stackgres-operator --force --grace-period=0 --ignore-not-found=true
-          sleep 2
+        # Step 1: Add helm repo (with checkpoint)
+        if ! is_step_completed "stackgres_repo_add"; then
+          echo "Adding StackGres helm repository..."
+          helm repo add stackgres https://stackgres.io/downloads/stackgres-k8s/stackgres/helm/ || echo "stackgres repo already exists"
+          mark_step_completed "stackgres_repo_add"
+        else
+          echo "✅ StackGres helm repository already added"
         fi
-        if kubectl get mutatingwebhookconfiguration stackgres-operator >/dev/null 2>&1; then
-          echo "Warning: stackgres-operator mutating webhook still exists after cleanup, forcing deletion..."
-          kubectl delete mutatingwebhookconfiguration stackgres-operator --force --grace-period=0 --ignore-not-found=true
-          sleep 2
-        fi
-        # If CRDs exist, skip CRD installation to avoid ownership conflicts
-        echo "Installing StackGres Operator (async mode to prevent timeout)..."
-        helm upgrade --install stackgres-operator stackgres/stackgres-operator \
-          --namespace stackgres \
-          --version 1.10.0 \
-          --set installCRDs=false
 
-        # Wait for StackGres deployment with manual timeout and progress monitoring
-        echo "Waiting for StackGres Operator deployment..."
-        TIMEOUT=900  # 15 minutes
-        ELAPSED=0
-        while [ $ELAPSED -lt $TIMEOUT ]; do
-          if kubectl get deployment stackgres-operator -n stackgres >/dev/null 2>&1; then
-            if kubectl wait --for=condition=available --timeout=30s deployment/stackgres-operator -n stackgres >/dev/null 2>&1; then
-              echo "✅ StackGres Operator deployment is ready"
-              break
-            else
-              echo "Waiting for StackGres Operator deployment... ($ELAPSED/$TIMEOUT seconds)"
+        # Step 2: Update helm repos (with checkpoint)
+        if ! is_step_completed "stackgres_repo_update"; then
+          echo "Updating helm repositories..."
+          helm repo update
+          mark_step_completed "stackgres_repo_update"
+        else
+          echo "✅ Helm repositories already updated"
+        fi
+
+        # Step 3: Cleanup existing resources (with checkpoint)
+        if ! is_step_completed "stackgres_cleanup"; then
+          echo "Cleaning up existing StackGres resources..."
+          # Check if StackGres CRDs already exist to determine installation approach
+          if kubectl get crd sgclusters.stackgres.io >/dev/null 2>&1; then
+            echo "StackGres CRDs already exist, cleaning up existing resources before upgrade..."
+            # Clean up existing StackGres resources that might conflict with Helm ownership
+            kubectl delete clusterrole stackgres-operator --ignore-not-found=true
+            kubectl delete clusterrole stackgres-restapi --ignore-not-found=true
+            kubectl delete clusterrolebinding stackgres-operator --ignore-not-found=true
+            kubectl delete clusterrolebinding stackgres-restapi --ignore-not-found=true
+            # Clean up ValidatingWebhookConfigurations and MutatingWebhookConfigurations for StackGres
+            kubectl delete validatingwebhookconfiguration stackgres-operator --ignore-not-found=true
+            kubectl delete mutatingwebhookconfiguration stackgres-operator --ignore-not-found=true
+            # Also clean up any remaining StackGres clusterroles/clusterrolebindings with pattern matching
+            kubectl delete clusterrole -l app.kubernetes.io/name=stackgres --ignore-not-found=true
+            kubectl delete clusterrolebinding -l app.kubernetes.io/name=stackgres --ignore-not-found=true
+            # Clean up webhook configurations with pattern matching
+            kubectl delete validatingwebhookconfiguration -l app.kubernetes.io/name=stackgres --ignore-not-found=true
+            kubectl delete mutatingwebhookconfiguration -l app.kubernetes.io/name=stackgres --ignore-not-found=true
+            # Additional cleanup for any StackGres-related webhook configurations
+            kubectl delete validatingwebhookconfiguration -l stackgres.io/component=webhook --ignore-not-found=true
+            kubectl delete mutatingwebhookconfiguration -l stackgres.io/component=webhook --ignore-not-found=true
+            # Force cleanup any remaining StackGres webhook configurations by name pattern
+            kubectl get validatingwebhookconfiguration -o name | grep -E "(stackgres|sg)" | xargs -r kubectl delete --ignore-not-found=true || true
+            kubectl get mutatingwebhookconfiguration -o name | grep -E "(stackgres|sg)" | xargs -r kubectl delete --ignore-not-found=true || true
+            # Wait a moment for cleanup to complete
+            sleep 5
+            # Verify cleanup was successful
+            if kubectl get validatingwebhookconfiguration stackgres-operator >/dev/null 2>&1; then
+              echo "Warning: stackgres-operator validating webhook still exists after cleanup, forcing deletion..."
+              kubectl delete validatingwebhookconfiguration stackgres-operator --force --grace-period=0 --ignore-not-found=true
+              sleep 2
             fi
-          else
-            echo "Waiting for StackGres Operator deployment to be created... ($ELAPSED/$TIMEOUT seconds)"
+            if kubectl get mutatingwebhookconfiguration stackgres-operator >/dev/null 2>&1; then
+              echo "Warning: stackgres-operator mutating webhook still exists after cleanup, forcing deletion..."
+              kubectl delete mutatingwebhookconfiguration stackgres-operator --force --grace-period=0 --ignore-not-found=true
+              sleep 2
+            fi
           fi
-          sleep 30
-          ELAPSED=$((ELAPSED + 30))
-        done
+          mark_step_completed "stackgres_cleanup"
+        else
+          echo "✅ StackGres cleanup already completed"
+        fi
 
-        if [ $ELAPSED -ge $TIMEOUT ]; then
-          echo "⚠️ Warning: StackGres Operator deployment did not become ready within $TIMEOUT seconds"
-          echo "Continuing with deployment - operator may still be starting up..."
+        # Step 4: Install StackGres with Helm (with checkpoint and timeout)
+        if ! is_step_completed "stackgres_helm_install"; then
+          echo "Installing StackGres Operator with Helm..."
+
+          # Determine if we need to install CRDs
+          INSTALL_CRDS="true"
+          if kubectl get crd sgclusters.stackgres.io >/dev/null 2>&1; then
+            INSTALL_CRDS="false"
+            echo "StackGres CRDs already exist, installing without CRDs..."
+          else
+            echo "Installing StackGres for the first time with CRDs..."
+          fi
+
+          # Run Helm install with timeout in background and monitor
+          echo "Starting Helm installation (with 10-minute timeout)..."
+          (
+            timeout 600 helm upgrade --install stackgres-operator stackgres/stackgres-operator \
+              --namespace stackgres \
+              --create-namespace \
+              --version 1.10.0 \
+              --set installCRDs=$INSTALL_CRDS \
+              --timeout=10m \
+              --wait
+          ) &
+
+          HELM_PID=$!
+          HELM_TIMEOUT=600  # 10 minutes
+          HELM_ELAPSED=0
+
+          # Monitor Helm installation progress
+          while [ $HELM_ELAPSED -lt $HELM_TIMEOUT ]; do
+            if ! kill -0 $HELM_PID 2>/dev/null; then
+              # Helm process finished
+              wait $HELM_PID
+              HELM_EXIT_CODE=$?
+              if [ $HELM_EXIT_CODE -eq 0 ]; then
+                echo "✅ Helm installation completed successfully"
+                mark_step_completed "stackgres_helm_install"
+                break
+              else
+                echo "❌ Helm installation failed with exit code $HELM_EXIT_CODE"
+                exit 1
+              fi
+            fi
+
+            # Show progress every 30 seconds
+            if [ $((HELM_ELAPSED % 30)) -eq 0 ] && [ $HELM_ELAPSED -gt 0 ]; then
+              echo "Helm installation in progress... ($HELM_ELAPSED/$HELM_TIMEOUT seconds)"
+              # Check if StackGres namespace exists as a sign of progress
+              if kubectl get namespace stackgres >/dev/null 2>&1; then
+                echo "✓ StackGres namespace created"
+              fi
+              # Check if deployment is being created
+              if kubectl get deployment stackgres-operator -n stackgres >/dev/null 2>&1; then
+                echo "✓ StackGres deployment found"
+              fi
+            fi
+
+            sleep 10
+            HELM_ELAPSED=$((HELM_ELAPSED + 10))
+          done
+
+          # If we reached timeout, kill the process
+          if [ $HELM_ELAPSED -ge $HELM_TIMEOUT ]; then
+            echo "⚠️ Helm installation timed out after $HELM_TIMEOUT seconds, terminating..."
+            kill $HELM_PID 2>/dev/null || true
+            echo "❌ Failed to install StackGres Operator within timeout"
+            exit 1
+          fi
+        else
+          echo "✅ StackGres Helm installation already completed"
+        fi
+
+        # Step 5: Wait for deployment to be ready (with checkpoint)
+        if ! is_step_completed "stackgres_deployment_ready"; then
+          echo "Waiting for StackGres Operator deployment to be ready..."
+          TIMEOUT=300  # 5 minutes
+          ELAPSED=0
+          while [ $ELAPSED -lt $TIMEOUT ]; do
+            if kubectl get deployment stackgres-operator -n stackgres >/dev/null 2>&1; then
+              if kubectl wait --for=condition=available --timeout=30s deployment/stackgres-operator -n stackgres >/dev/null 2>&1; then
+                echo "✅ StackGres Operator deployment is ready"
+                mark_step_completed "stackgres_deployment_ready"
+                break
+              else
+                echo "Waiting for StackGres Operator deployment... ($ELAPSED/$TIMEOUT seconds)"
+              fi
+            else
+              echo "Waiting for StackGres Operator deployment to be created... ($ELAPSED/$TIMEOUT seconds)"
+            fi
+            sleep 15
+            ELAPSED=$((ELAPSED + 15))
+          done
+
+          if [ $ELAPSED -ge $TIMEOUT ]; then
+            echo "⚠️ Warning: StackGres Operator deployment did not become ready within $TIMEOUT seconds"
+            echo "Checking deployment status..."
+            kubectl get deployment stackgres-operator -n stackgres -o wide || true
+            kubectl describe deployment stackgres-operator -n stackgres || true
+            echo "Continuing with deployment - operator may still be starting up..."
+            mark_step_completed "stackgres_deployment_ready"  # Mark as completed to avoid retry loop
+          fi
+        else
+          echo "✅ StackGres deployment readiness already verified"
+        fi
+
+        # Final verification
+        if helm status stackgres-operator -n stackgres >/dev/null 2>&1; then
+          echo "✅ StackGres Operator installed/upgraded successfully"
+          mark_step_completed "stackgres_install"
+        else
+          echo "❌ Failed to install/upgrade StackGres Operator"
+          exit 1
         fi
       else
-        echo "Installing StackGres Operator for the first time with CRDs..."
-        # First time installation, install CRDs
-        helm upgrade --install stackgres-operator stackgres/stackgres-operator \
-          --namespace stackgres \
-          --create-namespace \
-          --version 1.10.0 \
-          --set installCRDs=true
-
-        # Wait for StackGres deployment with manual timeout and progress monitoring
-        echo "Waiting for StackGres Operator deployment..."
-        TIMEOUT=900  # 15 minutes
-        ELAPSED=0
-        while [ $ELAPSED -lt $TIMEOUT ]; do
-          if kubectl get deployment stackgres-operator -n stackgres >/dev/null 2>&1; then
-            if kubectl wait --for=condition=available --timeout=30s deployment/stackgres-operator -n stackgres >/dev/null 2>&1; then
-              echo "✅ StackGres Operator deployment is ready"
-              break
-            else
-              echo "Waiting for StackGres Operator deployment... ($ELAPSED/$TIMEOUT seconds)"
-            fi
-          else
-            echo "Waiting for StackGres Operator deployment to be created... ($ELAPSED/$TIMEOUT seconds)"
-          fi
-          sleep 30
-          ELAPSED=$((ELAPSED + 30))
-        done
-
-        if [ $ELAPSED -ge $TIMEOUT ]; then
-          echo "⚠️ Warning: StackGres Operator deployment did not become ready within $TIMEOUT seconds"
-          echo "Continuing with deployment - operator may still be starting up..."
-        fi
-      fi
-
-      # Check if Helm installation was successful
-      if helm status stackgres-operator -n stackgres >/dev/null 2>&1; then
-        echo "✅ StackGres Operator installed/upgraded successfully"
-      else
-        echo "❌ Failed to install/upgrade StackGres Operator"
+        echo "❌ Helm not found, cannot install StackGres Operator"
         exit 1
       fi
     else
-      echo "❌ Helm not found, cannot install StackGres Operator"
-      exit 1
+      echo "✅ StackGres Operator installation already completed"
     fi
 
     # Wait for CRDs to be established
