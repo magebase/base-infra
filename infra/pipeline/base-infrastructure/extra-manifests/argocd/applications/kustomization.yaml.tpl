@@ -3,10 +3,7 @@ kind: Kustomization
 
 resources:
   # Base applications
-  - app-of-apps.yaml
   - kube-prometheus.yaml
-  - magebase-genfix.yaml
-  - magebase-site.yaml
   - trivy-operator.yaml
 
   # Environment-specific applications (only include current environment)
