@@ -459,10 +459,30 @@ jobs:
           export ESO_GENFIX_POLICY_ARN="$TF_VAR_eso_genfix_policy_arn"
           export ESO_SITE_POLICY_ARN="$TF_VAR_eso_site_policy_arn"
 
-          # Use envsubst for safer variable substitution
-          find ./extra-manifests/ -name "*.yaml" -exec bash -c '
-            envsubst < "$1" > "$1.tmp" && mv "$1.tmp" "$1"
-          ' _ {} \;
+          # Use sed for variable substitution (more reliable than envsubst)
+          find ./extra-manifests/ -name "*.yaml" -exec sed -i \
+            -e "s|\${ENVIRONMENT}|${ENVIRONMENT}|g" \
+            -e "s|\${DOMAIN}|${DOMAIN}|g" \
+            -e "s|\${ARGOCD_FQDN}|${ARGOCD_FQDN}|g" \
+            -e "s|\${ARGOCD_ADMIN_PASSWORD}|${ARGOCD_ADMIN_PASSWORD}|g" \
+            -e "s|\${ARGOCD_REPO_TOKEN}|${ARGOCD_REPO_TOKEN}|g" \
+            -e "s|\${ENCRYPTION_KEY}|${ENCRYPTION_KEY}|g" \
+            -e "s|\${CLOUDFLARE_API_TOKEN}|${CLOUDFLARE_API_TOKEN}|g" \
+            -e "s|\${AWS_ACCOUNT_ID}|${AWS_ACCOUNT_ID}|g" \
+            -e "s|\${AWS_REGION}|${AWS_REGION}|g" \
+            -e "s|\${R2_BUCKET}|${R2_BUCKET}|g" \
+            -e "s|\${R2_ENDPOINT}|${R2_ENDPOINT}|g" \
+            -e "s|\${R2_ACCESS_KEY_ID}|${R2_ACCESS_KEY_ID}|g" \
+            -e "s|\${R2_SECRET_ACCESS_KEY}|${R2_SECRET_ACCESS_KEY}|g" \
+            -e "s|\${SSH_PRIVATE_KEY}|${SSH_PRIVATE_KEY}|g" \
+            -e "s|\${SSH_PUBLIC_KEY}|${SSH_PUBLIC_KEY}|g" \
+            -e "s|\${ESO_GENFIX_ACCESS_KEY_ID}|${ESO_GENFIX_ACCESS_KEY_ID}|g" \
+            -e "s|\${ESO_GENFIX_SECRET_ACCESS_KEY}|${ESO_GENFIX_SECRET_ACCESS_KEY}|g" \
+            -e "s|\${ESO_SITE_ACCESS_KEY_ID}|${ESO_SITE_ACCESS_KEY_ID}|g" \
+            -e "s|\${ESO_SITE_SECRET_ACCESS_KEY}|${ESO_SITE_SECRET_ACCESS_KEY}|g" \
+            -e "s|\${ESO_GENFIX_POLICY_ARN}|${ESO_GENFIX_POLICY_ARN}|g" \
+            -e "s|\${ESO_SITE_POLICY_ARN}|${ESO_SITE_POLICY_ARN}|g" \
+            {} \;
 
           # Run kubectl diff using kustomize
           echo "🔍 Running kubectl diff with detailed output..."
