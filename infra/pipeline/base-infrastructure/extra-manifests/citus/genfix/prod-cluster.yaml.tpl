@@ -9,8 +9,8 @@ metadata:
     app.kubernetes.io/part-of: genfix
     environment: prod
 spec:
-  cpu: "8"
-  memory: "16Gi"
+  cpu: "250m"
+  memory: "512Mi"
 ---
 apiVersion: stackgres.io/v1
 kind: SGPostgresConfig
@@ -25,22 +25,12 @@ metadata:
 spec:
   postgresVersion: "15"
   postgresql.conf:
-    shared_buffers: '4GB'
+    shared_buffers: '128MB'
     random_page_cost: '1.5'
     password_encryption: 'scram-sha-256'
     log_checkpoints: 'on'
-    citus.max_worker_processes: '32'
-    citus.max_cached_conns_per_worker: '16'
-    wal_level: 'replica'
-    max_wal_senders: '32'
-    max_replication_slots: '32'
-    checkpoint_completion_target: '0.9'
-    wal_buffers: '32MB'
-    work_mem: '64MB'
-    maintenance_work_mem: '512MB'
-    checkpoint_segments: '32'
-    autovacuum_max_workers: '6'
-    autovacuum_naptime: '20s'
+    citus.max_worker_processes: '2'
+    citus.max_cached_conns_per_worker: '1'
 ---
 apiVersion: stackgres.io/v1
 kind: SGPoolingConfig
@@ -57,13 +47,9 @@ spec:
     pgbouncer.ini:
       pgbouncer:
         pool_mode: transaction
-        max_client_conn: '2000'
-        default_pool_size: '200'
-        reserve_pool_size: '50'
-        max_db_connections: '200'
-        max_user_connections: '200'
-        server_idle_timeout: '300'
-        server_lifetime: '3600'
+        max_client_conn: '50'
+        default_pool_size: '5'
+        reserve_pool_size: '2'
 ---
 apiVersion: stackgres.io/v1beta1
 kind: SGObjectStorage
@@ -102,25 +88,24 @@ spec:
     extensions:
     - name: citus
       version: '12.1'
-  instances: 7
+  instances: 1
   sgInstanceProfile: 'genfix-prod-instance-profile'
   pods:
     persistentVolume:
-      size: '500Gi'
+      size: '10Gi'
       storageClass: 'local-path'
   configurations:
     sgPostgresConfig: 'genfix-prod-postgres-config'
     sgPoolingConfig: 'genfix-prod-pooling-config'
     backups:
     - sgObjectStorage: 'genfix-prod-backup-storage'
-      cronSchedule: '0 1 * * *'
+      cronSchedule: '0 4 * * *'
       retention: 90
       compression: 'gzip'
       performance:
-        maxNetworkBandwidth: '500Mi'
-        maxDiskBandwidth: '500Mi'
-        uploadDiskConcurrency: '16'
-      fastVolumeSnapshot: true
+        maxNetworkBandwidth: '50Mi'
+        maxDiskBandwidth: '50Mi'
+        uploadDiskConcurrency: '2'
   distributedLogs:
     sgDistributedLogs: 'genfix-prod-distributed-logs'
   prometheusAutobind: true
@@ -137,7 +122,7 @@ metadata:
     environment: prod
 spec:
   persistentVolume:
-    size: '100Gi'
+    size: '5Gi'
     storageClass: 'local-path'
   postgres:
     version: '15'

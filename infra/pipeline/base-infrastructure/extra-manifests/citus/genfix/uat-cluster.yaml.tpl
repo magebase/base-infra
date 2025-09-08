@@ -9,8 +9,8 @@ metadata:
     app.kubernetes.io/part-of: genfix
     environment: uat
 spec:
-  cpu: "4"
-  memory: "8Gi"
+  cpu: "250m"
+  memory: "512Mi"
 ---
 apiVersion: stackgres.io/v1
 kind: SGPostgresConfig
@@ -25,17 +25,12 @@ metadata:
 spec:
   postgresVersion: "15"
   postgresql.conf:
-    shared_buffers: '2GB'
+    shared_buffers: '128MB'
     random_page_cost: '1.5'
     password_encryption: 'scram-sha-256'
     log_checkpoints: 'on'
-    citus.max_worker_processes: '16'
-    citus.max_cached_conns_per_worker: '8'
-    wal_level: 'replica'
-    max_wal_senders: '20'
-    max_replication_slots: '20'
-    checkpoint_completion_target: '0.9'
-    wal_buffers: '16MB'
+    citus.max_worker_processes: '2'
+    citus.max_cached_conns_per_worker: '1'
 ---
 apiVersion: stackgres.io/v1
 kind: SGPoolingConfig
@@ -52,11 +47,9 @@ spec:
     pgbouncer.ini:
       pgbouncer:
         pool_mode: transaction
-        max_client_conn: '1000'
-        default_pool_size: '100'
-        reserve_pool_size: '20'
-        max_db_connections: '100'
-        max_user_connections: '100'
+        max_client_conn: '50'
+        default_pool_size: '5'
+        reserve_pool_size: '2'
 ---
 apiVersion: stackgres.io/v1beta1
 kind: SGObjectStorage
@@ -95,24 +88,24 @@ spec:
     extensions:
     - name: citus
       version: '12.1'
-  instances: 5
+  instances: 1
   sgInstanceProfile: 'genfix-uat-instance-profile'
   pods:
     persistentVolume:
-      size: '200Gi'
+      size: '10Gi'
       storageClass: 'local-path'
   configurations:
     sgPostgresConfig: 'genfix-uat-postgres-config'
     sgPoolingConfig: 'genfix-uat-pooling-config'
     backups:
     - sgObjectStorage: 'genfix-uat-backup-storage'
-      cronSchedule: '0 2 * * *'
+      cronSchedule: '0 4 * * *'
       retention: 30
       compression: 'gzip'
       performance:
-        maxNetworkBandwidth: '200Mi'
-        maxDiskBandwidth: '200Mi'
-        uploadDiskConcurrency: '8'
+        maxNetworkBandwidth: '50Mi'
+        maxDiskBandwidth: '50Mi'
+        uploadDiskConcurrency: '2'
   distributedLogs:
     sgDistributedLogs: 'genfix-uat-distributed-logs'
   prometheusAutobind: true
@@ -129,7 +122,7 @@ metadata:
     environment: uat
 spec:
   persistentVolume:
-    size: '50Gi'
+    size: '5Gi'
     storageClass: 'local-path'
   postgres:
     version: '15'

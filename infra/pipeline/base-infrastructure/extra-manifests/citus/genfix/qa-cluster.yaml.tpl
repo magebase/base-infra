@@ -9,8 +9,8 @@ metadata:
     app.kubernetes.io/part-of: genfix
     environment: qa
 spec:
-  cpu: "2"
-  memory: "4Gi"
+  cpu: "250m"
+  memory: "512Mi"
 ---
 apiVersion: stackgres.io/v1
 kind: SGPostgresConfig
@@ -25,15 +25,12 @@ metadata:
 spec:
   postgresVersion: "15"
   postgresql.conf:
-    shared_buffers: '1GB'
+    shared_buffers: '128MB'
     random_page_cost: '1.5'
     password_encryption: 'scram-sha-256'
     log_checkpoints: 'on'
-    citus.max_worker_processes: '8'
-    citus.max_cached_conns_per_worker: '4'
-    wal_level: 'replica'
-    max_wal_senders: '10'
-    max_replication_slots: '10'
+    citus.max_worker_processes: '2'
+    citus.max_cached_conns_per_worker: '1'
 ---
 apiVersion: stackgres.io/v1
 kind: SGPoolingConfig
@@ -50,9 +47,9 @@ spec:
     pgbouncer.ini:
       pgbouncer:
         pool_mode: transaction
-        max_client_conn: '500'
-        default_pool_size: '50'
-        reserve_pool_size: '10'
+        max_client_conn: '50'
+        default_pool_size: '5'
+        reserve_pool_size: '2'
 ---
 apiVersion: stackgres.io/v1beta1
 kind: SGObjectStorage
@@ -91,27 +88,30 @@ spec:
     extensions:
     - name: citus
       version: '12.1'
-  instances: 3
+  instances: 1
   sgInstanceProfile: 'genfix-qa-instance-profile'
   pods:
     persistentVolume:
-      size: '100Gi'
+      size: '10Gi'
       storageClass: 'local-path'
   configurations:
     sgPostgresConfig: 'genfix-qa-postgres-config'
     sgPoolingConfig: 'genfix-qa-pooling-config'
     backups:
     - sgObjectStorage: 'genfix-qa-backup-storage'
-      cronSchedule: '0 3 * * *'
-      retention: 30
+      cronSchedule: '0 4 * * *'
+      retention: 14
       compression: 'gzip'
       performance:
-        maxNetworkBandwidth: '100Mi'
-        maxDiskBandwidth: '100Mi'
-        uploadDiskConcurrency: '4'
+        maxNetworkBandwidth: '50Mi'
+        maxDiskBandwidth: '50Mi'
+        uploadDiskConcurrency: '2'
   distributedLogs:
     sgDistributedLogs: 'genfix-qa-distributed-logs'
   prometheusAutobind: true
+  nonProductionOptions:
+    disableClusterPodAntiAffinity: true
+    disablePatroniResourceRequirements: true
 ---
 apiVersion: stackgres.io/v1
 kind: SGDistributedLogs
@@ -125,7 +125,7 @@ metadata:
     environment: qa
 spec:
   persistentVolume:
-    size: '20Gi'
+    size: '5Gi'
     storageClass: 'local-path'
   postgres:
     version: '15'

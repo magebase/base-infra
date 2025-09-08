@@ -9,8 +9,8 @@ metadata:
     app.kubernetes.io/part-of: site
     environment: dev
 spec:
-  cpu: "500m"
-  memory: "1Gi"
+  cpu: "250m"
+  memory: "512Mi"
 ---
 apiVersion: stackgres.io/v1
 kind: SGPostgresConfig
@@ -25,12 +25,12 @@ metadata:
 spec:
   postgresVersion: "15"
   postgresql.conf:
-    shared_buffers: '256MB'
+    shared_buffers: '128MB'
     random_page_cost: '1.5'
     password_encryption: 'scram-sha-256'
     log_checkpoints: 'on'
-    citus.max_worker_processes: '4'
-    citus.max_cached_conns_per_worker: '2'
+    citus.max_worker_processes: '2'
+    citus.max_cached_conns_per_worker: '1'
 ---
 apiVersion: stackgres.io/v1
 kind: SGPoolingConfig
@@ -47,9 +47,9 @@ spec:
     pgbouncer.ini:
       pgbouncer:
         pool_mode: transaction
-        max_client_conn: '200'
-        default_pool_size: '20'
-        reserve_pool_size: '5'
+        max_client_conn: '50'
+        default_pool_size: '5'
+        reserve_pool_size: '2'
 ---
 apiVersion: stackgres.io/v1beta1
 kind: SGObjectStorage
@@ -72,8 +72,8 @@ spec:
         accessKeyId: {name: 'citus-r2-credentials', key: 'accessKey'}
         secretAccessKey: {name: 'citus-r2-credentials', key: 'secretKey'}
 ---
-apiVersion: stackgres.io/v1
-kind: SGCluster
+apiVersion: stackgres.io/v1alpha1
+kind: SGShardedCluster
 metadata:
   namespace: citus
   name: site-dev-cluster
@@ -83,20 +83,35 @@ metadata:
     app.kubernetes.io/part-of: site
     environment: dev
 spec:
+  type: citus
+  database: site
   postgres:
     version: '15'
     extensions:
     - name: citus
       version: '12.1'
-  instances: 3
-  sgInstanceProfile: 'site-dev-instance-profile'
-  pods:
-    persistentVolume:
-      size: '50Gi'
-      storageClass: 'local-path'
+  coordinator:
+    instances: 1
+    sgInstanceProfile: 'site-dev-instance-profile'
+    pods:
+      persistentVolume:
+        size: '10Gi'
+        storageClass: 'local-path'
+    configurations:
+      sgPostgresConfig: 'site-dev-postgres-config'
+      sgPoolingConfig: 'site-dev-pooling-config'
+  shards:
+    clusters: 1
+    instancesPerCluster: 1
+    sgInstanceProfile: 'site-dev-instance-profile'
+    pods:
+      persistentVolume:
+        size: '10Gi'
+        storageClass: 'local-path'
+    configurations:
+      sgPostgresConfig: 'site-dev-postgres-config'
+      sgPoolingConfig: 'site-dev-pooling-config'
   configurations:
-    sgPostgresConfig: 'site-dev-postgres-config'
-    sgPoolingConfig: 'site-dev-pooling-config'
     backups:
     - sgObjectStorage: 'site-dev-backup-storage'
       cronSchedule: '0 4 * * *'
@@ -125,7 +140,7 @@ metadata:
     environment: dev
 spec:
   persistentVolume:
-    size: '10Gi'
+    size: '5Gi'
     storageClass: 'local-path'
   postgres:
     version: '15'

@@ -9,8 +9,8 @@ metadata:
     app.kubernetes.io/part-of: site
     environment: prod
 spec:
-  cpu: "8"
-  memory: "16Gi"
+  cpu: "250m"
+  memory: "512Mi"
 ---
 apiVersion: stackgres.io/v1
 kind: SGPostgresConfig
@@ -25,12 +25,12 @@ metadata:
 spec:
   postgresVersion: "15"
   postgresql.conf:
-    shared_buffers: '4GB'
+    shared_buffers: '128MB'
     random_page_cost: '1.5'
     password_encryption: 'scram-sha-256'
     log_checkpoints: 'on'
-    citus.max_worker_processes: '32'
-    citus.max_cached_conns_per_worker: '16'
+    citus.max_worker_processes: '2'
+    citus.max_cached_conns_per_worker: '1'
 ---
 apiVersion: stackgres.io/v1
 kind: SGPoolingConfig
@@ -47,9 +47,9 @@ spec:
     pgbouncer.ini:
       pgbouncer:
         pool_mode: transaction
-        max_client_conn: '2000'
-        default_pool_size: '200'
-        reserve_pool_size: '50'
+        max_client_conn: '50'
+        default_pool_size: '5'
+        reserve_pool_size: '2'
 ---
 apiVersion: stackgres.io/v1beta1
 kind: SGObjectStorage
@@ -72,8 +72,8 @@ spec:
         accessKeyId: {name: 'citus-r2-credentials', key: 'accessKey'}
         secretAccessKey: {name: 'citus-r2-credentials', key: 'secretKey'}
 ---
-apiVersion: stackgres.io/v1
-kind: SGCluster
+apiVersion: stackgres.io/v1alpha1
+kind: SGShardedCluster
 metadata:
   namespace: citus
   name: site-prod-cluster
@@ -83,29 +83,44 @@ metadata:
     app.kubernetes.io/part-of: site
     environment: prod
 spec:
+  type: citus
+  database: site
   postgres:
     version: '15'
     extensions:
     - name: citus
       version: '12.1'
-  instances: 7
-  sgInstanceProfile: 'site-prod-instance-profile'
-  pods:
-    persistentVolume:
-      size: '500Gi'
-      storageClass: 'local-path'
+  coordinator:
+    instances: 1
+    sgInstanceProfile: 'site-prod-instance-profile'
+    pods:
+      persistentVolume:
+        size: '10Gi'
+        storageClass: 'local-path'
+    configurations:
+      sgPostgresConfig: 'site-prod-postgres-config'
+      sgPoolingConfig: 'site-prod-pooling-config'
+  shards:
+    clusters: 1
+    instancesPerCluster: 1
+    sgInstanceProfile: 'site-prod-instance-profile'
+    pods:
+      persistentVolume:
+        size: '10Gi'
+        storageClass: 'local-path'
+    configurations:
+      sgPostgresConfig: 'site-prod-postgres-config'
+      sgPoolingConfig: 'site-prod-pooling-config'
   configurations:
-    sgPostgresConfig: 'site-prod-postgres-config'
-    sgPoolingConfig: 'site-prod-pooling-config'
     backups:
     - sgObjectStorage: 'site-prod-backup-storage'
       cronSchedule: '0 4 * * *'
       retention: 90
       compression: 'gzip'
       performance:
-        maxNetworkBandwidth: '500Mi'
-        maxDiskBandwidth: '500Mi'
-        uploadDiskConcurrency: '16'
+        maxNetworkBandwidth: '50Mi'
+        maxDiskBandwidth: '50Mi'
+        uploadDiskConcurrency: '2'
   distributedLogs:
     sgDistributedLogs: 'site-prod-distributed-logs'
   prometheusAutobind: true
@@ -122,7 +137,7 @@ metadata:
     environment: prod
 spec:
   persistentVolume:
-    size: '100Gi'
+    size: '5Gi'
     storageClass: 'local-path'
   postgres:
     version: '15'
