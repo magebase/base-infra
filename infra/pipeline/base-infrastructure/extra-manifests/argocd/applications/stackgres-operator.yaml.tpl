@@ -16,7 +16,6 @@ spec:
       values: |
         installCRDs: true
         operator:
-          replicaCount: 1
           resources:
             limits:
               cpu: 500m
@@ -25,8 +24,6 @@ spec:
               cpu: 100m
               memory: 256Mi
         restapi:
-          enabled: true
-          replicaCount: 1
           resources:
             limits:
               cpu: 200m
@@ -35,7 +32,8 @@ spec:
               cpu: 50m
               memory: 128Mi
         adminui:
-          enabled: false
+          service:
+            exposeHTTP: false
         serviceMonitor:
           enabled: false
         prometheusAutobind:
