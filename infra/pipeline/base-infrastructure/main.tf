@@ -1033,27 +1033,12 @@ module "kube-hetzner" {
     # Wait for database clusters to be ready (this may take several minutes)
     echo "Waiting for database clusters to be ready..."
 
-    # Read client list with cluster types
-    CLIENTS=$(echo "$CLIENTS_JSON" | jq -r '.[] | @base64')
-
-    for CLIENT_DATA in $CLIENTS; do
-      CLIENT_INFO=$(echo "$CLIENT_DATA" | base64 -d)
-      CLIENT=$(echo "$CLIENT_INFO" | jq -r '.name')
-      CLUSTER_TYPE=$(echo "$CLIENT_INFO" | jq -r '.clusterType')
-
-      echo "Waiting for $CLIENT cluster ($CLUSTER_TYPE) to be ready..."
-
-      if [ "$CLUSTER_TYPE" = "sgcluster" ]; then
-        kubectl wait --for=condition=SGClusterReady --timeout=600s sgcluster/$${CLIENT}-$${ENVIRONMENT}-cluster -n database || echo "Warning: $${CLIENT} cluster readiness wait failed"
-      elif [ "$CLUSTER_TYPE" = "sgshardedcluster" ]; then
-        kubectl wait --for=condition=SGShardedClusterReady --timeout=600s sgshardedcluster/$${CLIENT}-$${ENVIRONMENT}-cluster -n database || echo "Warning: $${CLIENT} cluster readiness wait failed"
-      else
-        echo "Warning: Unknown cluster type '$${CLUSTER_TYPE}' for client $${CLIENT}"
-      fi
-    done
+    # Note: Database clusters are deployed by environment-specific ArgoCD applications
+    # The base infrastructure deployment should not wait for them
+    echo "Skipping cluster readiness wait - clusters are deployed by client applications"
 
     # Read client list for credential processing
-    CLIENTS=$(jq -r '.[].name' /config/infra/pipeline/base-infrastructure/clients.json)
+    CLIENTS=$(echo "$CLIENTS_JSON" | jq -r '.[].name')
 
     for CLIENT in $CLIENTS; do
       echo "Processing client: $${CLIENT}"
