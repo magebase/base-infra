@@ -1,3 +1,11 @@
+## [1.3.3](https://github.com/magebase/base-infra/compare/v1.3.2...v1.3.3) (2025-09-08)
+
+
+### Bug Fixes
+
+* Update ExternalSecret API versions to v1 for ESO 0.19.2 compatibility ([74ba34e](https://github.com/magebase/base-infra/commit/74ba34e96aa6e6368f7b5d3f9470ed4ccb5e6420))
+* Update StackGres operator deployment to version 1.17.2 ([487c6d1](https://github.com/magebase/base-infra/commit/487c6d198bc34bb117b1086f5f74899ab0c37682))
+
 ## [1.3.2](https://github.com/magebase/base-infra/compare/v1.3.1...v1.3.2) (2025-09-08)
 
 
