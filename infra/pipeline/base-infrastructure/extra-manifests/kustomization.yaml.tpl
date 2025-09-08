@@ -18,12 +18,11 @@ resources:
   - argocd/applications/app-of-apps.yaml
   - argocd/applications/trivy-operator.yaml
   - argocd/applications/kube-prometheus.yaml
-  - keda/
-  - knative/
+  - knative/kustomization.yaml
+  - eso/kustomization.yaml
   - database/environments/site/${ENVIRONMENT}.yaml
   - database/environments/genfix/${ENVIRONMENT}.yaml
   # External Secrets Operator
-  - eso/
   # Environment-specific applications (segregated by app)
   - argocd/applications/environments/site/${ENVIRONMENT}-fsn1.yaml
   - argocd/applications/environments/genfix/${ENVIRONMENT}-fsn1.yaml
