@@ -1,3 +1,21 @@
+# [1.2.0](https://github.com/magebase/base-infra/compare/v1.1.4...v1.2.0) (2025-09-08)
+
+
+### Bug Fixes
+
+* add stackgres setup, operator and ssm connecton string sharing ([712ce1a](https://github.com/magebase/base-infra/commit/712ce1a8990ab596da505f5ad62b9f6ab2b451d0))
+
+
+### Features
+
+* Add database URL secrets and horizontal autoscaling to Citus clusters ([bac82b6](https://github.com/magebase/base-infra/commit/bac82b65d10e749fecd5b5e06b33c492fe190ce9))
+* Implement complete StackGres database connectivity solution ([19bf328](https://github.com/magebase/base-infra/commit/19bf32889078ae141146219279f8afb6dc782224))
+* Install StackGres with Citus extension to replace YugabyteDB ([07f04e7](https://github.com/magebase/base-infra/commit/07f04e74b97f0a9d63ddfdc390061e4865733d52))
+* Make MinIO credentials configurable through Kustomize parameters ([152b6f0](https://github.com/magebase/base-infra/commit/152b6f0bf58a01d4ea999957dce38de22fdeaf17))
+* Update all Citus clusters to minimum specs with autoscaling ([33db19c](https://github.com/magebase/base-infra/commit/33db19c9bf0834ade973a63eda1921f648354f25))
+* Update Citus configurations to use R2 environment variables ([c9d28bf](https://github.com/magebase/base-infra/commit/c9d28bf612757de66850a60d4c73db63e141d020))
+* Update SGObjectStorage to use S3-compatible storage with MinIO ([4c54887](https://github.com/magebase/base-infra/commit/4c5488797e8851e788be1f6b134bf6e35b5d19e7))
+
 ## [1.1.4](https://github.com/magebase/base-infra/compare/v1.1.3...v1.1.4) (2025-09-07)
 
 
