@@ -1156,6 +1156,30 @@ module "kube-hetzner" {
         # Clean up webhook configurations with pattern matching
         kubectl delete validatingwebhookconfiguration -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
         kubectl delete mutatingwebhookconfiguration -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
+        # Additional cleanup for any ESO-related webhook configurations
+        kubectl delete validatingwebhookconfiguration -l external-secrets.io/component=webhook --ignore-not-found=true
+        kubectl delete mutatingwebhookconfiguration -l external-secrets.io/component=webhook --ignore-not-found=true
+        # Force cleanup any remaining ESO webhook configurations by name pattern
+        kubectl get validatingwebhookconfiguration -o name | grep -E "(external-secrets|eso|secretstore|externalsecret)" | xargs -r kubectl delete --ignore-not-found=true || true
+        kubectl get mutatingwebhookconfiguration -o name | grep -E "(external-secrets|eso|secretstore|externalsecret)" | xargs -r kubectl delete --ignore-not-found=true || true
+        # Wait a moment for cleanup to complete
+        sleep 5
+        # Verify cleanup was successful
+        if kubectl get validatingwebhookconfiguration secretstore-validate >/dev/null 2>&1; then
+          echo "Warning: secretstore-validate still exists after cleanup, forcing deletion..."
+          kubectl delete validatingwebhookconfiguration secretstore-validate --force --grace-period=0 --ignore-not-found=true
+          sleep 2
+        fi
+        if kubectl get validatingwebhookconfiguration externalsecret-validate >/dev/null 2>&1; then
+          echo "Warning: externalsecret-validate still exists after cleanup, forcing deletion..."
+          kubectl delete validatingwebhookconfiguration externalsecret-validate --force --grace-period=0 --ignore-not-found=true
+          sleep 2
+        fi
+        if kubectl get mutatingwebhookconfiguration secretstore-mutate >/dev/null 2>&1; then
+          echo "Warning: secretstore-mutate still exists after cleanup, forcing deletion..."
+          kubectl delete mutatingwebhookconfiguration secretstore-mutate --force --grace-period=0 --ignore-not-found=true
+          sleep 2
+        fi
         # If CRDs exist, skip CRD installation to avoid ownership conflicts
         helm upgrade --install external-secrets external-secrets/external-secrets \
           --namespace external-secrets-system \
@@ -1215,6 +1239,25 @@ module "kube-hetzner" {
         # Clean up webhook configurations with pattern matching
         kubectl delete validatingwebhookconfiguration -l app.kubernetes.io/name=stackgres --ignore-not-found=true
         kubectl delete mutatingwebhookconfiguration -l app.kubernetes.io/name=stackgres --ignore-not-found=true
+        # Additional cleanup for any StackGres-related webhook configurations
+        kubectl delete validatingwebhookconfiguration -l stackgres.io/component=webhook --ignore-not-found=true
+        kubectl delete mutatingwebhookconfiguration -l stackgres.io/component=webhook --ignore-not-found=true
+        # Force cleanup any remaining StackGres webhook configurations by name pattern
+        kubectl get validatingwebhookconfiguration -o name | grep -E "(stackgres|sg)" | xargs -r kubectl delete --ignore-not-found=true || true
+        kubectl get mutatingwebhookconfiguration -o name | grep -E "(stackgres|sg)" | xargs -r kubectl delete --ignore-not-found=true || true
+        # Wait a moment for cleanup to complete
+        sleep 5
+        # Verify cleanup was successful
+        if kubectl get validatingwebhookconfiguration stackgres-operator >/dev/null 2>&1; then
+          echo "Warning: stackgres-operator validating webhook still exists after cleanup, forcing deletion..."
+          kubectl delete validatingwebhookconfiguration stackgres-operator --force --grace-period=0 --ignore-not-found=true
+          sleep 2
+        fi
+        if kubectl get mutatingwebhookconfiguration stackgres-operator >/dev/null 2>&1; then
+          echo "Warning: stackgres-operator mutating webhook still exists after cleanup, forcing deletion..."
+          kubectl delete mutatingwebhookconfiguration stackgres-operator --force --grace-period=0 --ignore-not-found=true
+          sleep 2
+        fi
         # If CRDs exist, skip CRD installation to avoid ownership conflicts
         helm upgrade --install stackgres-operator stackgres/stackgres-operator \
           --namespace stackgres \
