@@ -105,14 +105,6 @@ spec:
     configurations:
       sgPostgresConfig: 'site-prod-postgres-config'
       sgPoolingConfig: 'site-prod-pooling-config'
-    autoscaling:
-      horizontal:
-        cooldownPeriod: 300
-        pollingInterval: 30
-        minInstances: 0
-        maxInstances: 3
-        replicasConnectionsUsageTarget: '0.8'
-        replicasConnectionsUsageMetricType: 'AverageValue'
   shards:
     clusters: 1
     instancesPerCluster: 1
@@ -124,14 +116,6 @@ spec:
     configurations:
       sgPostgresConfig: 'site-prod-postgres-config'
       sgPoolingConfig: 'site-prod-pooling-config'
-    autoscaling:
-      horizontal:
-        cooldownPeriod: 300
-        pollingInterval: 30
-        minInstances: 0
-        maxInstances: 3
-        replicasConnectionsUsageTarget: '0.8'
-        replicasConnectionsUsageMetricType: 'AverageValue'
   configurations:
     backups:
     - sgObjectStorage: 'site-prod-backup-storage'
@@ -142,14 +126,8 @@ spec:
         maxNetworkBandwidth: '50Mi'
         maxDiskBandwidth: '50Mi'
         uploadDiskConcurrency: '2'
-  managedUsers:
-  - username: site_app
-    isSuperuser: true
-    database: site
-    password:
-      type: 'plain'
-      key: DATABASE_PASSWORD
-      name: site-database-credentials
+    observability:
+      prometheusAutobind: true
 ---
 apiVersion: stackgres.io/v1
 kind: SGDistributedLogs
@@ -165,8 +143,6 @@ spec:
   persistentVolume:
     size: '5Gi'
     storageClass: 'local-path'
-  postgres:
-    version: '15'
 ---
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret

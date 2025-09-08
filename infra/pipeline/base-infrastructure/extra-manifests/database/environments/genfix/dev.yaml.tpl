@@ -99,14 +99,6 @@ spec:
     persistentVolume:
       size: '10Gi'
       storageClass: 'local-path'
-  autoscaling:
-    horizontal:
-      cooldownPeriod: 300
-      pollingInterval: 30
-      minInstances: 0
-      maxInstances: 3
-      replicasConnectionsUsageTarget: '0.8'
-      replicasConnectionsUsageMetricType: 'AverageValue'
   configurations:
     sgPostgresConfig: 'genfix-dev-postgres-config'
     sgPoolingConfig: 'genfix-dev-pooling-config'
@@ -119,17 +111,8 @@ spec:
         maxNetworkBandwidth: '50Mi'
         maxDiskBandwidth: '50Mi'
         uploadDiskConcurrency: '2'
-  managedUsers:
-  - username: genfix_app
-    database: genfix
-    isSuperuser: true
-    password:
-      type: 'plain'
-      key: DATABASE_PASSWORD
-      name: genfix-database-credentials
-  distributedLogs:
-    sgDistributedLogs: 'genfix-dev-distributed-logs'
-  prometheusAutobind: true
+    observability:
+      prometheusAutobind: true
   nonProductionOptions:
     disableClusterPodAntiAffinity: true
     disablePatroniResourceRequirements: true
@@ -148,8 +131,6 @@ spec:
   persistentVolume:
     size: '5Gi'
     storageClass: 'local-path'
-  postgres:
-    version: '15'
 ---
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
