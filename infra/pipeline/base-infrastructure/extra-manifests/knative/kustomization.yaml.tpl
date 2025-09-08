@@ -3,7 +3,7 @@ kind: Kustomization
 
 resources:
   - serving-crds.yaml
- - serving-core.yaml
+  - serving-core.yaml
   - kourier.yaml
   - serving-default-domain.yaml
   - serving-hpa.yaml
