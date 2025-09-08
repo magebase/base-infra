@@ -1146,9 +1146,16 @@ module "kube-hetzner" {
         kubectl delete clusterrolebinding external-secrets-view-secrets-local --ignore-not-found=true
         kubectl delete clusterrolebinding external-secrets-edit-secrets-local --ignore-not-found=true
         kubectl delete clusterrolebinding external-secrets-leaderelection-rolebinding --ignore-not-found=true
+        # Clean up ValidatingWebhookConfigurations and MutatingWebhookConfigurations
+        kubectl delete validatingwebhookconfiguration secretstore-validate --ignore-not-found=true
+        kubectl delete validatingwebhookconfiguration externalsecret-validate --ignore-not-found=true
+        kubectl delete mutatingwebhookconfiguration secretstore-mutate --ignore-not-found=true
         # Also clean up any remaining ESO clusterroles/clusterrolebindings with pattern matching
         kubectl delete clusterrole -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
         kubectl delete clusterrolebinding -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
+        # Clean up webhook configurations with pattern matching
+        kubectl delete validatingwebhookconfiguration -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
+        kubectl delete mutatingwebhookconfiguration -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
         # If CRDs exist, skip CRD installation to avoid ownership conflicts
         helm upgrade --install external-secrets external-secrets/external-secrets \
           --namespace external-secrets-system \
@@ -1199,9 +1206,15 @@ module "kube-hetzner" {
         kubectl delete clusterrole stackgres-restapi --ignore-not-found=true
         kubectl delete clusterrolebinding stackgres-operator --ignore-not-found=true
         kubectl delete clusterrolebinding stackgres-restapi --ignore-not-found=true
+        # Clean up ValidatingWebhookConfigurations and MutatingWebhookConfigurations for StackGres
+        kubectl delete validatingwebhookconfiguration stackgres-operator --ignore-not-found=true
+        kubectl delete mutatingwebhookconfiguration stackgres-operator --ignore-not-found=true
         # Also clean up any remaining StackGres clusterroles/clusterrolebindings with pattern matching
         kubectl delete clusterrole -l app.kubernetes.io/name=stackgres --ignore-not-found=true
         kubectl delete clusterrolebinding -l app.kubernetes.io/name=stackgres --ignore-not-found=true
+        # Clean up webhook configurations with pattern matching
+        kubectl delete validatingwebhookconfiguration -l app.kubernetes.io/name=stackgres --ignore-not-found=true
+        kubectl delete mutatingwebhookconfiguration -l app.kubernetes.io/name=stackgres --ignore-not-found=true
         # If CRDs exist, skip CRD installation to avoid ownership conflicts
         helm upgrade --install stackgres-operator stackgres/stackgres-operator \
           --namespace stackgres \
