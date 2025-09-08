@@ -1,4 +1,4 @@
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: genfix-database-credentials
@@ -23,7 +23,7 @@ spec:
         key: "/site/${ENVIRONMENT}/genfix/database/url"
         property: ""
 ---
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: site-database-credentials
