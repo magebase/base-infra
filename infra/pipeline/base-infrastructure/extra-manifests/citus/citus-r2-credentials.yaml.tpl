@@ -15,11 +15,11 @@ apiVersion: v1
 kind: Secret
 metadata:
   namespace: citus
-  name: my-cluster-minio
+  name: ${MINIO_SECRET_NAME}
   labels:
     app.kubernetes.io/name: citus-cluster
     app.kubernetes.io/component: backup-credentials
 type: Opaque
 data:
-  accesskey: <base64-encoded-minio-access-key>
-  secretkey: <base64-encoded-minio-secret-key>
+  ${MINIO_ACCESS_KEY}: <base64-encoded-minio-access-key>
+  ${MINIO_SECRET_KEY}: <base64-encoded-minio-secret-key>

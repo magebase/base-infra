@@ -71,11 +71,11 @@ spec:
     awsCredentials:
       secretKeySelectors:
         accessKeyId:
-          key: accesskey
-          name: my-cluster-minio
+          key: ${MINIO_ACCESS_KEY}
+          name: ${MINIO_SECRET_NAME}
         secretAccessKey:
-          key: secretkey
-          name: my-cluster-minio
+          key: ${MINIO_SECRET_KEY}
+          name: ${MINIO_SECRET_NAME}
 ---
 apiVersion: stackgres.io/v1
 kind: SGCluster
