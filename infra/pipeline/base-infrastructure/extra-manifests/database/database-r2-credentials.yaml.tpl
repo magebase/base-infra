@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Secret
 metadata:
-  namespace: citus
-  name: citus-r2-credentials
+  namespace: database
+  name: database-r2-credentials
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: backup-credentials
 type: Opaque
 data:

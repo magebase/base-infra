@@ -1,10 +1,10 @@
 apiVersion: stackgres.io/v1
 kind: SGInstanceProfile
 metadata:
-  namespace: citus
+  namespace: database
   name: site-dev-instance-profile
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: instance-profile
     app.kubernetes.io/part-of: site
     environment: dev
@@ -15,10 +15,10 @@ spec:
 apiVersion: stackgres.io/v1
 kind: SGPostgresConfig
 metadata:
-  namespace: citus
+  namespace: database
   name: site-dev-postgres-config
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: postgres-config
     app.kubernetes.io/part-of: site
     environment: dev
@@ -35,10 +35,10 @@ spec:
 apiVersion: stackgres.io/v1
 kind: SGPoolingConfig
 metadata:
-  namespace: citus
+  namespace: database
   name: site-dev-pooling-config
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: pooling-config
     app.kubernetes.io/part-of: site
     environment: dev
@@ -54,10 +54,10 @@ spec:
 apiVersion: stackgres.io/v1beta1
 kind: SGObjectStorage
 metadata:
-  namespace: citus
+  namespace: database
   name: site-dev-backup-storage
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: backup-storage
     app.kubernetes.io/part-of: site
     environment: dev
@@ -72,18 +72,18 @@ spec:
       secretKeySelectors:
         accessKeyId:
           key: accessKey
-          name: citus-r2-credentials
+          name: database-r2-credentials
         secretAccessKey:
           key: secretKey
-          name: citus-r2-credentials
+          name: database-r2-credentials
 ---
 apiVersion: stackgres.io/v1alpha1
 kind: SGShardedCluster
 metadata:
-  namespace: citus
+  namespace: database
   name: site-dev-cluster
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: database
     app.kubernetes.io/part-of: site
     environment: dev
@@ -145,6 +145,7 @@ spec:
   managedUsers:
   - username: site_app
     database: site
+    isSuperuser: true
     password:
       type: 'random'
       length: 16
@@ -159,10 +160,10 @@ spec:
 apiVersion: stackgres.io/v1
 kind: SGDistributedLogs
 metadata:
-  namespace: citus
+  namespace: database
   name: site-dev-distributed-logs
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: distributed-logs
     app.kubernetes.io/part-of: site
     environment: dev
@@ -173,40 +174,21 @@ spec:
   postgres:
     version: '15'
 ---
-apiVersion: v1
-kind: Secret
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
 metadata:
-  namespace: citus
-  name: site-dev-app-credentials
-  labels:
-    app.kubernetes.io/name: citus-cluster
-    app.kubernetes.io/component: app-credentials
-    app.kubernetes.io/part-of: site
-    environment: dev
-type: Opaque
-data:
-  # Reference to StackGres generated user credentials
-  username: <base64-encoded-site_app-username>
-  password: <base64-encoded-site_app-password>
----
-apiVersion: stackgres.io/v1
-kind: SGDbOps
-metadata:
-  namespace: citus
-  name: site-dev-user-creation
-  labels:
-    app.kubernetes.io/name: citus-cluster
-    app.kubernetes.io/component: user-management
-    app.kubernetes.io/part-of: site
-    environment: dev
+  name: site-dev-database-secret
+  namespace: database
 spec:
-  sgCluster: site-dev-cluster
-  op: userManagement
-  userManagement:
-    runAt: 'now'
-    username: site_app
-    database: site
-    password:
-      type: 'random'
-      length: 16
-      seed: 'site-dev-seed'
+  refreshInterval: 15s
+  secretStoreRef:
+    name: site-secret-store
+    kind: SecretStore
+  target:
+    name: site-dev-ssm-database-url
+    creationPolicy: Owner
+  data:
+  - secretKey: DATABASE_URL
+    remoteRef:
+      key: /site/dev/database/url
+---

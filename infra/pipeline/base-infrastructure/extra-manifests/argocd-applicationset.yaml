@@ -1,0 +1,49 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: stackgres-clients
+  namespace: argocd
+spec:
+  generators:
+  - list:
+      elements:
+      - client: genfix
+        environment: dev
+      - client: genfix
+        environment: qa
+      - client: genfix
+        environment: uat
+      - client: genfix
+        environment: prod
+      - client: site
+        environment: dev
+      - client: site
+        environment: qa
+      - client: site
+        environment: uat
+      - client: site
+        environment: prod
+  template:
+    metadata:
+      name: '{{client}}-{{environment}}-stackgres'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/magebase/base-infra
+        targetRevision: HEAD
+        path: infra/pipeline/base-infrastructure/extra-manifests/citus/{{client}}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: database
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true
+      ignoreDifferences:
+      - group: stackgres.io
+        kind: SGCluster
+        jsonPointers:
+        - /spec/managedUsers
+        - /spec/configurations/backups

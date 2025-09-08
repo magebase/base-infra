@@ -1,0 +1,10 @@
+[
+  {
+    "name": "genfix",
+    "clusterType": "sgcluster"
+  },
+  {
+    "name": "site",
+    "clusterType": "sgshardedcluster"
+  }
+]

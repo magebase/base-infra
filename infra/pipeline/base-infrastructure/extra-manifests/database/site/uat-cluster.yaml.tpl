@@ -1,13 +1,13 @@
 apiVersion: stackgres.io/v1
 kind: SGInstanceProfile
 metadata:
-  namespace: citus
-  name: site-qa-instance-profile
+  namespace: database
+  name: site-uat-instance-profile
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: instance-profile
     app.kubernetes.io/part-of: site
-    environment: qa
+    environment: uat
 spec:
   cpu: "250m"
   memory: "512Mi"
@@ -15,13 +15,13 @@ spec:
 apiVersion: stackgres.io/v1
 kind: SGPostgresConfig
 metadata:
-  namespace: citus
-  name: site-qa-postgres-config
+  namespace: database
+  name: site-uat-postgres-config
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: postgres-config
     app.kubernetes.io/part-of: site
-    environment: qa
+    environment: uat
 spec:
   postgresVersion: "15"
   postgresql.conf:
@@ -35,13 +35,13 @@ spec:
 apiVersion: stackgres.io/v1
 kind: SGPoolingConfig
 metadata:
-  namespace: citus
-  name: site-qa-pooling-config
+  namespace: database
+  name: site-uat-pooling-config
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: pooling-config
     app.kubernetes.io/part-of: site
-    environment: qa
+    environment: uat
 spec:
   pgBouncer:
     pgbouncer.ini:
@@ -54,13 +54,13 @@ spec:
 apiVersion: stackgres.io/v1beta1
 kind: SGObjectStorage
 metadata:
-  namespace: citus
-  name: site-qa-backup-storage
+  namespace: database
+  name: site-uat-backup-storage
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: backup-storage
     app.kubernetes.io/part-of: site
-    environment: qa
+    environment: uat
 spec:
   type: 's3'
   s3:
@@ -72,21 +72,21 @@ spec:
       secretKeySelectors:
         accessKeyId:
           key: accessKey
-          name: citus-r2-credentials
+          name: database-r2-credentials
         secretAccessKey:
           key: secretKey
-          name: citus-r2-credentials
+          name: database-r2-credentials
 ---
 apiVersion: stackgres.io/v1alpha1
 kind: SGShardedCluster
 metadata:
-  namespace: citus
-  name: site-qa-cluster
+  namespace: database
+  name: site-uat-cluster
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: database
     app.kubernetes.io/part-of: site
-    environment: qa
+    environment: uat
 spec:
   type: citus
   database: site
@@ -97,14 +97,14 @@ spec:
       version: '12.1'
   coordinator:
     instances: 1
-    sgInstanceProfile: 'site-qa-instance-profile'
+    sgInstanceProfile: 'site-uat-instance-profile'
     pods:
       persistentVolume:
         size: '10Gi'
         storageClass: 'local-path'
     configurations:
-      sgPostgresConfig: 'site-qa-postgres-config'
-      sgPoolingConfig: 'site-qa-pooling-config'
+      sgPostgresConfig: 'site-uat-postgres-config'
+      sgPoolingConfig: 'site-uat-pooling-config'
     autoscaling:
       horizontal:
         cooldownPeriod: 300
@@ -116,14 +116,14 @@ spec:
   shards:
     clusters: 1
     instancesPerCluster: 1
-    sgInstanceProfile: 'site-qa-instance-profile'
+    sgInstanceProfile: 'site-uat-instance-profile'
     pods:
       persistentVolume:
         size: '10Gi'
         storageClass: 'local-path'
     configurations:
-      sgPostgresConfig: 'site-qa-postgres-config'
-      sgPoolingConfig: 'site-qa-pooling-config'
+      sgPostgresConfig: 'site-uat-postgres-config'
+      sgPoolingConfig: 'site-uat-pooling-config'
     autoscaling:
       horizontal:
         cooldownPeriod: 300
@@ -134,31 +134,33 @@ spec:
         replicasConnectionsUsageMetricType: 'AverageValue'
   configurations:
     backups:
-    - sgObjectStorage: 'site-qa-backup-storage'
+    - sgObjectStorage: 'site-uat-backup-storage'
       cronSchedule: '0 4 * * *'
-      retention: 14
+      retention: 30
       compression: 'gzip'
       performance:
         maxNetworkBandwidth: '50Mi'
         maxDiskBandwidth: '50Mi'
         uploadDiskConcurrency: '2'
-  distributedLogs:
-    sgDistributedLogs: 'site-qa-distributed-logs'
-  prometheusAutobind: true
-  nonProductionOptions:
-    disableClusterPodAntiAffinity: true
-    disablePatroniResourceRequirements: true
+  managedUsers:
+  - username: site_app
+    isSuperuser: true
+    database: site
+    password:
+      type: 'random'
+      length: 16
+      seed: 'site-uat-seed'
 ---
 apiVersion: stackgres.io/v1
 kind: SGDistributedLogs
 metadata:
-  namespace: citus
-  name: site-qa-distributed-logs
+  namespace: database
+  name: site-uat-distributed-logs
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: distributed-logs
     app.kubernetes.io/part-of: site
-    environment: qa
+    environment: uat
 spec:
   persistentVolume:
     size: '5Gi'
@@ -166,23 +168,21 @@ spec:
   postgres:
     version: '15'
 ---
-apiVersion: v1
-kind: Secret
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
 metadata:
-  namespace: citus
-  name: site-qa-cluster-db-url
-  labels:
-    app.kubernetes.io/name: citus-cluster
-    app.kubernetes.io/component: database-url
-    app.kubernetes.io/part-of: site
-    environment: qa
-type: Opaque
-data:
-  # Database connection URL for in-cluster access
-  DATABASE_URL: ${SITE_QA_DATABASE_URL}
-  # Individual connection components
-  DB_HOST: ${DB_HOST_BASE64}
-  DB_PORT: ${DB_PORT_BASE64}
-  DB_NAME: ${DB_NAME_SITE_BASE64}
-  DB_USER: ${DB_USER_BASE64}
-  DB_PASSWORD: ${DB_PASSWORD_BASE64}
+  name: site-uat-database-secret
+  namespace: database
+spec:
+  refreshInterval: 15s
+  secretStoreRef:
+    name: site-secret-store
+    kind: SecretStore
+  target:
+    name: site-uat-ssm-database-url
+    creationPolicy: Owner
+  data:
+  - secretKey: DATABASE_URL
+    remoteRef:
+      key: /site/uat/database/url
+---

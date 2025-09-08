@@ -14,7 +14,7 @@ spec:
     path: infra/pipeline/base-infrastructure/extra-manifests/citus
   destination:
     server: https://kubernetes.default.svc
-    namespace: citus
+    namespace: database
   syncPolicy:
     automated:
       prune: true

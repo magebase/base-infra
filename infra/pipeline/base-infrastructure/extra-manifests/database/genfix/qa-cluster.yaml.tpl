@@ -1,13 +1,13 @@
 apiVersion: stackgres.io/v1
 kind: SGInstanceProfile
 metadata:
-  namespace: citus
-  name: genfix-dev-instance-profile
+  namespace: database
+  name: genfix-qa-instance-profile
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: instance-profile
     app.kubernetes.io/part-of: genfix
-    environment: dev
+    environment: qa
 spec:
   cpu: "250m"
   memory: "512Mi"
@@ -15,13 +15,13 @@ spec:
 apiVersion: stackgres.io/v1
 kind: SGPostgresConfig
 metadata:
-  namespace: citus
-  name: genfix-dev-postgres-config
+  namespace: database
+  name: genfix-qa-postgres-config
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: postgres-config
     app.kubernetes.io/part-of: genfix
-    environment: dev
+    environment: qa
 spec:
   postgresVersion: "15"
   postgresql.conf:
@@ -35,13 +35,13 @@ spec:
 apiVersion: stackgres.io/v1
 kind: SGPoolingConfig
 metadata:
-  namespace: citus
-  name: genfix-dev-pooling-config
+  namespace: database
+  name: genfix-qa-pooling-config
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: pooling-config
     app.kubernetes.io/part-of: genfix
-    environment: dev
+    environment: qa
 spec:
   pgBouncer:
     pgbouncer.ini:
@@ -54,13 +54,13 @@ spec:
 apiVersion: stackgres.io/v1beta1
 kind: SGObjectStorage
 metadata:
-  namespace: citus
-  name: genfix-dev-backup-storage
+  namespace: database
+  name: genfix-qa-backup-storage
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: backup-storage
     app.kubernetes.io/part-of: genfix
-    environment: dev
+    environment: qa
 spec:
   type: 's3'
   s3:
@@ -72,21 +72,21 @@ spec:
       secretKeySelectors:
         accessKeyId:
           key: accessKey
-          name: citus-r2-credentials
+          name: database-r2-credentials
         secretAccessKey:
           key: secretKey
-          name: citus-r2-credentials
+          name: database-r2-credentials
 ---
 apiVersion: stackgres.io/v1
 kind: SGCluster
 metadata:
-  namespace: citus
-  name: genfix-dev-cluster
+  namespace: database
+  name: genfix-qa-cluster
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: database
     app.kubernetes.io/part-of: genfix
-    environment: dev
+    environment: qa
 spec:
   postgres:
     version: '15'
@@ -94,7 +94,7 @@ spec:
     - name: citus
       version: '12.1'
   instances: 1
-  sgInstanceProfile: 'genfix-dev-instance-profile'
+  sgInstanceProfile: 'genfix-qa-instance-profile'
   pods:
     persistentVolume:
       size: '10Gi'
@@ -108,12 +108,12 @@ spec:
       replicasConnectionsUsageTarget: '0.8'
       replicasConnectionsUsageMetricType: 'AverageValue'
   configurations:
-    sgPostgresConfig: 'genfix-dev-postgres-config'
-    sgPoolingConfig: 'genfix-dev-pooling-config'
+    sgPostgresConfig: 'genfix-qa-postgres-config'
+    sgPoolingConfig: 'genfix-qa-pooling-config'
     backups:
-    - sgObjectStorage: 'genfix-dev-backup-storage'
+    - sgObjectStorage: 'genfix-qa-backup-storage'
       cronSchedule: '0 4 * * *'
-      retention: 7
+      retention: 14
       compression: 'gzip'
       performance:
         maxNetworkBandwidth: '50Mi'
@@ -121,28 +121,23 @@ spec:
         uploadDiskConcurrency: '2'
   managedUsers:
   - username: genfix_app
+    isSuperuser: true
     database: genfix
     password:
       type: 'random'
       length: 16
-      seed: 'genfix-dev-seed'
-  distributedLogs:
-    sgDistributedLogs: 'genfix-dev-distributed-logs'
-  prometheusAutobind: true
-  nonProductionOptions:
-    disableClusterPodAntiAffinity: true
-    disablePatroniResourceRequirements: true
+      seed: 'genfix-qa-seed'
 ---
 apiVersion: stackgres.io/v1
 kind: SGDistributedLogs
 metadata:
-  namespace: citus
-  name: genfix-dev-distributed-logs
+  namespace: database
+  name: genfix-qa-distributed-logs
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: distributed-logs
     app.kubernetes.io/part-of: genfix
-    environment: dev
+    environment: qa
 spec:
   persistentVolume:
     size: '5Gi'
@@ -150,51 +145,21 @@ spec:
   postgres:
     version: '15'
 ---
-apiVersion: v1
-kind: Secret
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
 metadata:
-  namespace: citus
-  name: genfix-dev-cluster-db-url
-  labels:
-    app.kubernetes.io/name: citus-cluster
-    app.kubernetes.io/component: database-url
-    app.kubernetes.io/part-of: genfix
-    environment: dev
-type: Opaque
+  name: genfix-qa-database-secret
+  namespace: database
+spec:
+  refreshInterval: 15s
+  secretStoreRef:
+    name: genfix-secret-store
+    kind: SecretStore
+  target:
+    name: genfix-qa-ssm-database-url
+    creationPolicy: Owner
+  data:
+  - secretKey: DATABASE_URL
+    remoteRef:
+      key: /genfix/qa/genfix/database/url
 ---
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: citus
-  name: genfix-dev-app-credentials
-  labels:
-    app.kubernetes.io/name: citus-cluster
-    app.kubernetes.io/component: app-credentials
-    app.kubernetes.io/part-of: genfix
-    environment: dev
-type: Opaque
-data:
-  # Reference to StackGres generated user credentials
-  username: <base64-encoded-genfix_app-username>
-  password: <base64-encoded-genfix_app-password>
----
-apiVersion: v1
-kind: Secret
-metadata:
-  namespace: citus
-  name: genfix-dev-cluster-db-url
-  labels:
-    app.kubernetes.io/name: citus-cluster
-    app.kubernetes.io/component: database-url
-    app.kubernetes.io/part-of: genfix
-    environment: dev
-type: Opaque
-data:
-  # Database connection URL for in-cluster access
-  DATABASE_URL: ${GENFIX_DEV_DATABASE_URL}
-  # Individual connection components
-  DB_HOST: ${DB_HOST_BASE64}
-  DB_PORT: ${DB_PORT_BASE64}
-  DB_NAME: ${DB_NAME_GENFIX_BASE64}
-  DB_USER: ${DB_USER_BASE64}
-  DB_PASSWORD: ${DB_PASSWORD_BASE64}

@@ -24,6 +24,11 @@ terraform {
       source  = "hashicorp/random"
       version = "~> 3.0"
     }
+
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
   }
 }
 
@@ -45,6 +50,9 @@ locals {
   # Your Hetzner token can be found in your Project > Security > API Token (Read & Write is required).
   hcloud_token = "xxxxxxxxxxx"
   cluster_name = "${var.environment}-magebase"
+
+  # Client list for SSM parameter management
+  clients = jsondecode(file("${path.module}/clients.json"))
 }
 
 # Generate encryption key for k3s secrets and etcd encryption
@@ -75,6 +83,26 @@ resource "cloudflare_dns_record" "argocd_a" {
   type    = "A"
   ttl     = 1    # Use 1 for proxied records
   proxied = true # Enable Cloudflare proxying for SSL termination
+}
+
+# AWS Provider for SSM Parameter Store
+provider "aws" {
+  region = var.aws_region
+}
+
+# SSM Parameters for Database URLs
+resource "aws_ssm_parameter" "database_url" {
+  for_each  = toset(local.clients)
+  name      = "/site/${var.environment}/${each.key}/database/url"
+  type      = "SecureString"
+  value     = "placeholder" # Updated by GitHub Actions workflow
+  overwrite = true
+
+  tags = {
+    Environment = var.environment
+    Client      = each.key
+    ManagedBy   = "terraform"
+  }
 }
 
 module "kube-hetzner" {
@@ -986,7 +1014,92 @@ module "kube-hetzner" {
     echo "Waiting for ArgoCD server deployment..."
     kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || echo "Warning: ArgoCD server deployment wait failed"
 
-    echo "ArgoCD deployment completed successfully"
+    # Wait for StackGres operator to be ready
+    echo "Waiting for StackGres operator to be ready..."
+    kubectl wait --for=condition=available --timeout=300s deployment/stackgres-operator -n stackgres-system || echo "Warning: StackGres operator deployment wait failed"
+
+    # Wait for StackGres CRDs to be established
+    echo "Waiting for StackGres CRDs to be established..."
+    kubectl wait --for condition=established --timeout=120s crd/sgclusters.stackgres.io || echo "Warning: SGClusters CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sgshardedclusters.stackgres.io || echo "Warning: SGShardedClusters CRD wait failed"
+
+    # Wait for database clusters to be ready (this may take several minutes)
+    echo "Waiting for database clusters to be ready..."
+
+    # Read client list with cluster types
+    CLIENTS=$(jq -r '.[] | @base64' /config/infra/pipeline/base-infrastructure/clients.json)
+
+    for CLIENT_DATA in $CLIENTS; do
+      CLIENT_INFO=$(echo "$CLIENT_DATA" | base64 -d)
+      CLIENT=$(echo "$CLIENT_INFO" | jq -r '.name')
+      CLUSTER_TYPE=$(echo "$CLIENT_INFO" | jq -r '.clusterType')
+
+      echo "Waiting for $CLIENT cluster ($CLUSTER_TYPE) to be ready..."
+
+      if [ "$CLUSTER_TYPE" = "sgcluster" ]; then
+        kubectl wait --for=condition=SGClusterReady --timeout=600s sgcluster/${CLIENT}-${ENVIRONMENT}-cluster -n database || echo "Warning: $CLIENT cluster readiness wait failed"
+      elif [ "$CLUSTER_TYPE" = "sgshardedcluster" ]; then
+        kubectl wait --for=condition=SGShardedClusterReady --timeout=600s sgshardedcluster/${CLIENT}-${ENVIRONMENT}-cluster -n database || echo "Warning: $CLIENT cluster readiness wait failed"
+      else
+        echo "Warning: Unknown cluster type '$CLUSTER_TYPE' for client $CLIENT"
+      fi
+    done
+
+    # Read client list for credential processing
+    CLIENTS=$(jq -r '.[].name' /config/infra/pipeline/base-infrastructure/clients.json)
+
+    for CLIENT in $CLIENTS; do
+      echo "Processing client: $CLIENT"
+
+      # Check if cluster exists and extract credentials
+      CLUSTER_NAME="${CLIENT}-${ENVIRONMENT}-cluster"
+      SECRET_NAME="${CLIENT}-${ENVIRONMENT}-app-credentials"
+
+      if kubectl get secret "$SECRET_NAME" -n database &>/dev/null; then
+        echo "Found secret: $SECRET_NAME"
+
+        # Extract credentials from StackGres generated secret
+        USERNAME=$(kubectl get secret "$SECRET_NAME" -n database -o jsonpath="{.data.username}" | base64 -d)
+        PASSWORD=$(kubectl get secret "$SECRET_NAME" -n database -o jsonpath="{.data.password}" | base64 -d)
+
+        if [ -n "$USERNAME" ] && [ -n "$PASSWORD" ]; then
+          # Construct database URL using correct service name
+          DATABASE_URL="postgresql://${USERNAME}:${PASSWORD}@${CLUSTER_NAME}.database:5432/${CLIENT}"
+
+          # Store in SSM Parameter Store (matching ExternalSecret path)
+          SSM_PATH="/${CLIENT}/${ENVIRONMENT}/database/url"
+          aws ssm put-parameter \
+            --name "$SSM_PATH" \
+            --value "$DATABASE_URL" \
+            --type SecureString \
+            --overwrite \
+            --tags "Key=ManagedBy,Value=Terraform" \
+                  "Key=Client,Value=${CLIENT}" \
+                  "Key=Environment,Value=${ENVIRONMENT}" \
+                  "Key=LastUpdated,Value=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          echo "Successfully updated SSM parameter: $SSM_PATH"
+        else
+          echo "Warning: Could not extract credentials for $CLIENT-$ENVIRONMENT"
+        fi
+      else
+        echo "Warning: Secret $SECRET_NAME not found for $CLIENT-$ENVIRONMENT"
+      fi
+    done
+
+    # Verify SSM parameters
+    echo "Verifying SSM parameters..."
+    for CLIENT in $CLIENTS; do
+      PARAM_NAME="/${CLIENT}/${ENVIRONMENT}/database/url"
+      if aws ssm get-parameter --name "$PARAM_NAME" &>/dev/null; then
+        echo "✓ $PARAM_NAME exists"
+      else
+        echo "✗ $PARAM_NAME missing"
+      fi
+    done
+
+    echo "✅ StackGres credentials sync completed"
+    echo "ArgoCD and database infrastructure deployment completed successfully"
   EOT
 
   # Additional safeguard: empty kustomization parameters
@@ -1010,23 +1123,9 @@ module "kube-hetzner" {
     R2_ACCESS_KEY_ID     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : ""
     R2_SECRET_ACCESS_KEY = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : ""
 
-    # Database URL parameters for in-cluster connections
-    GENFIX_DEV_DATABASE_URL  = base64encode("postgresql://postgres:postgres@genfix-dev-cluster.citus:5432/genfix")
-    GENFIX_QA_DATABASE_URL   = base64encode("postgresql://postgres:postgres@genfix-qa-cluster.citus:5432/genfix")
-    GENFIX_UAT_DATABASE_URL  = base64encode("postgresql://postgres:postgres@genfix-uat-cluster.citus:5432/genfix")
-    GENFIX_PROD_DATABASE_URL = base64encode("postgresql://postgres:postgres@genfix-prod-cluster.citus:5432/genfix")
-    SITE_DEV_DATABASE_URL    = base64encode("postgresql://postgres:postgres@site-dev-cluster.citus:5432/site")
-    SITE_QA_DATABASE_URL     = base64encode("postgresql://postgres:postgres@site-qa-cluster.citus:5432/site")
-    SITE_UAT_DATABASE_URL    = base64encode("postgresql://postgres:postgres@site-uat-cluster.citus:5432/site")
-    SITE_PROD_DATABASE_URL   = base64encode("postgresql://postgres:postgres@site-prod-cluster.citus:5432/site")
-
-    # Common database connection components (base64 encoded)
-    DB_HOST_BASE64        = base64encode("localhost")
-    DB_PORT_BASE64        = base64encode("5432")
-    DB_NAME_GENFIX_BASE64 = base64encode("genfix")
-    DB_NAME_SITE_BASE64   = base64encode("site")
-    DB_USER_BASE64        = base64encode("postgres")
-    DB_PASSWORD_BASE64    = base64encode("postgres")
+    # SSH keys for cluster access
+    SSH_PRIVATE_KEY = base64encode(var.ssh_private_key)
+    SSH_PUBLIC_KEY  = base64encode(var.ssh_public_key)
 
     # External Secrets Operator IAM user access keys
     ESO_GENFIX_ACCESS_KEY_ID     = module.external_secrets_roles.genfix_access_key_id

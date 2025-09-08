@@ -51,7 +51,7 @@ The setup includes ArgoCD applications for proper deployment ordering:
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: base-infra-citus
+  name: base-infra-database
 spec:
   source:
     repoURL: https://github.com/magebase/base-infra

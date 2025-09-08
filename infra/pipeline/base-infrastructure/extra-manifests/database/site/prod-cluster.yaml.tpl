@@ -1,10 +1,10 @@
 apiVersion: stackgres.io/v1
 kind: SGInstanceProfile
 metadata:
-  namespace: citus
+  namespace: database
   name: site-prod-instance-profile
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: instance-profile
     app.kubernetes.io/part-of: site
     environment: prod
@@ -15,10 +15,10 @@ spec:
 apiVersion: stackgres.io/v1
 kind: SGPostgresConfig
 metadata:
-  namespace: citus
+  namespace: database
   name: site-prod-postgres-config
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: postgres-config
     app.kubernetes.io/part-of: site
     environment: prod
@@ -35,10 +35,10 @@ spec:
 apiVersion: stackgres.io/v1
 kind: SGPoolingConfig
 metadata:
-  namespace: citus
+  namespace: database
   name: site-prod-pooling-config
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: pooling-config
     app.kubernetes.io/part-of: site
     environment: prod
@@ -54,10 +54,10 @@ spec:
 apiVersion: stackgres.io/v1beta1
 kind: SGObjectStorage
 metadata:
-  namespace: citus
+  namespace: database
   name: site-prod-backup-storage
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: backup-storage
     app.kubernetes.io/part-of: site
     environment: prod
@@ -72,18 +72,18 @@ spec:
       secretKeySelectors:
         accessKeyId:
           key: accessKey
-          name: citus-r2-credentials
+          name: database-r2-credentials
         secretAccessKey:
           key: secretKey
-          name: citus-r2-credentials
+          name: database-r2-credentials
 ---
 apiVersion: stackgres.io/v1alpha1
 kind: SGShardedCluster
 metadata:
-  namespace: citus
+  namespace: database
   name: site-prod-cluster
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: database
     app.kubernetes.io/part-of: site
     environment: prod
@@ -142,17 +142,22 @@ spec:
         maxNetworkBandwidth: '50Mi'
         maxDiskBandwidth: '50Mi'
         uploadDiskConcurrency: '2'
-  distributedLogs:
-    sgDistributedLogs: 'site-prod-distributed-logs'
-  prometheusAutobind: true
+  managedUsers:
+  - username: site_app
+    isSuperuser: true
+    database: site
+    password:
+      type: 'random'
+      length: 16
+      seed: 'site-prod-seed'
 ---
 apiVersion: stackgres.io/v1
 kind: SGDistributedLogs
 metadata:
-  namespace: citus
+  namespace: database
   name: site-prod-distributed-logs
   labels:
-    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/name: database-cluster
     app.kubernetes.io/component: distributed-logs
     app.kubernetes.io/part-of: site
     environment: prod
@@ -163,23 +168,21 @@ spec:
   postgres:
     version: '15'
 ---
-apiVersion: v1
-kind: Secret
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
 metadata:
-  namespace: citus
-  name: site-prod-cluster-db-url
-  labels:
-    app.kubernetes.io/name: citus-cluster
-    app.kubernetes.io/component: database-url
-    app.kubernetes.io/part-of: site
-    environment: prod
-type: Opaque
-data:
-  # Database connection URL for in-cluster access
-  DATABASE_URL: ${SITE_PROD_DATABASE_URL}
-  # Individual connection components
-  DB_HOST: ${DB_HOST_BASE64}
-  DB_PORT: ${DB_PORT_BASE64}
-  DB_NAME: ${DB_NAME_SITE_BASE64}
-  DB_USER: ${DB_USER_BASE64}
-  DB_PASSWORD: ${DB_PASSWORD_BASE64}
+  name: site-prod-database-secret
+  namespace: database
+spec:
+  refreshInterval: 15s
+  secretStoreRef:
+    name: site-secret-store
+    kind: SecretStore
+  target:
+    name: site-prod-ssm-database-url
+    creationPolicy: Owner
+  data:
+  - secretKey: DATABASE_URL
+    remoteRef:
+      key: /site/prod/database/url
+---
