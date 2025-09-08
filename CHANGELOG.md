@@ -1,3 +1,10 @@
+## [1.3.2](https://github.com/magebase/base-infra/compare/v1.3.1...v1.3.2) (2025-09-08)
+
+
+### Bug Fixes
+
+* Remove duplicate ExternalSecret resources from database templates ([fdacefd](https://github.com/magebase/base-infra/commit/fdacefd42879add98c29905dc9b9f958520dfd0a))
+
 ## [1.3.1](https://github.com/magebase/base-infra/compare/v1.3.0...v1.3.1) (2025-09-08)
 
 
