@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/magebase/base-infra/compare/v1.3.0...v1.3.1) (2025-09-08)
+
+
+### Bug Fixes
+
+* Update database templates to fix SGObjectStorage and Secret issues ([121bd3e](https://github.com/magebase/base-infra/commit/121bd3e5d6807a6af50ef3651ee459e6f9f4d7a0))
+
 # [1.3.0](https://github.com/magebase/base-infra/compare/v1.2.0...v1.3.0) (2025-09-08)
 
 
