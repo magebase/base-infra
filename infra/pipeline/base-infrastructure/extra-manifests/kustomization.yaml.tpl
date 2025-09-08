@@ -36,9 +36,9 @@ secretGenerator:
     options:
       disableNameSuffixHash: true
 
-# Apply namespace transformation to all ArgoCD components
-# Note: ESO and KEDA resources have their own namespace declarations
-namespace: argocd
+# Apply namespace transformation to ArgoCD components only
+# Note: ESO, KEDA, and Knative resources have their own namespace declarations
+# namespace: argocd
 
 ## NOTE:
 ## We previously attempted to supply our own NetworkPolicies and rename upstream ones.
