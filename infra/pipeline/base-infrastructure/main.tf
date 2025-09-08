@@ -1130,7 +1130,18 @@ module "kube-hetzner" {
 
       # Check if ESO CRDs already exist to determine installation approach
       if kubectl get crd externalsecrets.external-secrets.io >/dev/null 2>&1; then
-        echo "External Secrets CRDs already exist, upgrading without CRDs..."
+        echo "External Secrets CRDs already exist, cleaning up existing resources before upgrade..."
+        # Clean up existing ESO resources that might conflict with Helm ownership
+        kubectl delete clusterrole external-secrets-cert-controller --ignore-not-found=true
+        kubectl delete clusterrole external-secrets-view-secrets --ignore-not-found=true
+        kubectl delete clusterrole external-secrets-edit-secrets --ignore-not-found=true
+        kubectl delete clusterrole external-secrets-view-secrets-local --ignore-not-found=true
+        kubectl delete clusterrole external-secrets-edit-secrets-local --ignore-not-found=true
+        kubectl delete clusterrolebinding external-secrets-cert-controller --ignore-not-found=true
+        kubectl delete clusterrolebinding external-secrets-view-secrets --ignore-not-found=true
+        kubectl delete clusterrolebinding external-secrets-edit-secrets --ignore-not-found=true
+        kubectl delete clusterrolebinding external-secrets-view-secrets-local --ignore-not-found=true
+        kubectl delete clusterrolebinding external-secrets-edit-secrets-local --ignore-not-found=true
         # If CRDs exist, skip CRD installation to avoid ownership conflicts
         helm upgrade --install external-secrets external-secrets/external-secrets \
           --namespace external-secrets-system \
@@ -1175,7 +1186,12 @@ module "kube-hetzner" {
 
       # Check if StackGres CRDs already exist to determine installation approach
       if kubectl get crd sgclusters.stackgres.io >/dev/null 2>&1; then
-        echo "StackGres CRDs already exist, upgrading without CRDs..."
+        echo "StackGres CRDs already exist, cleaning up existing resources before upgrade..."
+        # Clean up existing StackGres resources that might conflict with Helm ownership
+        kubectl delete clusterrole stackgres-operator --ignore-not-found=true
+        kubectl delete clusterrole stackgres-restapi --ignore-not-found=true
+        kubectl delete clusterrolebinding stackgres-operator --ignore-not-found=true
+        kubectl delete clusterrolebinding stackgres-restapi --ignore-not-found=true
         # If CRDs exist, skip CRD installation to avoid ownership conflicts
         helm upgrade --install stackgres-operator stackgres/stackgres-operator \
           --namespace stackgres \
