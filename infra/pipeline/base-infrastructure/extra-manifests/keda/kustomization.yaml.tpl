@@ -5,6 +5,7 @@ resources:
   - https://raw.githubusercontent.com/stakater/Reloader/master/deployments/kubernetes/reloader.yaml
 
 # Common labels for KEDA resources
-commonLabels:
-  app.kubernetes.io/managed-by: keda
-  app.kubernetes.io/part-of: keda-scaledobjects
+labels:
+  - pairs:
+      app.kubernetes.io/managed-by: keda
+      app.kubernetes.io/part-of: keda-scaledobjects

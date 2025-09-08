@@ -8,7 +8,7 @@ resources:
   - serving-default-domain.yaml.tpl
   - serving-hpa.yaml.tpl
 
-patchesStrategicMerge:
+patches:
   - config-network-patch.yaml.tpl
 
 images:
