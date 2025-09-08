@@ -1098,6 +1098,35 @@ module "kube-hetzner" {
       CLIENTS=""
     fi
 
+    # Install External Secrets Operator using Helm
+    echo "Installing External Secrets Operator..."
+    if command -v helm &> /dev/null; then
+      # Add external-secrets helm repo if not already added
+      helm repo add external-secrets https://charts.external-secrets.io || echo "external-secrets repo already exists"
+
+      # Update helm repos
+      helm repo update
+
+      # Install ESO with CRDs
+      helm upgrade --install external-secrets external-secrets/external-secrets \
+        --namespace external-secrets-system \
+        --create-namespace \
+        --version 0.19.2 \
+        --set installCRDs=true \
+        --wait \
+        --timeout=600s
+
+      if [ $? -eq 0 ]; then
+        echo "✅ External Secrets Operator installed successfully"
+      else
+        echo "❌ Failed to install External Secrets Operator"
+        exit 1
+      fi
+    else
+      echo "❌ Helm not found, cannot install External Secrets Operator"
+      exit 1
+    fi
+
     # Since CLIENTS is empty (StackGres not deployed yet), skip all database operations
     echo "Skipping database credential processing - StackGres clusters deployed via ArgoCD"
 
