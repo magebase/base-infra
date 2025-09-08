@@ -1135,10 +1135,10 @@ module "kube-hetzner" {
     SSH_PUBLIC_KEY  = base64encode(var.ssh_public_key)
 
     # External Secrets Operator IAM user access keys
-    ESO_GENFIX_ACCESS_KEY_ID     = module.external_secrets_roles.genfix_access_key_id
-    ESO_GENFIX_SECRET_ACCESS_KEY = module.external_secrets_roles.genfix_secret_access_key
-    ESO_SITE_ACCESS_KEY_ID       = module.external_secrets_roles.site_access_key_id
-    ESO_SITE_SECRET_ACCESS_KEY   = module.external_secrets_roles.site_secret_access_key
+    ESO_GENFIX_ACCESS_KEY_ID     = base64encode(module.external_secrets_roles.genfix_access_key_id)
+    ESO_GENFIX_SECRET_ACCESS_KEY = base64encode(module.external_secrets_roles.genfix_secret_access_key)
+    ESO_SITE_ACCESS_KEY_ID       = base64encode(module.external_secrets_roles.site_access_key_id)
+    ESO_SITE_SECRET_ACCESS_KEY   = base64encode(module.external_secrets_roles.site_secret_access_key)
     ESO_GENFIX_POLICY_ARN        = module.external_secrets_roles.genfix_policy_arn
     ESO_SITE_POLICY_ARN          = module.external_secrets_roles.site_policy_arn
   }
