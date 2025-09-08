@@ -10,7 +10,7 @@ spec:
   source:
     repoURL: https://stackgres.io/downloads/stackgres-k8s/stackgres/helm/
     chart: stackgres-operator
-    targetRevision: 1.10.0
+    targetRevision: 1.17.2
     helm:
       releaseName: stackgres-operator
       values: |
@@ -19,37 +19,21 @@ spec:
           replicaCount: 1
           resources:
             limits:
-              cpu: 200m
-              memory: 256Mi
+              cpu: 500m
+              memory: 512Mi
             requests:
-              cpu: 50m
-              memory: 128Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 999
+              cpu: 100m
+              memory: 256Mi
         restapi:
           enabled: true
           replicaCount: 1
           resources:
             limits:
-              cpu: 100m
-              memory: 128Mi
+              cpu: 200m
+              memory: 256Mi
             requests:
-              cpu: 10m
-              memory: 64Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-              - ALL
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 999
+              cpu: 50m
+              memory: 128Mi
         adminui:
           enabled: false
         serviceMonitor:
