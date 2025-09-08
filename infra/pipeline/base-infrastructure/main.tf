@@ -1181,13 +1181,36 @@ module "kube-hetzner" {
           sleep 2
         fi
         # If CRDs exist, skip CRD installation to avoid ownership conflicts
+        echo "Installing External Secrets Operator (async mode to prevent timeout)..."
         helm upgrade --install external-secrets external-secrets/external-secrets \
           --namespace external-secrets-system \
           --create-namespace \
           --version 0.19.2 \
-          --set installCRDs=false \
-          --wait \
-          --timeout=600s
+          --set installCRDs=false
+
+        # Wait for ESO deployment with manual timeout and progress monitoring
+        echo "Waiting for External Secrets Operator deployment..."
+        TIMEOUT=900  # 15 minutes
+        ELAPSED=0
+        while [ $ELAPSED -lt $TIMEOUT ]; do
+          if kubectl get deployment external-secrets -n external-secrets-system >/dev/null 2>&1; then
+            if kubectl wait --for=condition=available --timeout=30s deployment/external-secrets -n external-secrets-system >/dev/null 2>&1; then
+              echo "✅ External Secrets Operator deployment is ready"
+              break
+            else
+              echo "Waiting for External Secrets Operator deployment... ($ELAPSED/$TIMEOUT seconds)"
+            fi
+          else
+            echo "Waiting for External Secrets Operator deployment to be created... ($ELAPSED/$TIMEOUT seconds)"
+          fi
+          sleep 30
+          ELAPSED=$((ELAPSED + 30))
+        done
+
+        if [ $ELAPSED -ge $TIMEOUT ]; then
+          echo "⚠️ Warning: External Secrets Operator deployment did not become ready within $TIMEOUT seconds"
+          echo "Continuing with deployment - operator may still be starting up..."
+        fi
       else
         echo "Installing External Secrets Operator for the first time with CRDs..."
         # First time installation, install CRDs
@@ -1195,12 +1218,35 @@ module "kube-hetzner" {
           --namespace external-secrets-system \
           --create-namespace \
           --version 0.19.2 \
-          --set installCRDs=true \
-          --wait \
-          --timeout=600s
+          --set installCRDs=true
+
+        # Wait for ESO deployment with manual timeout and progress monitoring
+        echo "Waiting for External Secrets Operator deployment..."
+        TIMEOUT=900  # 15 minutes
+        ELAPSED=0
+        while [ $ELAPSED -lt $TIMEOUT ]; do
+          if kubectl get deployment external-secrets -n external-secrets-system >/dev/null 2>&1; then
+            if kubectl wait --for=condition=available --timeout=30s deployment/external-secrets -n external-secrets-system >/dev/null 2>&1; then
+              echo "✅ External Secrets Operator deployment is ready"
+              break
+            else
+              echo "Waiting for External Secrets Operator deployment... ($ELAPSED/$TIMEOUT seconds)"
+            fi
+          else
+            echo "Waiting for External Secrets Operator deployment to be created... ($ELAPSED/$TIMEOUT seconds)"
+          fi
+          sleep 30
+          ELAPSED=$((ELAPSED + 30))
+        done
+
+        if [ $ELAPSED -ge $TIMEOUT ]; then
+          echo "⚠️ Warning: External Secrets Operator deployment did not become ready within $TIMEOUT seconds"
+          echo "Continuing with deployment - operator may still be starting up..."
+        fi
       fi
 
-      if [ $? -eq 0 ]; then
+      # Check if Helm installation was successful
+      if helm status external-secrets -n external-secrets-system >/dev/null 2>&1; then
         echo "✅ External Secrets Operator installed/upgraded successfully"
       else
         echo "❌ Failed to install/upgrade External Secrets Operator"
@@ -1259,12 +1305,35 @@ module "kube-hetzner" {
           sleep 2
         fi
         # If CRDs exist, skip CRD installation to avoid ownership conflicts
+        echo "Installing StackGres Operator (async mode to prevent timeout)..."
         helm upgrade --install stackgres-operator stackgres/stackgres-operator \
           --namespace stackgres \
           --version 1.10.0 \
-          --set installCRDs=false \
-          --wait \
-          --timeout=600s
+          --set installCRDs=false
+
+        # Wait for StackGres deployment with manual timeout and progress monitoring
+        echo "Waiting for StackGres Operator deployment..."
+        TIMEOUT=900  # 15 minutes
+        ELAPSED=0
+        while [ $ELAPSED -lt $TIMEOUT ]; do
+          if kubectl get deployment stackgres-operator -n stackgres >/dev/null 2>&1; then
+            if kubectl wait --for=condition=available --timeout=30s deployment/stackgres-operator -n stackgres >/dev/null 2>&1; then
+              echo "✅ StackGres Operator deployment is ready"
+              break
+            else
+              echo "Waiting for StackGres Operator deployment... ($ELAPSED/$TIMEOUT seconds)"
+            fi
+          else
+            echo "Waiting for StackGres Operator deployment to be created... ($ELAPSED/$TIMEOUT seconds)"
+          fi
+          sleep 30
+          ELAPSED=$((ELAPSED + 30))
+        done
+
+        if [ $ELAPSED -ge $TIMEOUT ]; then
+          echo "⚠️ Warning: StackGres Operator deployment did not become ready within $TIMEOUT seconds"
+          echo "Continuing with deployment - operator may still be starting up..."
+        fi
       else
         echo "Installing StackGres Operator for the first time with CRDs..."
         # First time installation, install CRDs
@@ -1272,12 +1341,35 @@ module "kube-hetzner" {
           --namespace stackgres \
           --create-namespace \
           --version 1.10.0 \
-          --set installCRDs=true \
-          --wait \
-          --timeout=600s
+          --set installCRDs=true
+
+        # Wait for StackGres deployment with manual timeout and progress monitoring
+        echo "Waiting for StackGres Operator deployment..."
+        TIMEOUT=900  # 15 minutes
+        ELAPSED=0
+        while [ $ELAPSED -lt $TIMEOUT ]; do
+          if kubectl get deployment stackgres-operator -n stackgres >/dev/null 2>&1; then
+            if kubectl wait --for=condition=available --timeout=30s deployment/stackgres-operator -n stackgres >/dev/null 2>&1; then
+              echo "✅ StackGres Operator deployment is ready"
+              break
+            else
+              echo "Waiting for StackGres Operator deployment... ($ELAPSED/$TIMEOUT seconds)"
+            fi
+          else
+            echo "Waiting for StackGres Operator deployment to be created... ($ELAPSED/$TIMEOUT seconds)"
+          fi
+          sleep 30
+          ELAPSED=$((ELAPSED + 30))
+        done
+
+        if [ $ELAPSED -ge $TIMEOUT ]; then
+          echo "⚠️ Warning: StackGres Operator deployment did not become ready within $TIMEOUT seconds"
+          echo "Continuing with deployment - operator may still be starting up..."
+        fi
       fi
 
-      if [ $? -eq 0 ]; then
+      # Check if Helm installation was successful
+      if helm status stackgres-operator -n stackgres >/dev/null 2>&1; then
         echo "✅ StackGres Operator installed/upgraded successfully"
       else
         echo "❌ Failed to install/upgrade StackGres Operator"
