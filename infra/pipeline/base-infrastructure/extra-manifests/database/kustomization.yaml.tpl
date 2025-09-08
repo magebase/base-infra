@@ -7,14 +7,10 @@ resources:
   - operator/deployment.yaml
   - operator/restapi.yaml
   - operator/certificates.yaml
-  - genfix/dev-cluster.yaml
-  - genfix/qa-cluster.yaml
-  - genfix/uat-cluster.yaml
-  - genfix/prod-cluster.yaml
-  - site/dev-cluster.yaml
-  - site/qa-cluster.yaml
-  - site/uat-cluster.yaml
-  - site/prod-cluster.yaml
+  - genfix/${ENVIRONMENT}-cluster.yaml
+  - genfix/${ENVIRONMENT}-db-url-secret.yaml
+  - site/${ENVIRONMENT}-cluster.yaml
+  - site/${ENVIRONMENT}-db-url-secret.yaml
 
 namespace: database
 

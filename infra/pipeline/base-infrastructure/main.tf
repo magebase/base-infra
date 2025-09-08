@@ -1011,7 +1011,23 @@ module "kube-hetzner" {
     # Install jq if not present (required for JSON processing)
     if ! command -v jq &> /dev/null; then
       echo "Installing jq..."
-      apt-get update && apt-get install -y jq
+      # Try different package managers
+      if command -v apt-get &> /dev/null; then
+        apt-get update && apt-get install -y jq
+      elif command -v yum &> /dev/null; then
+        yum install -y jq
+      elif command -v dnf &> /dev/null; then
+        dnf install -y jq
+      elif command -v apk &> /dev/null; then
+        apk add jq
+      else
+        echo "Warning: Could not install jq - package manager not found"
+        # Try to download jq binary directly
+        if command -v curl &> /dev/null; then
+          curl -L -o /usr/local/bin/jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
+          chmod +x /usr/local/bin/jq
+        fi
+      fi
     fi
 
     # Brief delay to allow Kustomize application to complete
@@ -1027,39 +1043,45 @@ module "kube-hetzner" {
     echo "Waiting for ArgoCD server deployment..."
     kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd || echo "Warning: ArgoCD server deployment wait failed"
 
-    # Wait for StackGres operator to be ready
-    echo "Waiting for StackGres operator to be ready..."
-    kubectl wait --for=condition=available --timeout=300s deployment/stackgres-operator -n stackgres || echo "Warning: StackGres operator deployment wait failed"
+    # NOTE: StackGres is deployed via ArgoCD Application, so CRDs won't be available yet
+    # The following waits are commented out to prevent premature failures
+    # echo "Waiting for StackGres operator to be ready..."
+    # kubectl wait --for=condition=available --timeout=300s deployment/stackgres-operator -n stackgres || echo "Warning: StackGres operator deployment wait failed"
 
-    # Wait for StackGres CRDs to be established
-    echo "Waiting for StackGres CRDs to be established..."
-    kubectl wait --for condition=established --timeout=120s crd/sgclusters.v1.stackgres.io || echo "Warning: SGClusters CRD wait failed"
-    kubectl wait --for condition=established --timeout=120s crd/sgshardedclusters.v1alpha1.stackgres.io || echo "Warning: SGShardedClusters CRD wait failed"
+    # echo "Waiting for StackGres CRDs to be established..."
+    # kubectl wait --for condition=established --timeout=120s crd/sgclusters.v1.stackgres.io || echo "Warning: SGClusters CRD wait failed"
+    # kubectl wait --for condition=established --timeout=120s crd/sgshardedclusters.v1alpha1.stackgres.io || echo "Warning: SGShardedClusters CRD wait failed"
 
     # Wait for database clusters to be ready (this may take several minutes)
     echo "Waiting for database clusters to be ready..."
 
-    # Read client list with cluster types
-    CLIENTS=$(echo "$CLIENTS_JSON" | jq -r '.[] | @base64')
+    # Check if jq is available
+    if command -v jq &> /dev/null; then
+      # Read client list with cluster types
+      CLIENTS=$(echo "$CLIENTS_JSON" | jq -r '.[] | @base64')
 
-    for CLIENT_DATA in $CLIENTS; do
-      CLIENT_INFO=$(echo "$CLIENT_DATA" | base64 -d)
-      CLIENT=$(echo "$CLIENT_INFO" | jq -r '.name')
-      CLUSTER_TYPE=$(echo "$CLIENT_INFO" | jq -r '.clusterType')
+      for CLIENT_DATA in $CLIENTS; do
+        CLIENT_INFO=$(echo "$CLIENT_DATA" | base64 -d)
+        CLIENT=$(echo "$CLIENT_INFO" | jq -r '.name')
+        CLUSTER_TYPE=$(echo "$CLIENT_INFO" | jq -r '.clusterType')
 
-      echo "Waiting for $CLIENT cluster ($CLUSTER_TYPE) to be ready..."
+        echo "Waiting for $CLIENT cluster ($CLUSTER_TYPE) to be ready..."
 
-      if [ "$CLUSTER_TYPE" = "sgcluster" ]; then
-        kubectl wait --for=condition=SGClusterReady --timeout=600s sgcluster/$${CLIENT}-$${ENVIRONMENT}-cluster -n database || echo "Warning: $${CLIENT} cluster readiness wait failed"
-      elif [ "$CLUSTER_TYPE" = "sgshardedcluster" ]; then
-        kubectl wait --for=condition=SGShardedClusterReady --timeout=600s sgshardedcluster/$${CLIENT}-$${ENVIRONMENT}-cluster -n database || echo "Warning: $${CLIENT} cluster readiness wait failed"
-      else
-        echo "Warning: Unknown cluster type '$${CLUSTER_TYPE}' for client $${CLIENT}"
-      fi
-    done
+        if [ "$CLUSTER_TYPE" = "sgcluster" ]; then
+          kubectl wait --for=condition=SGClusterReady --timeout=600s sgcluster/$${CLIENT}-$${ENVIRONMENT}-cluster -n database || echo "Warning: $${CLIENT} cluster readiness wait failed"
+        elif [ "$CLUSTER_TYPE" = "sgshardedcluster" ]; then
+          kubectl wait --for=condition=SGShardedClusterReady --timeout=600s sgshardedcluster/$${CLIENT}-$${ENVIRONMENT}-cluster -n database || echo "Warning: $${CLIENT} cluster readiness wait failed"
+        else
+          echo "Warning: Unknown cluster type '$${CLUSTER_TYPE}' for client $${CLIENT}"
+        fi
+      done
 
-    # Read client list for credential processing
-    CLIENTS=$(echo "$CLIENTS_JSON" | jq -r '.[].name')
+      # Read client list for credential processing
+      CLIENTS=$(echo "$CLIENTS_JSON" | jq -r '.[].name')
+    else
+      echo "Warning: jq not available, skipping database cluster waits and credential processing"
+      CLIENTS=""
+    fi
 
     for CLIENT in $CLIENTS; do
       echo "Processing client: $${CLIENT}"
@@ -1102,14 +1124,18 @@ module "kube-hetzner" {
 
     # Verify SSM parameters
     echo "Verifying SSM parameters..."
-    for CLIENT in $CLIENTS; do
-      PARAM_NAME="/$${CLIENT}/$${ENVIRONMENT}/database/url"
-      if aws ssm get-parameter --name "$${PARAM_NAME}" &>/dev/null; then
-        echo "✓ $${PARAM_NAME} exists"
-      else
-        echo "✗ $${PARAM_NAME} missing"
-      fi
-    done
+    if [ -n "$CLIENTS" ]; then
+      for CLIENT in $CLIENTS; do
+        PARAM_NAME="/$${CLIENT}/$${ENVIRONMENT}/database/url"
+        if aws ssm get-parameter --name "$${PARAM_NAME}" &>/dev/null; then
+          echo "✓ $${PARAM_NAME} exists"
+        else
+          echo "✗ $${PARAM_NAME} missing"
+        fi
+      done
+    else
+      echo "Skipping SSM parameter verification - no clients to process"
+    fi
 
     echo "✅ StackGres credentials sync completed"
     echo "ArgoCD and database infrastructure deployment completed successfully"

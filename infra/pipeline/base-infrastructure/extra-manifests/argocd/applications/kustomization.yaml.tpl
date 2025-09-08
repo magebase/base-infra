@@ -11,16 +11,8 @@ resources:
   - postgres-operator.yaml.tpl
   - trivy-operator.yaml.tpl
 
-  # Genfix applications (single region - fsn1)
-  - environments/genfix/dev-fsn1.yaml.tpl
-  # - environments/genfix/qa-fsn1.yaml.tpl  # Commented out - QA deployments disabled
-  # - environments/genfix/uat-fsn1.yaml.tpl # Commented out - UAT deployments disabled
-  - environments/genfix/prod-fsn1.yaml.tpl
+  # Environment-specific applications (only include current environment)
+  - environments/genfix/${ENVIRONMENT}-fsn1.yaml.tpl
+  - environments/site/${ENVIRONMENT}-fsn1.yaml.tpl
 
-  # Site applications (single region - fsn1)
-  - environments/site/dev-fsn1.yaml.tpl
-  # - environments/site/qa-fsn1.yaml.tpl  # Commented out - QA deployments disabled
-  # - environments/site/uat-fsn1.yaml.tpl # Commented out - UAT deployments disabled
-  - environments/site/prod-fsn1.yaml.tpl
-
-  # NOTE: Old region-specific applications removed - using segregated environment structure above
+  # NOTE: Only the current environment's applications are included above

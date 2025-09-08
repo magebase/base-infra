@@ -26,15 +26,6 @@ resources:
   # Environment-specific applications (segregated by app)
   - argocd/applications/environments/genfix/${ENVIRONMENT}-fsn1.yaml
   - argocd/applications/environments/site/${ENVIRONMENT}-fsn1.yaml
-  # NOTE: PostgreSQL clusters & backup secrets are now managed exclusively via the
-  # ArgoCD Application "postgres-clusters" (see applications/postgres-clusters.yaml.tpl).
-  # They were removed from this base kustomization to prevent race conditions where
-  # Cluster CRDs (installed by the CloudNativePG operator) were not yet present,
-  # producing errors like:
-  #   no matches for kind "Cluster" in version "postgresql.cnpg.io/v1"
-  # Backup secrets and cluster manifests live under
-  # infra/pipeline/base-infrastructure/extra-manifests/postgres/clusters and will
-  # be applied only after the operator is installed.
 
 secretGenerator:
   - name: argocd-secret
