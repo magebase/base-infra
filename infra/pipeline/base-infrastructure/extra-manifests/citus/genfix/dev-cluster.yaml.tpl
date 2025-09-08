@@ -119,6 +119,13 @@ spec:
         maxNetworkBandwidth: '50Mi'
         maxDiskBandwidth: '50Mi'
         uploadDiskConcurrency: '2'
+  managedUsers:
+  - username: genfix_app
+    database: genfix
+    password:
+      type: 'random'
+      length: 16
+      seed: 'genfix-dev-seed'
   distributedLogs:
     sgDistributedLogs: 'genfix-dev-distributed-logs'
   prometheusAutobind: true
@@ -142,6 +149,34 @@ spec:
     storageClass: 'local-path'
   postgres:
     version: '15'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: citus
+  name: genfix-dev-cluster-db-url
+  labels:
+    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/component: database-url
+    app.kubernetes.io/part-of: genfix
+    environment: dev
+type: Opaque
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: citus
+  name: genfix-dev-app-credentials
+  labels:
+    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/component: app-credentials
+    app.kubernetes.io/part-of: genfix
+    environment: dev
+type: Opaque
+data:
+  # Reference to StackGres generated user credentials
+  username: <base64-encoded-genfix_app-username>
+  password: <base64-encoded-genfix_app-password>
 ---
 apiVersion: v1
 kind: Secret

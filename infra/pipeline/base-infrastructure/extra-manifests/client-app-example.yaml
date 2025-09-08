@@ -1,0 +1,110 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: genfix-app
+  namespace: client1-ns
+  labels:
+    app.kubernetes.io/name: genfix-app
+    app.kubernetes.io/component: web-service
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containers:
+      - name: app
+        image: magebase/genfix-app:latest
+        ports:
+        - containerPort: 8080
+        env:
+        # Database connection from StackGres generated secret
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: genfix-dev-cluster-db-url
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: genfix-dev-cluster-db-url
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: genfix-dev-cluster-db-url
+              key: DB_NAME
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: genfix-dev-cluster-db-url
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: genfix-dev-cluster-db-url
+              key: DB_PASSWORD
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: genfix-dev-cluster-db-url
+              key: DATABASE_URL
+        # Alternative: Use the generated app user credentials
+        - name: DB_APP_USER
+          valueFrom:
+            secretKeyRef:
+              name: genfix-dev-app-credentials
+              key: username
+        - name: DB_APP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: genfix-dev-app-credentials
+              key: password
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+---
+# ExternalSecret to sync database credentials from citus namespace
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: genfix-db-credentials
+  namespace: client1-ns
+spec:
+  refreshInterval: 15s
+  secretStoreRef:
+    name: internal-secret-store
+    kind: SecretStore
+  target:
+    name: genfix-dev-cluster-db-url
+    creationPolicy: Owner
+  data:
+  - secretKey: DB_HOST
+    remoteRef:
+      key: genfix-dev-cluster-db-url
+      property: DB_HOST
+  - secretKey: DB_PORT
+    remoteRef:
+      key: genfix-dev-cluster-db-url
+      property: DB_PORT
+  - secretKey: DB_NAME
+    remoteRef:
+      key: genfix-dev-cluster-db-url
+      property: DB_NAME
+  - secretKey: DB_USER
+    remoteRef:
+      key: genfix-dev-cluster-db-url
+      property: DB_USER
+  - secretKey: DB_PASSWORD
+    remoteRef:
+      key: genfix-dev-cluster-db-url
+      property: DB_PASSWORD
+  - secretKey: DATABASE_URL
+    remoteRef:
+      key: genfix-dev-cluster-db-url
+      property: DATABASE_URL

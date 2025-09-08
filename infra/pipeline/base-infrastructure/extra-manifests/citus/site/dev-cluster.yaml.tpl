@@ -142,6 +142,13 @@ spec:
         maxNetworkBandwidth: '50Mi'
         maxDiskBandwidth: '50Mi'
         uploadDiskConcurrency: '2'
+  managedUsers:
+  - username: site_app
+    database: site
+    password:
+      type: 'random'
+      length: 16
+      seed: 'site-dev-seed'
   distributedLogs:
     sgDistributedLogs: 'site-dev-distributed-logs'
   prometheusAutobind: true
@@ -170,19 +177,36 @@ apiVersion: v1
 kind: Secret
 metadata:
   namespace: citus
-  name: site-dev-cluster-db-url
+  name: site-dev-app-credentials
   labels:
     app.kubernetes.io/name: citus-cluster
-    app.kubernetes.io/component: database-url
+    app.kubernetes.io/component: app-credentials
     app.kubernetes.io/part-of: site
     environment: dev
 type: Opaque
 data:
-  # Database connection URL for in-cluster access
-  DATABASE_URL: ${SITE_DEV_DATABASE_URL}
-  # Individual connection components
-  DB_HOST: ${DB_HOST_BASE64}
-  DB_PORT: ${DB_PORT_BASE64}
-  DB_NAME: ${DB_NAME_SITE_BASE64}
-  DB_USER: ${DB_USER_BASE64}
-  DB_PASSWORD: ${DB_PASSWORD_BASE64}
+  # Reference to StackGres generated user credentials
+  username: <base64-encoded-site_app-username>
+  password: <base64-encoded-site_app-password>
+---
+apiVersion: stackgres.io/v1
+kind: SGDbOps
+metadata:
+  namespace: citus
+  name: site-dev-user-creation
+  labels:
+    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/component: user-management
+    app.kubernetes.io/part-of: site
+    environment: dev
+spec:
+  sgCluster: site-dev-cluster
+  op: userManagement
+  userManagement:
+    runAt: 'now'
+    username: site_app
+    database: site
+    password:
+      type: 'random'
+      length: 16
+      seed: 'site-dev-seed'

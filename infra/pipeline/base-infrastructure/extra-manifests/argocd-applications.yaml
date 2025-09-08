@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: base-infra-citus
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: base-infra
+    app.kubernetes.io/component: citus-databases
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/magebase/base-infra
+    targetRevision: HEAD
+    path: infra/pipeline/base-infrastructure/extra-manifests/citus
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: citus
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: client-app-genfix
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: client-app
+    app.kubernetes.io/component: genfix-service
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/magebase/client-genfix
+    targetRevision: HEAD
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: client1-ns
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+  # Ensure database is ready before deploying client app
+  info:
+  - name: 'Database Dependency'
+    value: 'Waits for base-infra-citus to complete'
