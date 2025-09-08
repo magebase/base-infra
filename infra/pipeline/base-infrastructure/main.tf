@@ -108,6 +108,33 @@ resource "aws_ssm_parameter" "database_url" {
   }
 }
 
+# Generate stable database passwords per client
+resource "random_password" "database_password" {
+  for_each = toset(local.client_names)
+  length   = 32
+  special  = true
+}
+
+# SSM Parameters for Database Passwords (stable, persisted)
+resource "aws_ssm_parameter" "database_password" {
+  for_each  = toset(local.client_names)
+  name      = "/site/${var.environment}/${each.key}/database/password"
+  type      = "SecureString"
+  value     = random_password.database_password[each.key].result
+  overwrite = false # Don't overwrite existing passwords
+
+  lifecycle {
+    prevent_destroy = true # Prevent accidental deletion
+  }
+
+  tags = {
+    Environment = var.environment
+    Client      = each.key
+    ManagedBy   = "terraform"
+    Purpose     = "database-password"
+  }
+}
+
 module "kube-hetzner" {
   providers = {
     hcloud = hcloud

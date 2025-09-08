@@ -6,3 +6,4 @@ resources:
   - namespace.yaml
   - aws-credentials-secrets.yaml
   - client-secret-stores.yaml
+  - database-credentials.yaml
