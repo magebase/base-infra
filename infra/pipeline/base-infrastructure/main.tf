@@ -1119,6 +1119,9 @@ module "kube-hetzner" {
     # Install External Secrets Operator using Helm
     echo "Installing External Secrets Operator..."
     if command -v helm &> /dev/null; then
+      # Ensure KUBECONFIG is set properly
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
       # Add external-secrets helm repo if not already added
       helm repo add external-secrets https://charts.external-secrets.io || echo "external-secrets repo already exists"
 
@@ -1148,6 +1151,8 @@ module "kube-hetzner" {
     # Install StackGres Operator using Helm
     echo "Installing StackGres Operator..."
     if command -v helm &> /dev/null; then
+      # Ensure KUBECONFIG is set properly
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
       # Add stackgres helm repo if not already added
       helm repo add stackgres https://stackgres.io/downloads/stackgres-k8s/stackgres/helm/ || echo "stackgres repo already exists"
 
