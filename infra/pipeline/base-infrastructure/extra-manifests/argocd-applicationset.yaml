@@ -31,7 +31,7 @@ spec:
       source:
         repoURL: https://github.com/magebase/base-infra
         targetRevision: HEAD
-        path: infra/pipeline/base-infrastructure/extra-manifests/citus/{{client}}
+        path: infra/pipeline/base-infrastructure/extra-manifests/database/{{client}}
       destination:
         server: https://kubernetes.default.svc
         namespace: database

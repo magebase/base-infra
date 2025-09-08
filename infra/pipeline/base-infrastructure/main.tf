@@ -1008,6 +1008,12 @@ module "kube-hetzner" {
     export ENVIRONMENT="${var.environment}"
     export CLIENTS_JSON='${jsonencode(local.clients)}'
 
+    # Install jq if not present (required for JSON processing)
+    if ! command -v jq &> /dev/null; then
+      echo "Installing jq..."
+      apt-get update && apt-get install -y jq
+    fi
+
     # Brief delay to allow Kustomize application to complete
     sleep 10
 
@@ -1023,7 +1029,7 @@ module "kube-hetzner" {
 
     # Wait for StackGres operator to be ready
     echo "Waiting for StackGres operator to be ready..."
-    kubectl wait --for=condition=available --timeout=300s deployment/stackgres-operator -n stackgres-system || echo "Warning: StackGres operator deployment wait failed"
+    kubectl wait --for=condition=available --timeout=300s deployment/stackgres-operator -n stackgres || echo "Warning: StackGres operator deployment wait failed"
 
     # Wait for StackGres CRDs to be established
     echo "Waiting for StackGres CRDs to be established..."

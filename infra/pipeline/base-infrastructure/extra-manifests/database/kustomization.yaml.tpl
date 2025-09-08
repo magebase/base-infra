@@ -17,3 +17,22 @@ resources:
   - site/prod-cluster.yaml
 
 namespace: database
+
+# Exclude operator resources from namespace transformation
+resourceSelector:
+  not:
+  - apiVersion: v1
+    kind: Namespace
+    name: stackgres
+  - apiVersion: apps/v1
+    kind: Deployment
+    name: stackgres-operator
+  - apiVersion: v1
+    kind: ServiceAccount
+    name: stackgres-operator
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    name: stackgres-operator
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    name: stackgres-operator

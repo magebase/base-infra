@@ -18,11 +18,9 @@ resources:
   - argocd/applications/app-of-apps.yaml
   - argocd/applications/trivy-operator.yaml
   - argocd/applications/kube-prometheus.yaml
-  - argocd/applications/postgres-operator.yaml
-  - argocd/applications/postgres-clusters.yaml
   - keda/
   - knative/
-  - citus/
+  - database/
   # External Secrets Operator
   - eso/
   # Environment-specific applications (segregated by app)
@@ -59,20 +57,16 @@ secretGenerator:
 namespace: argocd
 
 # Exclude ESO and KEDA resources from global namespace transformation
-namespaceSelector:
-  matchExpressions:
-    - key: app.kubernetes.io/name
-      operator: NotIn
-      values:
-        - external-secrets-operator
-        - external-secrets
-        - keda
-    - key: app.kubernetes.io/instance
-      operator: NotIn
-      values:
-        - external-secrets-operator
-        - external-secrets
-        - keda
+# Note: namespaceSelector is not supported in this version of Kustomize
+# Using resourceSelector instead for proper namespace exclusion
+resourceSelector:
+  not:
+  - apiVersion: v1
+    kind: Namespace
+    name: external-secrets-system
+  - apiVersion: v1
+    kind: Namespace
+    name: keda
 
 ## NOTE:
 ## We previously attempted to supply our own NetworkPolicies and rename upstream ones.
