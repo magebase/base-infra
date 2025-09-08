@@ -1037,11 +1037,11 @@ module "kube-hetzner" {
       echo "Waiting for $CLIENT cluster ($CLUSTER_TYPE) to be ready..."
 
       if [ "$CLUSTER_TYPE" = "sgcluster" ]; then
-        kubectl wait --for=condition=SGClusterReady --timeout=600s sgcluster/${CLIENT}-${ENVIRONMENT}-cluster -n database || echo "Warning: $CLIENT cluster readiness wait failed"
+        kubectl wait --for=condition=SGClusterReady --timeout=600s sgcluster/$${CLIENT}-$${ENVIRONMENT}-cluster -n database || echo "Warning: $${CLIENT} cluster readiness wait failed"
       elif [ "$CLUSTER_TYPE" = "sgshardedcluster" ]; then
-        kubectl wait --for=condition=SGShardedClusterReady --timeout=600s sgshardedcluster/${CLIENT}-${ENVIRONMENT}-cluster -n database || echo "Warning: $CLIENT cluster readiness wait failed"
+        kubectl wait --for=condition=SGShardedClusterReady --timeout=600s sgshardedcluster/$${CLIENT}-$${ENVIRONMENT}-cluster -n database || echo "Warning: $${CLIENT} cluster readiness wait failed"
       else
-        echo "Warning: Unknown cluster type '$CLUSTER_TYPE' for client $CLIENT"
+        echo "Warning: Unknown cluster type '$${CLUSTER_TYPE}' for client $${CLIENT}"
       fi
     done
 
@@ -1049,52 +1049,52 @@ module "kube-hetzner" {
     CLIENTS=$(jq -r '.[].name' /config/infra/pipeline/base-infrastructure/clients.json)
 
     for CLIENT in $CLIENTS; do
-      echo "Processing client: $CLIENT"
+      echo "Processing client: $${CLIENT}"
 
       # Check if cluster exists and extract credentials
-      CLUSTER_NAME="${CLIENT}-${ENVIRONMENT}-cluster"
-      SECRET_NAME="${CLIENT}-${ENVIRONMENT}-app-credentials"
+      CLUSTER_NAME="$${CLIENT}-$${ENVIRONMENT}-cluster"
+      SECRET_NAME="$${CLIENT}-$${ENVIRONMENT}-app-credentials"
 
-      if kubectl get secret "$SECRET_NAME" -n database &>/dev/null; then
-        echo "Found secret: $SECRET_NAME"
+      if kubectl get secret "$${SECRET_NAME}" -n database &>/dev/null; then
+        echo "Found secret: $${SECRET_NAME}"
 
         # Extract credentials from StackGres generated secret
-        USERNAME=$(kubectl get secret "$SECRET_NAME" -n database -o jsonpath="{.data.username}" | base64 -d)
-        PASSWORD=$(kubectl get secret "$SECRET_NAME" -n database -o jsonpath="{.data.password}" | base64 -d)
+        USERNAME=$(kubectl get secret "$${SECRET_NAME}" -n database -o jsonpath="{.data.username}" | base64 -d)
+        PASSWORD=$(kubectl get secret "$${SECRET_NAME}" -n database -o jsonpath="{.data.password}" | base64 -d)
 
-        if [ -n "$USERNAME" ] && [ -n "$PASSWORD" ]; then
+        if [ -n "$${USERNAME}" ] && [ -n "$${PASSWORD}" ]; then
           # Construct database URL using correct service name
-          DATABASE_URL="postgresql://${USERNAME}:${PASSWORD}@${CLUSTER_NAME}.database:5432/${CLIENT}"
+          DATABASE_URL="postgresql://$${USERNAME}:$${PASSWORD}@$${CLUSTER_NAME}.database:5432/$${CLIENT}"
 
           # Store in SSM Parameter Store (matching ExternalSecret path)
-          SSM_PATH="/${CLIENT}/${ENVIRONMENT}/database/url"
+          SSM_PATH="/$${CLIENT}/$${ENVIRONMENT}/database/url"
           aws ssm put-parameter \
-            --name "$SSM_PATH" \
-            --value "$DATABASE_URL" \
+            --name "$${SSM_PATH}" \
+            --value "$${DATABASE_URL}" \
             --type SecureString \
             --overwrite \
             --tags "Key=ManagedBy,Value=Terraform" \
-                  "Key=Client,Value=${CLIENT}" \
-                  "Key=Environment,Value=${ENVIRONMENT}" \
+                  "Key=Client,Value=$${CLIENT}" \
+                  "Key=Environment,Value=$${ENVIRONMENT}" \
                   "Key=LastUpdated,Value=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-          echo "Successfully updated SSM parameter: $SSM_PATH"
+          echo "Successfully updated SSM parameter: $${SSM_PATH}"
         else
-          echo "Warning: Could not extract credentials for $CLIENT-$ENVIRONMENT"
+          echo "Warning: Could not extract credentials for $${CLIENT}-$${ENVIRONMENT}"
         fi
       else
-        echo "Warning: Secret $SECRET_NAME not found for $CLIENT-$ENVIRONMENT"
+        echo "Warning: Secret $${SECRET_NAME} not found for $${CLIENT}-$${ENVIRONMENT}"
       fi
     done
 
     # Verify SSM parameters
     echo "Verifying SSM parameters..."
     for CLIENT in $CLIENTS; do
-      PARAM_NAME="/${CLIENT}/${ENVIRONMENT}/database/url"
-      if aws ssm get-parameter --name "$PARAM_NAME" &>/dev/null; then
-        echo "✓ $PARAM_NAME exists"
+      PARAM_NAME="/$${CLIENT}/$${ENVIRONMENT}/database/url"
+      if aws ssm get-parameter --name "$${PARAM_NAME}" &>/dev/null; then
+        echo "✓ $${PARAM_NAME} exists"
       else
-        echo "✗ $PARAM_NAME missing"
+        echo "✗ $${PARAM_NAME} missing"
       fi
     done
 
