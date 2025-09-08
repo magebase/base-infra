@@ -1057,6 +1057,24 @@ module "kube-hetzner" {
       fi
     fi
 
+    # Install Helm if not present (required for ESO installation)
+    if ! command -v helm &> /dev/null; then
+      echo "Installing Helm..."
+      if command -v curl &> /dev/null; then
+        # Download and install Helm
+        curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+        chmod 700 get_helm.sh
+        ./get_helm.sh
+        rm get_helm.sh
+        echo "✅ Helm installed successfully"
+      else
+        echo "❌ curl not found, cannot install Helm"
+        exit 1
+      fi
+    else
+      echo "Helm is already installed"
+    fi
+
     # Brief delay to allow Kustomize application to complete
     sleep 10
 
