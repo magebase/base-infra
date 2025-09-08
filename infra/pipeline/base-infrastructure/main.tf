@@ -1055,90 +1055,31 @@ module "kube-hetzner" {
     # Wait for database clusters to be ready (this may take several minutes)
     echo "Waiting for database clusters to be ready..."
 
-    # Check if jq is available
+    # NOTE: StackGres CRDs and clusters are deployed via ArgoCD after this script
+    # The cluster waits and credential processing are deferred to post-deployment
+    echo "StackGres clusters will be managed by ArgoCD applications"
+    echo "Database credentials will be synced after StackGres operator deployment"
+
+    # Check if jq is available for future use
     if command -v jq &> /dev/null; then
-      # Read client list with cluster types
-      CLIENTS=$(echo "$CLIENTS_JSON" | jq -r '.[] | @base64')
-
-      for CLIENT_DATA in $CLIENTS; do
-        CLIENT_INFO=$(echo "$CLIENT_DATA" | base64 -d)
-        CLIENT=$(echo "$CLIENT_INFO" | jq -r '.name')
-        CLUSTER_TYPE=$(echo "$CLIENT_INFO" | jq -r '.clusterType')
-
-        echo "Waiting for $CLIENT cluster ($CLUSTER_TYPE) to be ready..."
-
-        if [ "$CLUSTER_TYPE" = "sgcluster" ]; then
-          kubectl wait --for=condition=SGClusterReady --timeout=600s sgcluster/$${CLIENT}-$${ENVIRONMENT}-cluster -n database || echo "Warning: $${CLIENT} cluster readiness wait failed"
-        elif [ "$CLUSTER_TYPE" = "sgshardedcluster" ]; then
-          kubectl wait --for=condition=SGShardedClusterReady --timeout=600s sgshardedcluster/$${CLIENT}-$${ENVIRONMENT}-cluster -n database || echo "Warning: $${CLIENT} cluster readiness wait failed"
-        else
-          echo "Warning: Unknown cluster type '$${CLUSTER_TYPE}' for client $${CLIENT}"
-        fi
-      done
-
-      # Read client list for credential processing
-      CLIENTS=$(echo "$CLIENTS_JSON" | jq -r '.[].name')
+      echo "jq is available for JSON processing"
+      # For now, skip the database operations as they depend on StackGres being deployed
+      echo "Skipping database cluster operations - StackGres not yet deployed via ArgoCD"
+      CLIENTS=""
     else
-      echo "Warning: jq not available, skipping database cluster waits and credential processing"
+      echo "Warning: jq not available, skipping database operations"
       CLIENTS=""
     fi
 
-    for CLIENT in $CLIENTS; do
-      echo "Processing client: $${CLIENT}"
-
-      # Check if cluster exists and extract credentials
-      CLUSTER_NAME="$${CLIENT}-$${ENVIRONMENT}-cluster"
-      SECRET_NAME="$${CLIENT}-$${ENVIRONMENT}-app-credentials"
-
-      if kubectl get secret "$${SECRET_NAME}" -n database &>/dev/null; then
-        echo "Found secret: $${SECRET_NAME}"
-
-        # Extract credentials from StackGres generated secret
-        USERNAME=$(kubectl get secret "$${SECRET_NAME}" -n database -o jsonpath="{.data.username}" | base64 -d)
-        PASSWORD=$(kubectl get secret "$${SECRET_NAME}" -n database -o jsonpath="{.data.password}" | base64 -d)
-
-        if [ -n "$${USERNAME}" ] && [ -n "$${PASSWORD}" ]; then
-          # Construct database URL using correct service name
-          DATABASE_URL="postgresql://$${USERNAME}:$${PASSWORD}@$${CLUSTER_NAME}.database:5432/$${CLIENT}"
-
-          # Store in SSM Parameter Store (matching ExternalSecret path)
-          SSM_PATH="/$${CLIENT}/$${ENVIRONMENT}/database/url"
-          aws ssm put-parameter \
-            --name "$${SSM_PATH}" \
-            --value "$${DATABASE_URL}" \
-            --type SecureString \
-            --overwrite \
-            --tags "Key=ManagedBy,Value=Terraform" \
-                  "Key=Client,Value=$${CLIENT}" \
-                  "Key=Environment,Value=$${ENVIRONMENT}" \
-                  "Key=LastUpdated,Value=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-
-          echo "Successfully updated SSM parameter: $${SSM_PATH}"
-        else
-          echo "Warning: Could not extract credentials for $${CLIENT}-$${ENVIRONMENT}"
-        fi
-      else
-        echo "Warning: Secret $${SECRET_NAME} not found for $${CLIENT}-$${ENVIRONMENT}"
-      fi
-    done
+    # Since CLIENTS is empty (StackGres not deployed yet), skip all database operations
+    echo "Skipping database credential processing - StackGres clusters deployed via ArgoCD"
 
     # Verify SSM parameters
     echo "Verifying SSM parameters..."
-    if [ -n "$CLIENTS" ]; then
-      for CLIENT in $CLIENTS; do
-        PARAM_NAME="/$${CLIENT}/$${ENVIRONMENT}/database/url"
-        if aws ssm get-parameter --name "$${PARAM_NAME}" &>/dev/null; then
-          echo "✓ $${PARAM_NAME} exists"
-        else
-          echo "✗ $${PARAM_NAME} missing"
-        fi
-      done
-    else
-      echo "Skipping SSM parameter verification - no clients to process"
-    fi
+    echo "Skipping SSM parameter verification - database operations deferred to ArgoCD"
 
-    echo "✅ StackGres credentials sync completed"
-    echo "ArgoCD and database infrastructure deployment completed successfully"
+    echo "✅ Base infrastructure deployment completed successfully"
+    echo "StackGres clusters and credentials will be managed by ArgoCD applications"
   EOT
 
   # Additional safeguard: empty kustomization parameters

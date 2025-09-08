@@ -43,21 +43,8 @@ secretGenerator:
       disableNameSuffixHash: true
 
 # Apply namespace transformation to all ArgoCD components
-# Note: ESO resources are excluded from global namespace transformation
-# to prevent conflicts with their own namespace declarations
+# Note: ESO and KEDA resources have their own namespace declarations
 namespace: argocd
-
-# Exclude ESO and KEDA resources from global namespace transformation
-# Note: namespaceSelector is not supported in this version of Kustomize
-# Using resourceSelector instead for proper namespace exclusion
-resourceSelector:
-  not:
-  - apiVersion: v1
-    kind: Namespace
-    name: external-secrets-system
-  - apiVersion: v1
-    kind: Namespace
-    name: keda
 
 ## NOTE:
 ## We previously attempted to supply our own NetworkPolicies and rename upstream ones.
