@@ -7,8 +7,6 @@ resources:
   - kube-prometheus.yaml.tpl
   - magebase-genfix.yaml.tpl
   - magebase-site.yaml.tpl
-  - postgres-clusters.yaml.tpl
-  - postgres-operator.yaml.tpl
   - trivy-operator.yaml.tpl
 
   # Environment-specific applications (only include current environment)

@@ -15,9 +15,7 @@ resources:
   - argocd-ingress.yaml
   - traefik-middleware.yaml
   - argocd/github-pat-secret.yaml
-  - argocd/applications/app-of-apps.yaml
-  - argocd/applications/trivy-operator.yaml
-  - argocd/applications/kube-prometheus.yaml
+  - argocd/applications/kustomization.yaml
   - knative/kustomization.yaml
   - eso/kustomization.yaml
   - database/environments/site/${ENVIRONMENT}.yaml
