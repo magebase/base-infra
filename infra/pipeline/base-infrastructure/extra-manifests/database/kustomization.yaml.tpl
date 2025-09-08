@@ -7,7 +7,7 @@ resources:
   - operator/deployment.yaml
   - operator/restapi.yaml
   - operator/certificates.yaml
-  - genfix/${ENVIRONMENT}-cluster.yaml
-  - site/${ENVIRONMENT}-cluster.yaml
+  - environments/genfix/${ENVIRONMENT}-fsn1.yaml
+  - environments/site/${ENVIRONMENT}-fsn1.yaml
 
 namespace: database
