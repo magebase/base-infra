@@ -52,6 +52,7 @@ spec:
       - CreateNamespace=true
       - PrunePropagationPolicy=foreground
       - PruneLast=true
+      - Replace=true
     retry:
       limit: 5
       backoff:
