@@ -124,9 +124,9 @@ spec:
     isSuperuser: true
     database: genfix
     password:
-      type: 'random'
-      length: 16
-      seed: 'genfix-prod-seed'
+      type: 'plain'
+      key: DATABASE_PASSWORD
+      name: genfix-database-credentials
 ---
 apiVersion: stackgres.io/v1
 kind: SGDistributedLogs

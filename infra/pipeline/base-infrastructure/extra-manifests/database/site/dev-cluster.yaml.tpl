@@ -147,9 +147,9 @@ spec:
     database: site
     isSuperuser: true
     password:
-      type: 'random'
-      length: 16
-      seed: 'site-dev-seed'
+      type: 'plain'
+      key: DATABASE_PASSWORD
+      name: site-database-credentials
   distributedLogs:
     sgDistributedLogs: 'site-dev-distributed-logs'
   prometheusAutobind: true

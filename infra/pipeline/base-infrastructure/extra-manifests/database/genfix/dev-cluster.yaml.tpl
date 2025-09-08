@@ -124,9 +124,9 @@ spec:
     database: genfix
     isSuperuser: true
     password:
-      type: 'random'
-      length: 16
-      seed: 'genfix-dev-seed'
+      type: 'plain'
+      key: DATABASE_PASSWORD
+      name: genfix-database-credentials
   distributedLogs:
     sgDistributedLogs: 'genfix-dev-distributed-logs'
   prometheusAutobind: true

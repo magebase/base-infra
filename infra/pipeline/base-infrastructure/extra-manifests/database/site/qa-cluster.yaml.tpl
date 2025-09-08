@@ -147,9 +147,9 @@ spec:
     isSuperuser: true
     database: site
     password:
-      type: 'random'
-      length: 16
-      seed: 'site-qa-seed'
+      type: 'plain'
+      key: DATABASE_PASSWORD
+      name: site-database-credentials
 ---
 apiVersion: stackgres.io/v1
 kind: SGDistributedLogs
