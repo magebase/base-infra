@@ -437,32 +437,32 @@ jobs:
 
           # Replace environment variables in all copied YAML files
           echo "🔧 Substituting environment variables in all YAML files..."
-          ENVIRONMENT="${TF_VAR_environment}" \
-          DOMAIN="${TF_VAR_domain:-magebase.dev}" \
-          ARGOCD_FQDN="${TF_VAR_environment}.argocd.${TF_VAR_domain:-magebase.dev}" \
-          find ./extra-manifests/ -name "*.yaml" -exec sed -i \
-            -e "s/\${ENVIRONMENT}/$ENVIRONMENT/g" \
-            -e "s/\${DOMAIN}/$DOMAIN/g" \
-            -e "s/\${ARGOCD_FQDN}/$ARGOCD_FQDN/g" \
-            -e "s/\${ARGOCD_ADMIN_PASSWORD}/$TF_VAR_argocd_admin_password/g" \
-            -e "s/\${ARGOCD_REPO_TOKEN}/$TF_VAR_argocd_repo_token/g" \
-            -e "s/\${ENCRYPTION_KEY}/$TF_VAR_encryption_key/g" \
-            -e "s/\${CLOUDFLARE_API_TOKEN}/$TF_VAR_cloudflare_api_token/g" \
-            -e "s/\${AWS_ACCOUNT_ID}/$TF_VAR_management_account_id/g" \
-            -e "s/\${AWS_REGION}/$AWS_REGION/g" \
-            -e "s/\${R2_BUCKET}/$TF_VAR_cloudflare_r2_bucket/g" \
-            -e "s/\${R2_ENDPOINT}/$TF_VAR_cloudflare_r2_endpoint/g" \
-            -e "s/\${R2_ACCESS_KEY_ID}/$TF_VAR_cloudflare_r2_access_key_id/g" \
-            -e "s/\${R2_SECRET_ACCESS_KEY}/$TF_VAR_cloudflare_r2_secret_access_key/g" \
-            -e "s/\${SSH_PRIVATE_KEY}/$TF_VAR_ssh_private_key/g" \
-            -e "s/\${SSH_PUBLIC_KEY}/$TF_VAR_ssh_public_key/g" \
-            -e "s/\${ESO_GENFIX_ACCESS_KEY_ID}/$TF_VAR_eso_genfix_access_key_id/g" \
-            -e "s/\${ESO_GENFIX_SECRET_ACCESS_KEY}/$TF_VAR_eso_genfix_secret_access_key/g" \
-            -e "s/\${ESO_SITE_ACCESS_KEY_ID}/$TF_VAR_eso_site_access_key_id/g" \
-            -e "s/\${ESO_SITE_SECRET_ACCESS_KEY}/$TF_VAR_eso_site_secret_access_key/g" \
-            -e "s/\${ESO_GENFIX_POLICY_ARN}/$TF_VAR_eso_genfix_policy_arn/g" \
-            -e "s/\${ESO_SITE_POLICY_ARN}/$TF_VAR_eso_site_policy_arn/g" \
-            {} \;
+          export ENVIRONMENT="${TF_VAR_environment}"
+          export DOMAIN="${TF_VAR_domain:-magebase.dev}"
+          export ARGOCD_FQDN="${TF_VAR_environment}.argocd.${TF_VAR_domain:-magebase.dev}"
+          export ARGOCD_ADMIN_PASSWORD="$TF_VAR_argocd_admin_password"
+          export ARGOCD_REPO_TOKEN="$TF_VAR_argocd_repo_token"
+          export ENCRYPTION_KEY="$TF_VAR_encryption_key"
+          export CLOUDFLARE_API_TOKEN="$TF_VAR_cloudflare_api_token"
+          export AWS_ACCOUNT_ID="$TF_VAR_management_account_id"
+          export AWS_REGION="$AWS_REGION"
+          export R2_BUCKET="$TF_VAR_cloudflare_r2_bucket"
+          export R2_ENDPOINT="$TF_VAR_cloudflare_r2_endpoint"
+          export R2_ACCESS_KEY_ID="$TF_VAR_cloudflare_r2_access_key_id"
+          export R2_SECRET_ACCESS_KEY="$TF_VAR_cloudflare_r2_secret_access_key"
+          export SSH_PRIVATE_KEY="$TF_VAR_ssh_private_key"
+          export SSH_PUBLIC_KEY="$TF_VAR_ssh_public_key"
+          export ESO_GENFIX_ACCESS_KEY_ID="$TF_VAR_eso_genfix_access_key_id"
+          export ESO_GENFIX_SECRET_ACCESS_KEY="$TF_VAR_eso_genfix_secret_access_key"
+          export ESO_SITE_ACCESS_KEY_ID="$TF_VAR_eso_site_access_key_id"
+          export ESO_SITE_SECRET_ACCESS_KEY="$TF_VAR_eso_site_secret_access_key"
+          export ESO_GENFIX_POLICY_ARN="$TF_VAR_eso_genfix_policy_arn"
+          export ESO_SITE_POLICY_ARN="$TF_VAR_eso_site_policy_arn"
+
+          # Use envsubst for safer variable substitution
+          find ./extra-manifests/ -name "*.yaml" -exec bash -c '
+            envsubst < "$1" > "$1.tmp" && mv "$1.tmp" "$1"
+          ' _ {} \;
 
           # Run kubectl diff using kustomize
           echo "🔍 Running kubectl diff with detailed output..."
