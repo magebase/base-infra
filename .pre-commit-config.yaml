@@ -118,7 +118,7 @@ repos:
         entry: |
           sh -c "if command -v kustomize >/dev/null 2>&1; then kustomize build --load-restrictor LoadRestrictionsNone \"$1\"; else echo \"⚠️  Skipping kustomization validation (kustomize not installed): $1\"; fi"
         language: system
-        files: ^kustomization\.ya?ml(\.tpl)?$
+        files: .*kustomization\.ya?ml(\.tpl)?$
         pass_filenames: true
         description: Validate kustomization files can be built successfully
 
@@ -127,7 +127,7 @@ repos:
         entry: |
           sh -c "if command -v kustomize >/dev/null 2>&1; then kustomize build --load-restrictor LoadRestrictionsNone \"$1\" > /dev/null && echo \"✓ $1 validates successfully\"; else echo \"⚠️  Skipping kustomization linting (kustomize not installed): $1\"; fi"
         language: system
-        files: ^kustomization\.ya?ml(\.tpl)?$
+        files: .*kustomization\.ya?ml(\.tpl)?$
         pass_filenames: true
         description: Lint kustomization files for build errors
 

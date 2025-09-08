@@ -2,14 +2,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - serving-crds.yaml
-  - serving-core.yaml
-  - kourier.yaml
-  - serving-default-domain.yaml
-  - serving-hpa.yaml
+  - serving-crds.yaml.tpl
+  - serving-core.yaml.tpl
+  - kourier.yaml.tpl
+  - serving-default-domain.yaml.tpl
+  - serving-hpa.yaml.tpl
 
 patches:
-  - path: config-network-patch.yaml
+  - path: config-network-patch.yaml.tpl
 
 images:
   - name: gcr.io/knative-releases/knative.dev/serving/cmd/controller

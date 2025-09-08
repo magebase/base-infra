@@ -3,7 +3,7 @@ kind: Kustomization
 
 resources:
   - https://github.com/external-secrets/external-secrets/releases/download/v0.19.2/external-secrets.yaml
-  - namespace.yaml
-  - aws-credentials-secrets.yaml
-  - client-secret-stores.yaml
-  - database-credentials.yaml
+  - namespace.yaml.tpl
+  - aws-credentials-secrets.yaml.tpl
+  - client-secret-stores.yaml.tpl
+  - database-credentials.yaml.tpl
