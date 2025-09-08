@@ -64,18 +64,18 @@ metadata:
 spec:
   type: 's3'
   s3:
-    bucket: 'stackgres'
+    bucket: '${R2_BUCKET}'
     region: 'k8s'
     enablePathStyleAddressing: true
-    endpoint: '{OBJECT_STORAGE_BACKUP_ENDPOINT}'
+    endpoint: '${R2_ENDPOINT}'
     awsCredentials:
       secretKeySelectors:
         accessKeyId:
-          key: ${MINIO_ACCESS_KEY}
-          name: ${MINIO_SECRET_NAME}
+          key: accessKey
+          name: citus-r2-credentials
         secretAccessKey:
-          key: ${MINIO_SECRET_KEY}
-          name: ${MINIO_SECRET_NAME}
+          key: secretKey
+          name: citus-r2-credentials
 ---
 apiVersion: stackgres.io/v1
 kind: SGCluster
