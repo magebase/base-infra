@@ -53,6 +53,9 @@ locals {
 
   # Client list for SSM parameter management
   clients = jsondecode(file("${path.module}/clients.json"))
+
+  # Extract client names for for_each iteration
+  client_names = [for client in local.clients : client.name]
 }
 
 # Generate encryption key for k3s secrets and etcd encryption
@@ -92,7 +95,7 @@ provider "aws" {
 
 # SSM Parameters for Database URLs
 resource "aws_ssm_parameter" "database_url" {
-  for_each  = toset(local.clients)
+  for_each  = toset(local.client_names)
   name      = "/site/${var.environment}/${each.key}/database/url"
   type      = "SecureString"
   value     = "placeholder" # Updated by GitHub Actions workflow
