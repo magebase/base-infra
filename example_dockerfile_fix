@@ -1,0 +1,38 @@
+# Example Dockerfile fix for the site repository
+
+# Option 1: Use root for user creation, then switch to non-root user
+FROM ruby:3.2-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libpq-dev \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create Rails user and group
+RUN groupadd --system --gid 1000 rails && \
+    useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash
+
+# Set working directory
+WORKDIR /rails
+
+# Copy Gemfile and install dependencies
+COPY Gemfile Gemfile.lock ./
+RUN bundle install
+
+# Copy application code
+COPY . .
+
+# Change ownership of application files
+RUN chown -R rails:rails /rails
+
+# Switch to non-root user
+USER rails
+
+# Expose port
+EXPOSE 3000
+
+# Start the application
+CMD ["rails", "server", "-b", "0.0.0.0"]
