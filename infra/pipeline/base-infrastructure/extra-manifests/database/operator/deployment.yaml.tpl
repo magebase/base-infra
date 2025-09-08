@@ -25,31 +25,31 @@ spec:
       serviceAccountName: stackgres-operator
       containers:
       - name: operator
-        image: stackgres/operator:1.9.0
+        image: stackgres/operator:1.17.2
         imagePullPolicy: IfNotPresent
         env:
         - name: STACKGRES_OPERATOR_IMAGE_NAME
-          value: stackgres/operator:1.9.0
+          value: stackgres/operator:1.17.2
         - name: STACKGRES_OPERATOR_IMAGE_PULL_POLICY
           value: IfNotPresent
         - name: STACKGRES_RESTAPI_IMAGE_NAME
-          value: stackgres/restapi:1.9.0
+          value: stackgres/restapi:1.17.2
         - name: STACKGRES_RESTAPI_IMAGE_PULL_POLICY
           value: IfNotPresent
         - name: STACKGRES_ADMINUI_IMAGE_NAME
-          value: stackgres/admin-ui:1.9.0
+          value: stackgres/admin-ui:1.17.2
         - name: STACKGRES_ADMINUI_IMAGE_PULL_POLICY
           value: IfNotPresent
         - name: STACKGRES_JOBS_IMAGE_NAME
-          value: stackgres/jobs:1.9.0
+          value: stackgres/jobs:1.17.2
         - name: STACKGRES_JOBS_IMAGE_PULL_POLICY
           value: IfNotPresent
         - name: STACKGRES_CLUSTER_CONTROLLER_IMAGE_NAME
-          value: stackgres/cluster-controller:1.9.0
+          value: stackgres/cluster-controller:1.17.2
         - name: STACKGRES_CLUSTER_CONTROLLER_IMAGE_PULL_POLICY
           value: IfNotPresent
         - name: STACKGRES_DISTRIBUTEDLOGS_CONTROLLER_IMAGE_NAME
-          value: stackgres/distributedlogs-controller:1.9.0
+          value: stackgres/distributedlogs-controller:1.17.2
         - name: STACKGRES_DISTRIBUTEDLOGS_CONTROLLER_IMAGE_PULL_POLICY
           value: IfNotPresent
         # Citus extension configuration
