@@ -438,8 +438,8 @@ jobs:
           # Replace environment variables in all copied YAML files
           echo "🔧 Substituting environment variables in all YAML files..."
           export ENVIRONMENT="${TF_VAR_environment}"
-          export DOMAIN="${TF_VAR_domain:-magebase.dev}"
-          export ARGOCD_FQDN="${TF_VAR_environment}.argocd.${TF_VAR_domain:-magebase.dev}"
+          export DOMAIN="magebase.dev"
+          export ARGOCD_FQDN="${TF_VAR_environment}.argocd.magebase.dev"
           export ARGOCD_ADMIN_PASSWORD="$TF_VAR_argocd_admin_password"
           export ARGOCD_REPO_TOKEN="$TF_VAR_argocd_repo_token"
           export ENCRYPTION_KEY="$TF_VAR_encryption_key"
