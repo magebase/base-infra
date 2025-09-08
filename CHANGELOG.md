@@ -1,3 +1,20 @@
+# [1.3.0](https://github.com/magebase/base-infra/compare/v1.2.0...v1.3.0) (2025-09-08)
+
+
+### Bug Fixes
+
+* add granular checkpoint tracking and timeout handling for operator installations ([4f5f6a2](https://github.com/magebase/base-infra/commit/4f5f6a2b99d39392d14c10f3bfc10aa2ae1cf4b7))
+* Add Replace sync option to fix CRD annotation size limits ([dfd8526](https://github.com/magebase/base-infra/commit/dfd852602ac88d97994199817f52945ad9f8b950))
+* enhance ESO and StackGres webhook configuration cleanup ([0e83df4](https://github.com/magebase/base-infra/commit/0e83df4193929e505095bc4a3c9c44916073cb7a))
+* prevent Helm installation timeouts with async deployment ([4d9ae0c](https://github.com/magebase/base-infra/commit/4d9ae0cea1b38f95252ade5580723624beefd73d))
+* remove references to non-existent environment files in argocd applications kustomization ([ccd6d97](https://github.com/magebase/base-infra/commit/ccd6d973c40559e6c1c15a219c01012833ec9c8b))
+* Update operator applications to fix deployment issues ([3cb4848](https://github.com/magebase/base-infra/commit/3cb48480a666b181ff922c7ccb410a3ac10a01dc))
+
+
+### Features
+
+* Transition to GitOps operator management ([497e72c](https://github.com/magebase/base-infra/commit/497e72c590c17e12947af6f6b710a1dcfe43882b))
+
 # [1.2.0](https://github.com/magebase/base-infra/compare/v1.1.4...v1.2.0) (2025-09-08)
 
 
