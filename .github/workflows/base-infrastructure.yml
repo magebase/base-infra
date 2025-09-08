@@ -100,8 +100,6 @@ jobs:
           if aws s3 ls "s3://$STATE_BUCKET" >/dev/null 2>&1 && aws dynamodb describe-table --table-name "$DYNAMODB_TABLE" >/dev/null 2>&1; then
             echo "✅ Bootstrap resources already exist"
           else
-            export TF_VAR_management_account_id="${{ vars.MANAGEMENT_ACCOUNT_ID }}"
-            export AWS_REGION="${{ env.INFRA_REGION }}"
             terraform init -upgrade
             terraform apply -auto-approve -var-file=terraform.tfvars
           fi
@@ -125,20 +123,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Calculate semantic version (dry run)
-        id: calculate-version
-        uses: cycjimmy/semantic-release-action@v4
-        with:
-          branches: main
-          dry_run: true
-          extra_plugins: |
-            @semantic-release/git
-            @semantic-release/github
-            @semantic-release/changelog
-            @semantic-release/exec
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -290,7 +274,6 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -311,9 +294,7 @@ jobs:
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
-          AWS_REGION: ${{ env.INFRA_REGION }}
         run: |
           echo "🚀 Running Terraform plan for base infrastructure deployment..."
 
@@ -388,149 +369,6 @@ jobs:
 
       #     echo "✅ Base Infrastructure Terratest completed successfully"
 
-      - name: Install kubectl
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-        uses: azure/setup-kubectl@v4
-        with:
-          version: "v1.30.0"
-
-      - name: Kubectl Diff (Preview Kubernetes Changes)
-        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply')
-        working-directory: infra/pipeline/base-infrastructure
-        env:
-          TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
-          TF_VAR_ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
-          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
-          TF_VAR_hcloud_token: ${{ secrets.HCLOUD_TOKEN }}
-          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-          TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
-          TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
-          TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
-          TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
-          AWS_REGION: ${{ env.INFRA_REGION }}
-        run: |
-          echo "🔍 Previewing Kubernetes changes with kubectl diff..."
-
-          # Get kubeconfig from Terraform output
-          echo "📥 Retrieving kubeconfig from Terraform..."
-          terraform output -raw kubeconfig > kubeconfig.yaml
-
-          # Set up kubectl with the retrieved kubeconfig
-          export KUBECONFIG=./kubeconfig.yaml
-
-          # Test kubectl connection
-          echo "🔗 Testing kubectl connection..."
-          kubectl cluster-info --request-timeout=30s
-
-          # Run kubectl diff to show what will change
-          echo "📋 Running kubectl diff to preview changes..."
-
-          # Handle template files by creating temporary copies without .tpl extension
-          echo "🔧 Processing template files..."
-          find ./extra-manifests/ -name "*.yaml.tpl" -exec bash -c 'cp "$1" "${1%.tpl}"' _ {} \;
-
-          # Create temporary kustomization file
-          cp ./extra-manifests/kustomization.yaml.tpl ./extra-manifests/kustomization.yaml
-
-          # Replace environment variables in all copied YAML files
-          echo "🔧 Substituting environment variables in all YAML files..."
-          export ENVIRONMENT="${TF_VAR_environment}"
-          export DOMAIN="magebase.dev"
-          export ARGOCD_FQDN="${TF_VAR_environment}.argocd.magebase.dev"
-          export ARGOCD_ADMIN_PASSWORD="$TF_VAR_argocd_admin_password"
-          export ARGOCD_REPO_TOKEN="$TF_VAR_argocd_repo_token"
-          export ENCRYPTION_KEY="$TF_VAR_encryption_key"
-          export CLOUDFLARE_API_TOKEN="$TF_VAR_cloudflare_api_token"
-          export AWS_ACCOUNT_ID="$TF_VAR_management_account_id"
-          export AWS_REGION="$AWS_REGION"
-          export R2_BUCKET="$TF_VAR_cloudflare_r2_bucket"
-          export R2_ENDPOINT="$TF_VAR_cloudflare_r2_endpoint"
-          export R2_ACCESS_KEY_ID="$TF_VAR_cloudflare_r2_access_key_id"
-          export R2_SECRET_ACCESS_KEY="$TF_VAR_cloudflare_r2_secret_access_key"
-          export SSH_PRIVATE_KEY="$TF_VAR_ssh_private_key"
-          export SSH_PUBLIC_KEY="$TF_VAR_ssh_public_key"
-          export ESO_GENFIX_ACCESS_KEY_ID="$TF_VAR_eso_genfix_access_key_id"
-          export ESO_GENFIX_SECRET_ACCESS_KEY="$TF_VAR_eso_genfix_secret_access_key"
-          export ESO_SITE_ACCESS_KEY_ID="$TF_VAR_eso_site_access_key_id"
-          export ESO_SITE_SECRET_ACCESS_KEY="$TF_VAR_eso_site_secret_access_key"
-          export ESO_GENFIX_POLICY_ARN="$TF_VAR_eso_genfix_policy_arn"
-          export ESO_SITE_POLICY_ARN="$TF_VAR_eso_site_policy_arn"
-
-          # Use sed for variable substitution with proper escaping
-          find ./extra-manifests/ -name "*.yaml" -exec bash -c '
-            # Escape special characters for sed
-            ENVIRONMENT_ESCAPED=$(printf "%s" "$ENVIRONMENT" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            DOMAIN_ESCAPED=$(printf "%s" "$DOMAIN" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            ARGOCD_FQDN_ESCAPED=$(printf "%s" "$ARGOCD_FQDN" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            ARGOCD_ADMIN_PASSWORD_ESCAPED=$(printf "%s" "$ARGOCD_ADMIN_PASSWORD" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            ARGOCD_REPO_TOKEN_ESCAPED=$(printf "%s" "$ARGOCD_REPO_TOKEN" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            ENCRYPTION_KEY_ESCAPED=$(printf "%s" "$ENCRYPTION_KEY" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            CLOUDFLARE_API_TOKEN_ESCAPED=$(printf "%s" "$CLOUDFLARE_API_TOKEN" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            AWS_ACCOUNT_ID_ESCAPED=$(printf "%s" "$AWS_ACCOUNT_ID" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            AWS_REGION_ESCAPED=$(printf "%s" "$AWS_REGION" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            R2_BUCKET_ESCAPED=$(printf "%s" "$R2_BUCKET" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            R2_ENDPOINT_ESCAPED=$(printf "%s" "$R2_ENDPOINT" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            R2_ACCESS_KEY_ID_ESCAPED=$(printf "%s" "$R2_ACCESS_KEY_ID" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            R2_SECRET_ACCESS_KEY_ESCAPED=$(printf "%s" "$R2_SECRET_ACCESS_KEY" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            SSH_PRIVATE_KEY_ESCAPED=$(printf "%s" "$SSH_PRIVATE_KEY" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            SSH_PUBLIC_KEY_ESCAPED=$(printf "%s" "$SSH_PUBLIC_KEY" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            ESO_GENFIX_ACCESS_KEY_ID_ESCAPED=$(printf "%s" "$ESO_GENFIX_ACCESS_KEY_ID" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            ESO_GENFIX_SECRET_ACCESS_KEY_ESCAPED=$(printf "%s" "$ESO_GENFIX_SECRET_ACCESS_KEY" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            ESO_SITE_ACCESS_KEY_ID_ESCAPED=$(printf "%s" "$ESO_SITE_ACCESS_KEY_ID" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            ESO_SITE_SECRET_ACCESS_KEY_ESCAPED=$(printf "%s" "$ESO_SITE_SECRET_ACCESS_KEY" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            ESO_GENFIX_POLICY_ARN_ESCAPED=$(printf "%s" "$ESO_GENFIX_POLICY_ARN" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-            ESO_SITE_POLICY_ARN_ESCAPED=$(printf "%s" "$ESO_SITE_POLICY_ARN" | sed "s/[[\.*^$()+?{|]/\\\\&/g")
-
-            sed -i \
-              -e "s|\${ENVIRONMENT}|${ENVIRONMENT_ESCAPED}|g" \
-              -e "s|\${DOMAIN}|${DOMAIN_ESCAPED}|g" \
-              -e "s|\${ARGOCD_FQDN}|${ARGOCD_FQDN_ESCAPED}|g" \
-              -e "s|\${ARGOCD_ADMIN_PASSWORD}|${ARGOCD_ADMIN_PASSWORD_ESCAPED}|g" \
-              -e "s|\${ARGOCD_REPO_TOKEN}|${ARGOCD_REPO_TOKEN_ESCAPED}|g" \
-              -e "s|\${ENCRYPTION_KEY}|${ENCRYPTION_KEY_ESCAPED}|g" \
-              -e "s|\${CLOUDFLARE_API_TOKEN}|${CLOUDFLARE_API_TOKEN_ESCAPED}|g" \
-              -e "s|\${AWS_ACCOUNT_ID}|${AWS_ACCOUNT_ID_ESCAPED}|g" \
-              -e "s|\${AWS_REGION}|${AWS_REGION_ESCAPED}|g" \
-              -e "s|\${R2_BUCKET}|${R2_BUCKET_ESCAPED}|g" \
-              -e "s|\${R2_ENDPOINT}|${R2_ENDPOINT_ESCAPED}|g" \
-              -e "s|\${R2_ACCESS_KEY_ID}|${R2_ACCESS_KEY_ID_ESCAPED}|g" \
-              -e "s|\${R2_SECRET_ACCESS_KEY}|${R2_SECRET_ACCESS_KEY_ESCAPED}|g" \
-              -e "s|\${SSH_PRIVATE_KEY}|${SSH_PRIVATE_KEY_ESCAPED}|g" \
-              -e "s|\${SSH_PUBLIC_KEY}|${SSH_PUBLIC_KEY_ESCAPED}|g" \
-              -e "s|\${ESO_GENFIX_ACCESS_KEY_ID}|${ESO_GENFIX_ACCESS_KEY_ID_ESCAPED}|g" \
-              -e "s|\${ESO_GENFIX_SECRET_ACCESS_KEY}|${ESO_GENFIX_SECRET_ACCESS_KEY_ESCAPED}|g" \
-              -e "s|\${ESO_SITE_ACCESS_KEY_ID}|${ESO_SITE_ACCESS_KEY_ID_ESCAPED}|g" \
-              -e "s|\${ESO_SITE_SECRET_ACCESS_KEY}|${ESO_SITE_SECRET_ACCESS_KEY_ESCAPED}|g" \
-              -e "s|\${ESO_GENFIX_POLICY_ARN}|${ESO_GENFIX_POLICY_ARN_ESCAPED}|g" \
-              -e "s|\${ESO_SITE_POLICY_ARN}|${ESO_SITE_POLICY_ARN_ESCAPED}|g" \
-              "$1"
-          ' _ {} \;
-
-          # Run kubectl diff using kustomize
-          echo "🔍 Running kubectl diff with detailed output..."
-          set +e  # Don't exit on diff command failure
-          kubectl diff -k ./extra-manifests/ --server-side --force-conflicts 2>&1 | head -100
-          DIFF_EXIT_CODE=$?
-          set -e  # Re-enable exit on error
-
-          if [ $DIFF_EXIT_CODE -eq 0 ]; then
-            echo "✅ No differences found - manifests are up to date"
-          elif [ $DIFF_EXIT_CODE -eq 1 ]; then
-            echo "📋 Differences found - manifests will be updated during apply"
-          else
-            echo "⚠️  kubectl diff encountered issues (exit code: $DIFF_EXIT_CODE)"
-          fi
-
-          # Clean up temporary files
-          find ./extra-manifests/ -name "*.yaml" -exec bash -c 'if [ -f "${1%.yaml}.yaml.tpl" ]; then rm "$1"; fi' _ {} \;
-          rm -f ./extra-manifests/kustomization.yaml
-
-          # Clean up kubeconfig file
-          rm -f kubeconfig.yaml
-
       - name: Terraform Apply (Push to Main)
         id: base-tf-apply-main
         working-directory: infra/pipeline/base-infrastructure
@@ -544,10 +382,8 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
-          AWS_REGION: ${{ env.INFRA_REGION }}
         run: |
           echo "🚀 Applying base infrastructure changes..."
 
@@ -574,14 +410,14 @@ jobs:
           done
 
       - name: Generate Terraform Outputs
-        if: steps.base-tf-apply-main.outcome == 'success' && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
         run: |
           echo "📊 Generating Terraform outputs for sharing..."
           terraform output -json > terraform-outputs.json
           echo "✅ Outputs generated: terraform-outputs.json"
 
       - name: Create GitHub Release
-        if: steps.base-tf-apply-main.outcome == 'success' && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
         uses: softprops/action-gh-release@v2
         with:
           tag_name: base-outputs-${{ github.run_id }}
@@ -601,7 +437,7 @@ jobs:
           generate_release_notes: true
 
       - name: Display Release Information
-        if: steps.base-tf-apply-main.outcome == 'success' && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+        if: success() && ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
         run: |
           echo "## 📦 Infrastructure Outputs Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -785,10 +621,8 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
-          AWS_REGION: ${{ env.INFRA_REGION }}
         run: |
           terraform destroy -auto-approve
 
@@ -935,7 +769,6 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -961,7 +794,6 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -981,7 +813,6 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -1058,8 +889,8 @@ jobs:
 
       #     echo "✅ Base Infrastructure Terratest completed successfully"
 
-      - name: Terraform Destroy
-        id: base-tf-destroy-main
+      - name: Terraform Apply (Push to Main)
+        id: base-tf-apply-main
         working-directory: infra/pipeline/base-infrastructure
         env:
           TF_VAR_environment: ${{ github.event.inputs.environment || 'dev' }}
@@ -1071,7 +902,6 @@ jobs:
           TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
           TF_VAR_cloudflare_r2_access_key_id: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_ACCESS_KEY }}
           TF_VAR_cloudflare_r2_secret_access_key: ${{ secrets.CLOUDFLARE_OBJECT_STORAGE_SECRET_KEY }}
-          TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
           TF_VAR_argocd_admin_password: ${{ env.ARGOCD_BCRYPT_PASSWORD }}
           TF_VAR_argocd_repo_token: ${{ secrets.ARGOCD_REPO_TOKEN }}
         run: |
@@ -1396,6 +1226,8 @@ jobs:
 
       - name: Publish package with Docker image link
         if: steps.semantic.outputs.new_release_published == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "📦 Publishing package with Docker image link..."
 
@@ -1425,8 +1257,7 @@ jobs:
   notify:
     name: "Pipeline Notification"
     runs-on: ubicloud-standard-2-arm
-    needs:
-      [bootstrap, base-infrastructure-deploy, security-scan, semantic-release]
+    needs: [bootstrap, base-infrastructure-deploy, security-scan]
     if: always()
     steps:
       - name: Success
