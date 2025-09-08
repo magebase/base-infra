@@ -1128,18 +1128,19 @@ module "kube-hetzner" {
       # Update helm repos
       helm repo update
 
-      # Check if ESO is already installed and handle CRDs appropriately
-      if helm list -n external-secrets-system | grep -q external-secrets; then
-        echo "External Secrets Operator already installed, upgrading..."
-        # If already installed, skip CRDs to avoid ownership conflicts
-        helm upgrade external-secrets external-secrets/external-secrets \
+      # Check if ESO CRDs already exist to determine installation approach
+      if kubectl get crd externalsecrets.external-secrets.io >/dev/null 2>&1; then
+        echo "External Secrets CRDs already exist, upgrading without CRDs..."
+        # If CRDs exist, skip CRD installation to avoid ownership conflicts
+        helm upgrade --install external-secrets external-secrets/external-secrets \
           --namespace external-secrets-system \
+          --create-namespace \
           --version 0.19.2 \
           --set installCRDs=false \
           --wait \
           --timeout=600s
       else
-        echo "Installing External Secrets Operator for the first time..."
+        echo "Installing External Secrets Operator for the first time with CRDs..."
         # First time installation, install CRDs
         helm upgrade --install external-secrets external-secrets/external-secrets \
           --namespace external-secrets-system \
@@ -1172,18 +1173,18 @@ module "kube-hetzner" {
       # Update helm repos
       helm repo update
 
-      # Check if StackGres is already installed and handle CRDs appropriately
-      if helm list -n stackgres | grep -q stackgres-operator; then
-        echo "StackGres Operator already installed, upgrading..."
-        # If already installed, skip CRDs to avoid ownership conflicts
-        helm upgrade stackgres-operator stackgres/stackgres-operator \
+      # Check if StackGres CRDs already exist to determine installation approach
+      if kubectl get crd sgclusters.stackgres.io >/dev/null 2>&1; then
+        echo "StackGres CRDs already exist, upgrading without CRDs..."
+        # If CRDs exist, skip CRD installation to avoid ownership conflicts
+        helm upgrade --install stackgres-operator stackgres/stackgres-operator \
           --namespace stackgres \
           --version 1.10.0 \
           --set installCRDs=false \
           --wait \
           --timeout=600s
       else
-        echo "Installing StackGres Operator for the first time..."
+        echo "Installing StackGres Operator for the first time with CRDs..."
         # First time installation, install CRDs
         helm upgrade --install stackgres-operator stackgres/stackgres-operator \
           --namespace stackgres \

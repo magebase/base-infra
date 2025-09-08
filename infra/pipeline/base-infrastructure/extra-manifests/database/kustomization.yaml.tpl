@@ -16,4 +16,5 @@ resources:
   # - environments/genfix/${ENVIRONMENT}.yaml
   # - environments/site/${ENVIRONMENT}.yaml
 
-namespace: database
+# Removed namespace transformation since we explicitly create namespaces
+# namespace: database
