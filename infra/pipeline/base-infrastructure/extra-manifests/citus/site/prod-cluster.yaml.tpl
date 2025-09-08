@@ -64,13 +64,18 @@ metadata:
 spec:
   type: 's3'
   s3:
-    bucket: 'site-prod-citus-backups'
-    region: 'auto'
-    endpoint: 'https://<account-id>.r2.cloudflarestorage.com'
+    bucket: 'stackgres'
+    region: 'k8s'
+    enablePathStyleAddressing: true
+    endpoint: '{OBJECT_STORAGE_BACKUP_ENDPOINT}'
     awsCredentials:
       secretKeySelectors:
-        accessKeyId: {name: 'citus-r2-credentials', key: 'accessKey'}
-        secretAccessKey: {name: 'citus-r2-credentials', key: 'secretKey'}
+        accessKeyId:
+          key: accesskey
+          name: my-cluster-minio
+        secretAccessKey:
+          key: secretkey
+          name: my-cluster-minio
 ---
 apiVersion: stackgres.io/v1alpha1
 kind: SGShardedCluster
