@@ -1010,6 +1010,24 @@ module "kube-hetzner" {
     R2_ACCESS_KEY_ID     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : ""
     R2_SECRET_ACCESS_KEY = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : ""
 
+    # Database URL parameters for in-cluster connections
+    GENFIX_DEV_DATABASE_URL  = base64encode("postgresql://postgres:postgres@genfix-dev-cluster.citus:5432/genfix")
+    GENFIX_QA_DATABASE_URL   = base64encode("postgresql://postgres:postgres@genfix-qa-cluster.citus:5432/genfix")
+    GENFIX_UAT_DATABASE_URL  = base64encode("postgresql://postgres:postgres@genfix-uat-cluster.citus:5432/genfix")
+    GENFIX_PROD_DATABASE_URL = base64encode("postgresql://postgres:postgres@genfix-prod-cluster.citus:5432/genfix")
+    SITE_DEV_DATABASE_URL    = base64encode("postgresql://postgres:postgres@site-dev-cluster.citus:5432/site")
+    SITE_QA_DATABASE_URL     = base64encode("postgresql://postgres:postgres@site-qa-cluster.citus:5432/site")
+    SITE_UAT_DATABASE_URL    = base64encode("postgresql://postgres:postgres@site-uat-cluster.citus:5432/site")
+    SITE_PROD_DATABASE_URL   = base64encode("postgresql://postgres:postgres@site-prod-cluster.citus:5432/site")
+
+    # Common database connection components (base64 encoded)
+    DB_HOST_BASE64        = base64encode("localhost")
+    DB_PORT_BASE64        = base64encode("5432")
+    DB_NAME_GENFIX_BASE64 = base64encode("genfix")
+    DB_NAME_SITE_BASE64   = base64encode("site")
+    DB_USER_BASE64        = base64encode("postgres")
+    DB_PASSWORD_BASE64    = base64encode("postgres")
+
     # External Secrets Operator IAM user access keys
     ESO_GENFIX_ACCESS_KEY_ID     = module.external_secrets_roles.genfix_access_key_id
     ESO_GENFIX_SECRET_ACCESS_KEY = module.external_secrets_roles.genfix_secret_access_key

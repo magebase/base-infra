@@ -105,6 +105,14 @@ spec:
     configurations:
       sgPostgresConfig: 'site-uat-postgres-config'
       sgPoolingConfig: 'site-uat-pooling-config'
+    autoscaling:
+      horizontal:
+        cooldownPeriod: 300
+        pollingInterval: 30
+        minInstances: 0
+        maxInstances: 3
+        replicasConnectionsUsageTarget: '0.8'
+        replicasConnectionsUsageMetricType: 'AverageValue'
   shards:
     clusters: 1
     instancesPerCluster: 1
@@ -116,6 +124,14 @@ spec:
     configurations:
       sgPostgresConfig: 'site-uat-postgres-config'
       sgPoolingConfig: 'site-uat-pooling-config'
+    autoscaling:
+      horizontal:
+        cooldownPeriod: 300
+        pollingInterval: 30
+        minInstances: 0
+        maxInstances: 3
+        replicasConnectionsUsageTarget: '0.8'
+        replicasConnectionsUsageMetricType: 'AverageValue'
   configurations:
     backups:
     - sgObjectStorage: 'site-uat-backup-storage'
@@ -149,3 +165,24 @@ spec:
     storageClass: 'local-path'
   postgres:
     version: '15'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: citus
+  name: site-uat-cluster-db-url
+  labels:
+    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/component: database-url
+    app.kubernetes.io/part-of: site
+    environment: uat
+type: Opaque
+data:
+  # Database connection URL for in-cluster access
+  DATABASE_URL: ${SITE_UAT_DATABASE_URL}
+  # Individual connection components
+  DB_HOST: ${DB_HOST_BASE64}
+  DB_PORT: ${DB_PORT_BASE64}
+  DB_NAME: ${DB_NAME_SITE_BASE64}
+  DB_USER: ${DB_USER_BASE64}
+  DB_PASSWORD: ${DB_PASSWORD_BASE64}

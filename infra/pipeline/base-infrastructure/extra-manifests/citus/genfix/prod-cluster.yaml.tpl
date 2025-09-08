@@ -99,6 +99,14 @@ spec:
     persistentVolume:
       size: '10Gi'
       storageClass: 'local-path'
+  autoscaling:
+    horizontal:
+      cooldownPeriod: 300
+      pollingInterval: 30
+      minInstances: 0
+      maxInstances: 3
+      replicasConnectionsUsageTarget: '0.8'
+      replicasConnectionsUsageMetricType: 'AverageValue'
   configurations:
     sgPostgresConfig: 'genfix-prod-postgres-config'
     sgPoolingConfig: 'genfix-prod-pooling-config'
@@ -131,3 +139,24 @@ spec:
     storageClass: 'local-path'
   postgres:
     version: '15'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  namespace: citus
+  name: genfix-prod-cluster-db-url
+  labels:
+    app.kubernetes.io/name: citus-cluster
+    app.kubernetes.io/component: database-url
+    app.kubernetes.io/part-of: genfix
+    environment: prod
+type: Opaque
+data:
+  # Database connection URL for in-cluster access
+  DATABASE_URL: ${GENFIX_PROD_DATABASE_URL}
+  # Individual connection components
+  DB_HOST: ${DB_HOST_BASE64}
+  DB_PORT: ${DB_PORT_BASE64}
+  DB_NAME: ${DB_NAME_GENFIX_BASE64}
+  DB_USER: ${DB_USER_BASE64}
+  DB_PASSWORD: ${DB_PASSWORD_BASE64}

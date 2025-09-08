@@ -112,12 +112,6 @@ variable "cloudflare_zone_id" {
 }
 
 
-variable "magebase_db_creds" {
-  description = "Full YugabyteDB connection string for site application"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
 
 variable "aws_region" {
   description = "AWS region for IAM users and policies"
