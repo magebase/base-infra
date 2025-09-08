@@ -1133,15 +1133,22 @@ module "kube-hetzner" {
         echo "External Secrets CRDs already exist, cleaning up existing resources before upgrade..."
         # Clean up existing ESO resources that might conflict with Helm ownership
         kubectl delete clusterrole external-secrets-cert-controller --ignore-not-found=true
+        kubectl delete clusterrole external-secrets-controller --ignore-not-found=true
         kubectl delete clusterrole external-secrets-view-secrets --ignore-not-found=true
         kubectl delete clusterrole external-secrets-edit-secrets --ignore-not-found=true
         kubectl delete clusterrole external-secrets-view-secrets-local --ignore-not-found=true
         kubectl delete clusterrole external-secrets-edit-secrets-local --ignore-not-found=true
+        kubectl delete clusterrole external-secrets-leaderelection-role --ignore-not-found=true
         kubectl delete clusterrolebinding external-secrets-cert-controller --ignore-not-found=true
+        kubectl delete clusterrolebinding external-secrets-controller --ignore-not-found=true
         kubectl delete clusterrolebinding external-secrets-view-secrets --ignore-not-found=true
         kubectl delete clusterrolebinding external-secrets-edit-secrets --ignore-not-found=true
         kubectl delete clusterrolebinding external-secrets-view-secrets-local --ignore-not-found=true
         kubectl delete clusterrolebinding external-secrets-edit-secrets-local --ignore-not-found=true
+        kubectl delete clusterrolebinding external-secrets-leaderelection-rolebinding --ignore-not-found=true
+        # Also clean up any remaining ESO clusterroles/clusterrolebindings with pattern matching
+        kubectl delete clusterrole -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
+        kubectl delete clusterrolebinding -l app.kubernetes.io/name=external-secrets --ignore-not-found=true
         # If CRDs exist, skip CRD installation to avoid ownership conflicts
         helm upgrade --install external-secrets external-secrets/external-secrets \
           --namespace external-secrets-system \
@@ -1192,6 +1199,9 @@ module "kube-hetzner" {
         kubectl delete clusterrole stackgres-restapi --ignore-not-found=true
         kubectl delete clusterrolebinding stackgres-operator --ignore-not-found=true
         kubectl delete clusterrolebinding stackgres-restapi --ignore-not-found=true
+        # Also clean up any remaining StackGres clusterroles/clusterrolebindings with pattern matching
+        kubectl delete clusterrole -l app.kubernetes.io/name=stackgres --ignore-not-found=true
+        kubectl delete clusterrolebinding -l app.kubernetes.io/name=stackgres --ignore-not-found=true
         # If CRDs exist, skip CRD installation to avoid ownership conflicts
         helm upgrade --install stackgres-operator stackgres/stackgres-operator \
           --namespace stackgres \
