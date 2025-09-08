@@ -18,12 +18,8 @@ resources:
   - argocd/applications/
   - knative/
   - eso/
-  - database/environments/site/${ENVIRONMENT}.yaml
-  - database/environments/genfix/${ENVIRONMENT}.yaml
-  # External Secrets Operator
-  # Environment-specific applications (segregated by app)
-  - argocd/applications/environments/site/${ENVIRONMENT}-fsn1.yaml
-  - argocd/applications/environments/genfix/${ENVIRONMENT}-fsn1.yaml
+  - database/
+
 
 secretGenerator:
   - name: argocd-secret

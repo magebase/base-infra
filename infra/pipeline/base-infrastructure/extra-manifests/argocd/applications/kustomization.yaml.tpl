@@ -3,14 +3,14 @@ kind: Kustomization
 
 resources:
   # Base applications
-  - app-of-apps.yaml.tpl
-  - kube-prometheus.yaml.tpl
-  - magebase-genfix.yaml.tpl
-  - magebase-site.yaml.tpl
-  - trivy-operator.yaml.tpl
+  - app-of-apps.yaml
+  - kube-prometheus.yaml
+  - magebase-genfix.yaml
+  - magebase-site.yaml
+  - trivy-operator.yaml
 
   # Environment-specific applications (only include current environment)
-  - environments/genfix/${ENVIRONMENT}-fsn1.yaml.tpl
-  - environments/site/${ENVIRONMENT}-fsn1.yaml.tpl
+  - environments/genfix/${ENVIRONMENT}-fsn1.yaml
+  - environments/site/${ENVIRONMENT}-fsn1.yaml
 
   # NOTE: Only the current environment's applications are included above
