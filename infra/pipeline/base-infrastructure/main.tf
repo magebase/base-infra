@@ -1004,6 +1004,10 @@ module "kube-hetzner" {
 
   # Additional safeguard: disable kustomization deployment commands
   extra_kustomize_deployment_commands = <<-EOT
+    # Set environment variable for use in commands
+    export ENVIRONMENT="${var.environment}"
+    export CLIENTS_JSON='${jsonencode(local.clients)}'
+
     # Brief delay to allow Kustomize application to complete
     sleep 10
 
@@ -1023,14 +1027,14 @@ module "kube-hetzner" {
 
     # Wait for StackGres CRDs to be established
     echo "Waiting for StackGres CRDs to be established..."
-    kubectl wait --for condition=established --timeout=120s crd/sgclusters.stackgres.io || echo "Warning: SGClusters CRD wait failed"
-    kubectl wait --for condition=established --timeout=120s crd/sgshardedclusters.stackgres.io || echo "Warning: SGShardedClusters CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sgclusters.v1.stackgres.io || echo "Warning: SGClusters CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sgshardedclusters.v1alpha1.stackgres.io || echo "Warning: SGShardedClusters CRD wait failed"
 
     # Wait for database clusters to be ready (this may take several minutes)
     echo "Waiting for database clusters to be ready..."
 
     # Read client list with cluster types
-    CLIENTS=$(jq -r '.[] | @base64' /config/infra/pipeline/base-infrastructure/clients.json)
+    CLIENTS=$(echo "$CLIENTS_JSON" | jq -r '.[] | @base64')
 
     for CLIENT_DATA in $CLIENTS; do
       CLIENT_INFO=$(echo "$CLIENT_DATA" | base64 -d)
