@@ -129,24 +129,6 @@ spec:
     size: '5Gi'
     storageClass: 'local-path'
 ---
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
-metadata:
-  name: genfix-prod-database-secret
-  namespace: database
-spec:
-  refreshInterval: 15s
-  secretStoreRef:
-    name: genfix-secret-store
-    kind: SecretStore
-  target:
-    name: genfix-prod-ssm-database-url
-    creationPolicy: Owner
-  data:
-  - secretKey: DATABASE_URL
-    remoteRef:
-      key: /genfix/prod/genfix/database/url
----
 apiVersion: v1
 kind: Secret
 metadata:

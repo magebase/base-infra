@@ -144,24 +144,6 @@ spec:
     size: '5Gi'
     storageClass: 'local-path'
 ---
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
-metadata:
-  name: site-prod-database-secret
-  namespace: database
-spec:
-  refreshInterval: 15s
-  secretStoreRef:
-    name: site-secret-store
-    kind: SecretStore
-  target:
-    name: site-prod-ssm-database-url
-    creationPolicy: Owner
-  data:
-  - secretKey: DATABASE_URL
-    remoteRef:
-      key: /site/prod/database/url
----
 apiVersion: v1
 kind: Secret
 metadata:
