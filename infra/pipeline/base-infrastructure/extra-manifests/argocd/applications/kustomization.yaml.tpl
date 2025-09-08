@@ -3,8 +3,8 @@ kind: Kustomization
 
 resources:
   # Base applications
-  - kube-prometheus.yaml.tpl
-  - trivy-operator.yaml.tpl
+  - kube-prometheus.yaml
+  - trivy-operator.yaml
 
   # Environment-specific applications (only include current environment)
   - environments/genfix/${ENVIRONMENT}-fsn1.yaml
