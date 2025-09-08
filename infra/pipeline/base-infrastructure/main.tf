@@ -1206,11 +1206,11 @@ module "kube-hetzner" {
 
     # Apply StackGres custom resources now that CRDs are available
     echo "Applying StackGres custom resources..."
-    if [ -f "/var/user_kustomize/database/environments/genfix/${ENVIRONMENT}.yaml" ]; then
-      kubectl apply -f "/var/user_kustomize/database/environments/genfix/${ENVIRONMENT}.yaml" || echo "Warning: Failed to apply genfix environment"
+    if [ -f "/var/user_kustomize/database/environments/genfix/$ENVIRONMENT.yaml" ]; then
+      kubectl apply -f "/var/user_kustomize/database/environments/genfix/$ENVIRONMENT.yaml" || echo "Warning: Failed to apply genfix environment"
     fi
-    if [ -f "/var/user_kustomize/database/environments/site/${ENVIRONMENT}.yaml" ]; then
-      kubectl apply -f "/var/user_kustomize/database/environments/site/${ENVIRONMENT}.yaml" || echo "Warning: Failed to apply site environment"
+    if [ -f "/var/user_kustomize/database/environments/site/$ENVIRONMENT.yaml" ]; then
+      kubectl apply -f "/var/user_kustomize/database/environments/site/$ENVIRONMENT.yaml" || echo "Warning: Failed to apply site environment"
     fi
 
     # Since CLIENTS is empty (StackGres not deployed yet), skip all database operations
