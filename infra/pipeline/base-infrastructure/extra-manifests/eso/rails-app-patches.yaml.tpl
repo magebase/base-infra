@@ -6,7 +6,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: genfix-rails-app
-  namespace: genfix
+  namespace: genfix-${ENVIRONMENT}
 spec:
   template:
     spec:
@@ -29,7 +29,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: site-rails-app
-  namespace: site
+  namespace: site-${ENVIRONMENT}
 spec:
   template:
     spec:

@@ -2,7 +2,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: genfix-database-credentials
-  namespace: genfix
+  namespace: genfix-${ENVIRONMENT}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:
@@ -27,7 +27,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: site-database-credentials
-  namespace: site
+  namespace: site-${ENVIRONMENT}
   annotations:
     argocd.argoproj.io/sync-wave: "2"
 spec:

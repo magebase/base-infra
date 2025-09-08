@@ -1189,8 +1189,8 @@ module "kube-hetzner" {
     kubectl wait --for condition=established --timeout=120s crd/sgshardedclusters.stackgres.io || echo "Warning: SGShardedClusters CRD wait failed"
     kubectl wait --for condition=established --timeout=120s crd/sgdistributedlogs.stackgres.io || echo "Warning: SGDistributedLogs CRD wait failed"
     kubectl wait --for condition=established --timeout=120s crd/sginstanceprofiles.stackgres.io || echo "Warning: SGInstanceProfiles CRD wait failed"
-    kubectl wait --for condition=established --timeout=120s crd/sgpostgresconfigs.stackgres.io || echo "Warning: SGPostgresConfigs CRD wait failed"
-    kubectl wait --for condition=established --timeout=120s crd/sgpoolingconfigs.stackgres.io || echo "Warning: SGPoolingConfigs CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sgpgconfigs.stackgres.io || echo "Warning: SGPostgresConfigs CRD wait failed"
+    kubectl wait --for condition=established --timeout=120s crd/sgpoolconfigs.stackgres.io || echo "Warning: SGPoolingConfigs CRD wait failed"
     kubectl wait --for condition=established --timeout=120s crd/sgobjectstorages.stackgres.io || echo "Warning: SGObjectStorages CRD wait failed"
 
     # Wait for operators to be ready
