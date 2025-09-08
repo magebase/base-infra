@@ -62,8 +62,8 @@ metadata:
     app.kubernetes.io/part-of: genfix
     environment: qa
 spec:
-  type: 's3'
-  s3:
+  type: 's3Compatible'
+  s3Compatible:
     bucket: '${R2_BUCKET}'
     region: 'k8s'
     enablePathStyleAddressing: true
@@ -161,4 +161,4 @@ type: Opaque
 data:
   # Database connection URL for in-cluster access
   # Format: postgresql://username:password@service-name.database:5432/database
-  DATABASE_URL: placeholder
+  DATABASE_URL: cGxhY2Vob2xkZXI=
