@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: magebase/base-infra
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
 
       - name: Check if ArgoCD update is needed
         id: should-update
@@ -66,7 +66,7 @@ jobs:
             echo "🔍 Debug: Client payload repository: ${{ github.event.client_payload.repository }}"
             REPO_NAME="${{ github.event.client_payload.repository }}"
             TAG_NAME="${{ github.event.client_payload.tag_name }}"
-            ENVIRONMENT="${{ github.event.client_payload.to_environment || 'prod' }}"
+            ENVIRONMENT="${{ github.event.client_payload.to_environment }}"
 
             # Validate repository exists in clients.json (for repository_dispatch)
             CLIENT_EXISTS=$(jq -r --arg repo "$REPO_NAME" '.[] | select(.repository == $repo) | .name' "infra/pipeline/base-infrastructure/clients.json")
@@ -223,9 +223,12 @@ jobs:
         run: |
           echo "🔄 Committing changes directly to main branch..."
 
-          # Configure git
+          # Configure git with PAT for authentication
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+
+          # Set up remote with PAT
+          git remote set-url origin https://x-access-token:${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}@github.com/magebase/base-infra.git
 
           # Add the updated clients.json file
           git add infra/pipeline/base-infrastructure/clients.json
