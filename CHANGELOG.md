@@ -1,3 +1,11 @@
+## [1.5.2](https://github.com/magebase/base-infra/compare/v1.5.1...v1.5.2) (2025-09-09)
+
+
+### Bug Fixes
+
+* add 'v' prefix to release version for gh release edit command ([2e2df13](https://github.com/magebase/base-infra/commit/2e2df13dbd1fdb272b3a992f959494bcde8d53cf))
+* correct jq command formatting in workflow verification steps ([0b61d0e](https://github.com/magebase/base-infra/commit/0b61d0e30262a721036b51ffcadb39178eb8fb4d))
+
 ## [1.5.1](https://github.com/magebase/base-infra/compare/v1.5.0...v1.5.1) (2025-09-09)
 
 
