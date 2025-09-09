@@ -1,3 +1,10 @@
+## [1.5.3](https://github.com/magebase/base-infra/compare/v1.5.2...v1.5.3) (2025-09-09)
+
+
+### Bug Fixes
+
+* use proper newlines in release notes for markdown formatting ([0276b6a](https://github.com/magebase/base-infra/commit/0276b6a1a2f378aa41529994e2676ebdeaa0ba7c))
+
 ## [1.5.2](https://github.com/magebase/base-infra/compare/v1.5.1...v1.5.2) (2025-09-09)
 
 
