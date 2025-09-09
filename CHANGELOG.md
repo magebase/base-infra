@@ -1,3 +1,10 @@
+## [1.3.5](https://github.com/magebase/base-infra/compare/v1.3.4...v1.3.5) (2025-09-09)
+
+
+### Bug Fixes
+
+* implement permanent knative webhook infrastructure fixes ([460b3a6](https://github.com/magebase/base-infra/commit/460b3a6a2e721f72124fc6e2655923bbb764d831))
+
 ## [1.3.4](https://github.com/magebase/base-infra/compare/v1.3.3...v1.3.4) (2025-09-09)
 
 
