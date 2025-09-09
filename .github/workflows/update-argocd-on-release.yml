@@ -65,7 +65,7 @@ jobs:
           elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             echo "🔍 Debug: Client payload repository: ${{ github.event.client_payload.repository }}"
             REPO_NAME="${{ github.event.client_payload.repository }}"
-            TAG_NAME="${{ github.event.client_payload.tag }}"
+            TAG_NAME="${{ github.event.client_payload.tag_name }}"
             ENVIRONMENT="${{ github.event.client_payload.to_environment || 'prod' }}"
 
             # Validate repository exists in clients.json (for repository_dispatch)
@@ -129,6 +129,7 @@ jobs:
             echo "🔍 Debug: Event name: ${{ github.event_name }}"
             if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
               echo "🔍 Debug: Client payload: ${{ toJSON(github.event.client_payload) }}"
+            echo "🔍 Debug: Extracted tag_name: ${{ github.event.client_payload.tag_name }}"
             fi
             exit 1
           fi
