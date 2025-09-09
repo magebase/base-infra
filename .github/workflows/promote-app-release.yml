@@ -265,8 +265,11 @@ jobs:
           CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
 
           # Verify the targetRevision was updated
-          UPDATED_TAG=$(jq -r --arg client "${{ steps.validate-repo.outputs.client_name }}" --arg env "${{ needs.validate-promotion.outputs.to_environment }}"
-            '.[] | select(.name == $client) | .targetRevision[$env]' "$CLIENTS_FILE")
+          UPDATED_TAG=$(jq -r \
+            --arg client "${{ steps.validate-repo.outputs.client_name }}" \
+            --arg env "${{ needs.validate-promotion.outputs.to_environment }}" \
+            '.[] | select(.name == $client) | .targetRevision[$env]' \
+            "$CLIENTS_FILE")
 
           if [ "$UPDATED_TAG" = "${{ needs.validate-promotion.outputs.tag }}" ]; then
             echo "✅ Verification successful: ${{ steps.validate-repo.outputs.client_name }} targetRevision for ${{ needs.validate-promotion.outputs.to_environment }} is now $UPDATED_TAG"

@@ -230,8 +230,11 @@ jobs:
           fi
 
           # Verify the targetRevision was updated
-          UPDATED_TAG=$(jq -r --arg client "$CLIENT_NAME" --arg env "${{ steps.repo-info.outputs.environment }}"
-            '.[] | select(.name == $client) | .targetRevision[$env]' "$CLIENTS_FILE")
+          UPDATED_TAG=$(jq -r \
+            --arg client "$CLIENT_NAME" \
+            --arg env "${{ steps.repo-info.outputs.environment }}" \
+            '.[] | select(.name == $client) | .targetRevision[$env]' \
+            "$CLIENTS_FILE")
 
           if [ "$UPDATED_TAG" = "${{ steps.repo-info.outputs.tag_name }}" ]; then
             echo "✅ Verification successful: $CLIENT_NAME targetRevision for ${{ steps.repo-info.outputs.environment }} is now $UPDATED_TAG"
