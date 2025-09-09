@@ -1441,7 +1441,7 @@ jobs:
           echo "🔍 Getting targetRevision from client applications..."
 
           # Initialize variables
-          RELEASE_NOTES="**Docker Images:**\n\n"
+          RELEASE_NOTES=$'**Docker Images:**\n\n'
           DOCKER_IMAGES_LOG="🐳 Docker Images:"
 
           # Read clients from JSON and process each one using jq
@@ -1465,16 +1465,16 @@ jobs:
             DOCKER_IMAGES_LOG="$DOCKER_IMAGES_LOG\n  - $CLIENT_NAME: $CLIENT_IMAGE"
 
             # Add to release notes
-            RELEASE_NOTES+="**$CLIENT_NAME Application:** \`$CLIENT_IMAGE\`\n"
-            RELEASE_NOTES+="[View on GHCR](https://github.com/$REPO/pkgs/container/$CLIENT_NAME)\n\n"
+            RELEASE_NOTES+=$'**$CLIENT_NAME Application:** `$CLIENT_IMAGE`\n'
+            RELEASE_NOTES+=$'[View on GHCR](https://github.com/$REPO/pkgs/container/$CLIENT_NAME)\n\n'
           done
 
           # Display the collected information
           echo -e "$DOCKER_IMAGES_LOG"
 
           # Add extensible section for future repositories
-          RELEASE_NOTES+="---\n\n"
-          RELEASE_NOTES+="*This release includes infrastructure updates that support the above application versions.*"
+          RELEASE_NOTES+=$'---\n\n'
+          RELEASE_NOTES+=$'*This release includes infrastructure updates that support the above application versions.*'
 
           # Update release notes with retry mechanism
           echo "📝 Updating release notes for ${RELEASE_VERSION}..."
