@@ -43,6 +43,9 @@ rules:
 - apiGroups: ["autoscaling.internal.knative.dev"]
   resources: ["*"]
   verbs: ["get", "list", "create", "update", "delete", "patch", "watch"]
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+  verbs: ["get", "list", "create", "update", "delete", "patch", "watch"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -55,6 +58,39 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: knative-serving-admin
+subjects:
+- kind: ServiceAccount
+  name: controller
+  namespace: knative-serving
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: knative-serving-core
+  labels:
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+    app.kubernetes.io/version: "1.18.1"
+rules:
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+  verbs: ["get", "list", "create", "update", "delete", "patch", "watch"]
+- apiGroups: ["serving.knative.dev"]
+  resources: ["*"]
+  verbs: ["get", "list", "create", "update", "delete", "patch", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: knative-serving-core
+  labels:
+    app.kubernetes.io/version: "1.18.1"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: knative-serving-core
 subjects:
 - kind: ServiceAccount
   name: controller
@@ -849,6 +885,19 @@ spec:
           timeoutSeconds: 5
 
 ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: webhook-certs
+  namespace: knative-serving
+  labels:
+    app.kubernetes.io/version: "1.18.1"
+type: Opaque
+data:
+  # TLS certificates for webhook - these will be managed by Knative webhook
+  # The webhook will generate these at runtime if not provided
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -918,18 +967,27 @@ spec:
             - ALL
         readinessProbe:
           httpGet:
-            port: 9090
+            port: 8443
             path: /readiness
             scheme: HTTPS
           periodSeconds: 15
           timeoutSeconds: 5
         livenessProbe:
           httpGet:
-            port: 9090
+            port: 8443
             path: /health
             scheme: HTTPS
           periodSeconds: 15
           timeoutSeconds: 5
+        volumeMounts:
+        - name: webhook-certs
+          mountPath: /etc/webhook/certs
+          readOnly: true
+      volumes:
+      - name: webhook-certs
+        secret:
+          secretName: webhook-certs
+          defaultMode: 420
 
 ---
 apiVersion: v1
@@ -1006,6 +1064,9 @@ spec:
   ports:
   - name: http
     port: 80
+    targetPort: 8443
+  - name: https
+    port: 443
     targetPort: 8443
   - name: metrics
     port: 9090
