@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/magebase/site
     path: k8s
-    targetRevision: main
+    targetRevision: ${SITE_TARGET_REVISION_UAT}
   destination:
     server: https://kubernetes.default.svc
     namespace: site-${ENVIRONMENT}

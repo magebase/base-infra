@@ -463,6 +463,12 @@ jobs:
               export ESO_${CLIENT_NAME_UPPER}_ACCESS_KEY_ID="$TF_VAR_eso_${CLIENT_NAME}_access_key_id"
               export ESO_${CLIENT_NAME_UPPER}_SECRET_ACCESS_KEY="$TF_VAR_eso_${CLIENT_NAME}_secret_access_key"
               export ESO_${CLIENT_NAME_UPPER}_POLICY_ARN="$TF_VAR_eso_${CLIENT_NAME}_policy_arn"
+
+              # Export targetRevision variables for each environment
+              export ${CLIENT_NAME_UPPER}_TARGET_REVISION_DEV=$(jq -r ".[$i].targetRevision.dev" "$CLIENTS_FILE")
+              export ${CLIENT_NAME_UPPER}_TARGET_REVISION_QA=$(jq -r ".[$i].targetRevision.qa" "$CLIENTS_FILE")
+              export ${CLIENT_NAME_UPPER}_TARGET_REVISION_UAT=$(jq -r ".[$i].targetRevision.uat" "$CLIENTS_FILE")
+              export ${CLIENT_NAME_UPPER}_TARGET_REVISION_PROD=$(jq -r ".[$i].targetRevision.prod" "$CLIENTS_FILE")
             done
           else
             echo "⚠️  clients.json not found, using legacy ESO variables"
@@ -504,6 +510,16 @@ jobs:
               SED_COMMANDS="$SED_COMMANDS -e \"s|\${${ESO_ACCESS_KEY_VAR}}|${!ESO_ACCESS_KEY_VAR}|g\""
               SED_COMMANDS="$SED_COMMANDS -e \"s|\${${ESO_SECRET_KEY_VAR}}|${!ESO_SECRET_KEY_VAR}|g\""
               SED_COMMANDS="$SED_COMMANDS -e \"s|\${${ESO_POLICY_ARN_VAR}}|${!ESO_POLICY_ARN_VAR}|g\""
+
+              # Add targetRevision variables for sed replacement
+              TARGET_REV_DEV_VAR="${CLIENT_NAME_UPPER}_TARGET_REVISION_DEV"
+              TARGET_REV_QA_VAR="${CLIENT_NAME_UPPER}_TARGET_REVISION_QA"
+              TARGET_REV_UAT_VAR="${CLIENT_NAME_UPPER}_TARGET_REVISION_UAT"
+              TARGET_REV_PROD_VAR="${CLIENT_NAME_UPPER}_TARGET_REVISION_PROD"
+              SED_COMMANDS="$SED_COMMANDS -e \"s|\${${TARGET_REV_DEV_VAR}}|${!TARGET_REV_DEV_VAR}|g\""
+              SED_COMMANDS="$SED_COMMANDS -e \"s|\${${TARGET_REV_QA_VAR}}|${!TARGET_REV_QA_VAR}|g\""
+              SED_COMMANDS="$SED_COMMANDS -e \"s|\${${TARGET_REV_UAT_VAR}}|${!TARGET_REV_UAT_VAR}|g\""
+              SED_COMMANDS="$SED_COMMANDS -e \"s|\${${TARGET_REV_PROD_VAR}}|${!TARGET_REV_PROD_VAR}|g\""
             done
           else
             # Fallback to legacy ESO variables
@@ -1414,16 +1430,6 @@ jobs:
 
           echo "🚀 New release published: ${RELEASE_VERSION}"
 
-          # Verify the release exists before proceeding
-          echo "🔍 Verifying release ${RELEASE_VERSION} exists..."
-          if ! gh release view ${RELEASE_VERSION} --repo ${{ github.repository }} >/dev/null 2>&1; then
-            echo "❌ Release ${RELEASE_VERSION} not found in repository ${{ github.repository }}"
-            echo "📋 Available releases:"
-            gh release list --repo ${{ github.repository }} --limit 5
-            exit 1
-          fi
-          echo "✅ Release ${RELEASE_VERSION} found"
-
           # Read clients configuration
           CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
           if [ ! -f "$CLIENTS_FILE" ]; then
@@ -1431,8 +1437,8 @@ jobs:
             exit 1
           fi
 
-          # Query latest releases from all client repositories
-          echo "🔍 Querying latest releases from client applications..."
+          # Query targetRevision from clients.json for Docker image links
+          echo "🔍 Getting targetRevision from client applications..."
 
           # Initialize variables
           RELEASE_NOTES="**Docker Images:**\n\n"
@@ -1447,9 +1453,13 @@ jobs:
 
             echo "📦 Processing client: $CLIENT_NAME (repo: $REPO)"
 
-            # Get latest release from client repository
-            CLIENT_RELEASE=$(gh release list --repo "$REPO" --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "N/A")
-            CLIENT_IMAGE="ghcr.io/$REPO:${CLIENT_RELEASE:-latest}"
+            # Get targetRevision for current environment from clients.json
+            CURRENT_ENV="${TF_VAR_environment:-dev}"
+            CLIENT_TARGET_REV=$(jq -r ".[$i].targetRevision.\"$CURRENT_ENV\" // \"main\"" "$CLIENTS_FILE")
+
+            echo "✅ Using targetRevision for $CURRENT_ENV: $CLIENT_TARGET_REV"
+
+            CLIENT_IMAGE="ghcr.io/$REPO:$CLIENT_TARGET_REV"
 
             # Add to log output
             DOCKER_IMAGES_LOG="$DOCKER_IMAGES_LOG\n  - $CLIENT_NAME: $CLIENT_IMAGE"

@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/magebase/genfix
     path: k8s
-    targetRevision: main
+    targetRevision: ${GENFIX_TARGET_REVISION_QA}
   destination:
     server: https://kubernetes.default.svc
     namespace: genfix-${ENVIRONMENT}

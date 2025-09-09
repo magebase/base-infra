@@ -9,7 +9,13 @@
     "secretStoreName": "genfix-secret-store",
     "awsCredentialsSecret": "genfix-aws-credentials",
     "iamUserName": "external-secrets-genfix",
-    "iamPolicyName": "external-secrets-genfix-policy"
+    "iamPolicyName": "external-secrets-genfix-policy",
+    "targetRevision": {
+      "dev": "main",
+      "qa": "qa",
+      "uat": "uat",
+      "prod": "v1.2.1"
+    }
   },
   {
     "name": "site",
@@ -21,6 +27,12 @@
     "secretStoreName": "site-secret-store",
     "awsCredentialsSecret": "site-aws-credentials",
     "iamUserName": "external-secrets-site",
-    "iamPolicyName": "external-secrets-site-policy"
+    "iamPolicyName": "external-secrets-site-policy",
+    "targetRevision": {
+      "dev": "main",
+      "qa": "qa",
+      "uat": "uat",
+      "prod": "v1.2.1"
+    }
   }
 ]
