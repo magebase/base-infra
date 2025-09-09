@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/magebase/base-infra/compare/v1.5.0...v1.5.1) (2025-09-09)
+
+
+### Bug Fixes
+
+* resolve release timing issues and update promotion workflow ([9c120e3](https://github.com/magebase/base-infra/commit/9c120e32d53d47f6e21c738324a1010faa4335a2))
+
 # [1.5.0](https://github.com/magebase/base-infra/compare/v1.4.1...v1.5.0) (2025-09-09)
 
 
