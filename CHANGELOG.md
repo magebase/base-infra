@@ -1,3 +1,13 @@
+## [1.5.4](https://github.com/magebase/base-infra/compare/v1.5.3...v1.5.4) (2025-09-09)
+
+
+### Bug Fixes
+
+* add validation for empty tag values and improve commit message accuracy ([4df06ce](https://github.com/magebase/base-infra/commit/4df06ce8cc68a51f109e5bf5a36d55f1b545957a))
+* remove semantic-release job from update-argocd-on-release workflow ([a32750c](https://github.com/magebase/base-infra/commit/a32750c9bb6bce6f091ead40c82a8bea4da77e5b))
+* replace PR creation with direct commit to main for targetRevision updates ([8ea02f4](https://github.com/magebase/base-infra/commit/8ea02f48732201453d9075ccaf0e932174c05cdb))
+* restore dev targetRevision for magebase/site to v1.2.1 ([2548b3b](https://github.com/magebase/base-infra/commit/2548b3b202a40602812b97e50f1fe61be160dbcd))
+
 ## [1.5.3](https://github.com/magebase/base-infra/compare/v1.5.2...v1.5.3) (2025-09-09)
 
 
