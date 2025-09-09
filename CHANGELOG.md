@@ -1,3 +1,16 @@
+# [1.4.0](https://github.com/magebase/base-infra/compare/v1.3.5...v1.4.0) (2025-09-09)
+
+
+### Bug Fixes
+
+* reduce Knative serving component resource requests for small cluster ([09260a5](https://github.com/magebase/base-infra/commit/09260a536fb0e6c17e36aec2cdb2c572d88f1e31))
+* update Knative serving-core image references to v1.18.1 ([909cb5e](https://github.com/magebase/base-infra/commit/909cb5ef5a569b071492bce929b5126c5c022366))
+
+
+### Features
+
+* implement dynamic client configuration system ([3336b5e](https://github.com/magebase/base-infra/commit/3336b5e498a97db3e7e6e9012aaeb532c6c4c390))
+
 ## [1.3.5](https://github.com/magebase/base-infra/compare/v1.3.4...v1.3.5) (2025-09-09)
 
 
