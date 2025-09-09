@@ -76,7 +76,6 @@ jobs:
     runs-on: ubicloud-standard-2-arm
     outputs:
       can_promote: ${{ steps.validate.outputs.can_promote }}
-      target_regions: ${{ steps.validate.outputs.target_regions }}
       repository: ${{ steps.validate.outputs.repository }}
       tag: ${{ steps.validate.outputs.tag }}
       from_environment: ${{ steps.validate.outputs.from_environment }}
@@ -148,9 +147,8 @@ jobs:
               ;;
           esac
 
-          echo "✅ Promoting from $FROM_ENV ($FROM_REGIONS) to $TO_ENV ($TO_REGIONS)"
+          echo "✅ Promoting from $FROM_ENV to $TO_ENV"
           echo "can_promote=true" >> $GITHUB_OUTPUT
-          echo "target_regions=$TO_REGIONS" >> $GITHUB_OUTPUT
 
   performance-test:
     name: "Performance Testing"
@@ -225,15 +223,57 @@ jobs:
           repository: magebase/base-infra
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update targetRevision for target regions
+      - name: Validate repository exists in clients.json
+        id: validate-repo
         run: |
-          # Split target regions and update each one
-          IFS=',' read -ra REGION_ARRAY <<< "${{ needs.validate-promotion.outputs.target_regions }}"
-          for region in "${REGION_ARRAY[@]}"; do
-            region=$(echo $region | xargs)  # trim whitespace
-            echo "Updating ${{ needs.validate-promotion.outputs.repository }} for ${{ needs.validate-promotion.outputs.to_environment }}-$region"
-            ./scripts/update-argocd-app.sh "${{ needs.validate-promotion.outputs.repository }}" "${{ needs.validate-promotion.outputs.tag }}" "${{ needs.validate-promotion.outputs.to_environment }}" "$region"
-          done
+          CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
+
+          # Check if repository exists in clients.json
+          CLIENT_EXISTS=$(jq -r --arg repo "${{ needs.validate-promotion.outputs.repository }}" '.[] | select(.repository == $repo) | .name' "$CLIENTS_FILE")
+
+          if [ -z "$CLIENT_EXISTS" ]; then
+            echo "❌ Repository ${{ needs.validate-promotion.outputs.repository }} not found in clients.json"
+            echo "valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+          echo "✅ Repository ${{ needs.validate-promotion.outputs.repository }} found in clients.json (client: $CLIENT_EXISTS)"
+          echo "client_name=$CLIENT_EXISTS" >> $GITHUB_OUTPUT
+          echo "valid=true" >> $GITHUB_OUTPUT
+
+      - name: Update targetRevision in clients.json
+        if: steps.validate-repo.outputs.valid == 'true'
+        run: |
+          CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
+
+          echo "📝 Updating targetRevision for ${{ steps.validate-repo.outputs.client_name }} in ${{ needs.validate-promotion.outputs.to_environment }} environment to ${{ needs.validate-promotion.outputs.tag }}"
+
+          # Update the targetRevision in clients.json using jq
+          jq --arg client "${{ steps.validate-repo.outputs.client_name }}" \
+             --arg env "${{ needs.validate-promotion.outputs.to_environment }}" \
+             --arg tag "${{ needs.validate-promotion.outputs.tag }}" \
+             'map(if .name == $client then .targetRevision[$env] = $tag else . end)' \
+             "$CLIENTS_FILE" > "${CLIENTS_FILE}.tmp" && mv "${CLIENTS_FILE}.tmp" "$CLIENTS_FILE"
+
+          echo "✅ Updated clients.json with new targetRevision"
+
+      - name: Verify clients.json update
+        if: steps.validate-repo.outputs.valid == 'true'
+        run: |
+          echo "🔍 Verifying clients.json was updated correctly..."
+
+          CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
+
+          # Verify the targetRevision was updated
+          UPDATED_TAG=$(jq -r --arg client "${{ steps.validate-repo.outputs.client_name }}" --arg env "${{ needs.validate-promotion.outputs.to_environment }}"
+            '.[] | select(.name == $client) | .targetRevision[$env]' "$CLIENTS_FILE")
+
+          if [ "$UPDATED_TAG" = "${{ needs.validate-promotion.outputs.tag }}" ]; then
+            echo "✅ Verification successful: ${{ steps.validate-repo.outputs.client_name }} targetRevision for ${{ needs.validate-promotion.outputs.to_environment }} is now $UPDATED_TAG"
+          else
+            echo "❌ Verification failed: Expected ${{ needs.validate-promotion.outputs.tag }}, but found $UPDATED_TAG"
+            exit 1
+          fi
 
       - name: Create promotion pull request
         id: create-pr
@@ -243,7 +283,8 @@ jobs:
           commit-message: |
             🚀 Promote ${{ needs.validate-promotion.outputs.repository }} ${{ needs.validate-promotion.outputs.tag }} from ${{ needs.validate-promotion.outputs.from_environment }} to ${{ needs.validate-promotion.outputs.to_environment }}
 
-            Promoting ${{ needs.validate-promotion.outputs.repository }} from ${{ needs.validate-promotion.outputs.from_environment }} to ${{ needs.validate-promotion.outputs.to_environment }}
+            This change updates clients.json to set the targetRevision for ${{ needs.validate-promotion.outputs.repository }}
+            to use the new release ${{ needs.validate-promotion.outputs.tag }} for ${{ needs.validate-promotion.outputs.to_environment }} environment.
           title: "🚀 Promote ${{ needs.validate-promotion.outputs.repository }} ${{ needs.validate-promotion.outputs.tag }} from ${{ needs.validate-promotion.outputs.from_environment }} to ${{ needs.validate-promotion.outputs.to_environment }}"
           body: |
             ## 🚀 Application Promotion
@@ -254,10 +295,11 @@ jobs:
             - **Application:** ${{ needs.validate-promotion.outputs.repository }}
             - **Version:** ${{ needs.validate-promotion.outputs.tag }}
             - **From:** ${{ needs.validate-promotion.outputs.from_environment }}
-            - **To:** ${{ needs.validate-promotion.outputs.to_environment }} (${{ needs.validate-promotion.outputs.target_regions }})
+            - **To:** ${{ needs.validate-promotion.outputs.to_environment }}
 
             ### Changes
-            - Updated targetRevision to `${{ needs.validate-promotion.outputs.tag }}` in ${{ needs.validate-promotion.outputs.to_environment }} environment
+            - Updated `targetRevision.${{ needs.validate-promotion.outputs.to_environment }}` to `${{ needs.validate-promotion.outputs.tag }}` in `clients.json`
+            - File: `infra/pipeline/base-infrastructure/clients.json`
 
             ### Validation Checklist
             - [ ] Application successfully tested in ${{ needs.validate-promotion.outputs.from_environment }}
@@ -269,7 +311,7 @@ jobs:
             1. Review the changes
             2. Ensure application is stable in ${{ needs.validate-promotion.outputs.from_environment }}
             3. Merge this PR to deploy to ${{ needs.validate-promotion.outputs.to_environment }}
-            4. ArgoCD will automatically sync the new version
+            4. ArgoCD applications will use the updated targetRevision via environment variables
           branch: promote-${{ needs.validate-promotion.outputs.repository }}-${{ needs.validate-promotion.outputs.tag }}-${{ needs.validate-promotion.outputs.from_environment }}-to-${{ needs.validate-promotion.outputs.to_environment }}
           delete-branch: true
           labels: |
@@ -283,9 +325,10 @@ jobs:
           echo "- Repository: ${{ needs.validate-promotion.outputs.repository }}"
           echo "- Version: ${{ needs.validate-promotion.outputs.tag }}"
           echo "- From: ${{ needs.validate-promotion.outputs.from_environment }}"
-          echo "- To: ${{ needs.validate-promotion.outputs.to_environment }} (${{ needs.validate-promotion.outputs.target_regions }})"
+          echo "- To: ${{ needs.validate-promotion.outputs.to_environment }}"
+          echo "- File Updated: infra/pipeline/base-infrastructure/clients.json"
           echo "- PR Created: ${{ steps.create-pr.outputs.pull-request-url }}"
           echo ""
           echo "Next steps:"
           echo "1. Review and merge the PR"
-          echo "2. ArgoCD will automatically sync the new version to ${{ needs.validate-promotion.outputs.to_environment }}"
+          echo "2. ArgoCD applications will use the updated targetRevision via environment variables"

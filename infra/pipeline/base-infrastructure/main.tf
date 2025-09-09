@@ -66,14 +66,16 @@ locals {
     }
   ]...)
 
-  # ESO credentials for each client
-  eso_genfix_access_key_id     = base64encode(module.external_secrets_roles.genfix_access_key_id)
-  eso_genfix_secret_access_key = base64encode(module.external_secrets_roles.genfix_secret_access_key)
-  eso_genfix_policy_arn        = module.external_secrets_roles.genfix_policy_arn
-
-  eso_site_access_key_id     = base64encode(module.external_secrets_roles.site_access_key_id)
-  eso_site_secret_access_key = base64encode(module.external_secrets_roles.site_secret_access_key)
-  eso_site_policy_arn        = module.external_secrets_roles.site_policy_arn
+  # Dynamically generate ESO credentials variables for all clients
+  # This creates a map like: { "ESO_GENFIX_ACCESS_KEY_ID" = "...", "ESO_SITE_POLICY_ARN" = "..." }
+  # Maps client names from clients.json to the hardcoded module outputs
+  eso_vars = merge([
+    for client in local.clients : {
+      "ESO_${upper(client.name)}_ACCESS_KEY_ID"     = base64encode(module.external_secrets_roles["${client.name}_access_key_id"])
+      "ESO_${upper(client.name)}_SECRET_ACCESS_KEY" = base64encode(module.external_secrets_roles["${client.name}_secret_access_key"])
+      "ESO_${upper(client.name)}_POLICY_ARN"        = module.external_secrets_roles["${client.name}_policy_arn"]
+    }
+  ]...)
 }
 
 # Generate encryption key for k3s secrets and etcd encryption
@@ -1290,15 +1292,11 @@ module "kube-hetzner" {
       SSH_PRIVATE_KEY = base64encode(var.ssh_private_key)
       SSH_PUBLIC_KEY  = base64encode(var.ssh_public_key)
 
-      # External Secrets Operator IAM user access keys
-      ESO_GENFIX_ACCESS_KEY_ID     = local.eso_genfix_access_key_id
-      ESO_GENFIX_SECRET_ACCESS_KEY = local.eso_genfix_secret_access_key
-      ESO_SITE_ACCESS_KEY_ID       = local.eso_site_access_key_id
-      ESO_SITE_SECRET_ACCESS_KEY   = local.eso_site_secret_access_key
-      ESO_GENFIX_POLICY_ARN        = local.eso_genfix_policy_arn
-      ESO_SITE_POLICY_ARN          = local.eso_site_policy_arn
+      # External Secrets Operator IAM user access keys (dynamically generated from clients.json)
+      # ESO_GENFIX_ACCESS_KEY_ID, ESO_SITE_ACCESS_KEY_ID, ESO_GENFIX_POLICY_ARN, etc.
     },
-    local.target_revision_vars
+    local.target_revision_vars,
+    local.eso_vars
   )
 
   # Disable export of values files to prevent any kustomization-related operations

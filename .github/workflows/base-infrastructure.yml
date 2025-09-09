@@ -1476,16 +1476,46 @@ jobs:
           RELEASE_NOTES+="---\n\n"
           RELEASE_NOTES+="*This release includes infrastructure updates that support the above application versions.*"
 
-          # Update release notes with error handling
+          # Update release notes with retry mechanism
           echo "📝 Updating release notes for ${RELEASE_VERSION}..."
-          if ! gh release edit ${RELEASE_VERSION} \
-              --notes "${RELEASE_NOTES}" \
-              --repo ${{ github.repository }}; then
-            echo "❌ Failed to update release notes for ${RELEASE_VERSION}"
-            echo "🔍 Checking release status..."
-            gh release view ${RELEASE_VERSION} --repo ${{ github.repository }} || echo "Release ${RELEASE_VERSION} not found"
-            exit 1
-          fi
+
+          # Initial delay to allow GitHub to process the release
+          echo "⏳ Waiting 3 seconds for GitHub to process the release..."
+          sleep 3
+
+          # Retry logic to handle GitHub API delays
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+          RETRY_DELAY=5
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "🔄 Attempting to update release notes (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)..."
+
+            if gh release edit ${RELEASE_VERSION} \
+                --notes "${RELEASE_NOTES}" \
+                --repo ${{ github.repository }}; then
+              echo "✅ Successfully updated release notes for ${RELEASE_VERSION}"
+              break
+            else
+              echo "❌ Failed to update release notes for ${RELEASE_VERSION} (attempt $((RETRY_COUNT + 1))/$MAX_RETRIES)"
+
+              if [ $RETRY_COUNT -lt $((MAX_RETRIES - 1)) ]; then
+                echo "⏳ Waiting ${RETRY_DELAY} seconds before retry..."
+                sleep $RETRY_DELAY
+                RETRY_DELAY=$((RETRY_DELAY * 2))  # Exponential backoff
+              else
+                echo "🔍 Checking release status..."
+                if gh release view ${RELEASE_VERSION} --repo ${{ github.repository }} 2>/dev/null; then
+                  echo "Release ${RELEASE_VERSION} exists but update failed"
+                else
+                  echo "Release ${RELEASE_VERSION} not found"
+                fi
+                exit 1
+              fi
+            fi
+
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+          done
 
           echo "✅ Package published with Docker image links"
 
