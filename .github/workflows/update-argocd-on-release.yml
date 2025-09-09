@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: magebase/base-infra
-          token: ${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.TRIGGER_WORKFLOW_TOKEN }}
 
       - name: Check if ArgoCD update is needed
         id: should-update
@@ -228,7 +228,7 @@ jobs:
           git config --local user.name "GitHub Action"
 
           # Set up remote with PAT
-          git remote set-url origin https://x-access-token:${{ secrets.WORKFLOW_PAT || secrets.GITHUB_TOKEN }}@github.com/magebase/base-infra.git
+          git remote set-url origin https://x-access-token:${{ secrets.TRIGGER_WORKFLOW_TOKEN }}@github.com/magebase/base-infra.git
 
           # Add the updated clients.json file
           git add infra/pipeline/base-infrastructure/clients.json
