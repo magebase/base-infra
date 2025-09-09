@@ -123,6 +123,16 @@ jobs:
           echo "Environment: $ENVIRONMENT"
           echo "Regions: $REGIONS"
 
+          # Validate that tag is not empty
+          if [ -z "$TAG_NAME" ]; then
+            echo "❌ Error: Tag name is empty or not provided"
+            echo "🔍 Debug: Event name: ${{ github.event_name }}"
+            if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+              echo "🔍 Debug: Client payload: ${{ toJSON(github.event.client_payload) }}"
+            fi
+            exit 1
+          fi
+
           # Validate tag format (should be semantic version)
           if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "⚠️  Warning: Tag $TAG_NAME does not follow semantic versioning (v1.2.3)"
@@ -224,14 +234,23 @@ jobs:
             echo "ℹ️  No changes to commit - clients.json is already up to date"
           else
             # Create commit message
-            COMMIT_MESSAGE=$(printf "🚀 [%s] Update %s targetRevision to %s\n\nThis change updates clients.json to set the targetRevision for %s\nto use the new release %s for %s environment.\n\nTriggered by release in %s" \
+            TRIGGER_TYPE="unknown"
+            if [ "${{ github.event_name }}" = "release" ]; then
+              TRIGGER_TYPE="release"
+            elif [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+              TRIGGER_TYPE="repository_dispatch from ${{ github.event.client_payload.repository || 'unknown' }}"
+            elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              TRIGGER_TYPE="manual workflow_dispatch"
+            fi
+
+            COMMIT_MESSAGE=$(printf "🚀 [%s] Update %s targetRevision to %s\n\nThis change updates clients.json to set the targetRevision for %s\nto use the new release %s for %s environment.\n\nTriggered by %s" \
               "${{ steps.repo-info.outputs.environment }}" \
               "${{ steps.repo-info.outputs.repository }}" \
               "${{ steps.repo-info.outputs.tag_name }}" \
               "${{ steps.repo-info.outputs.repository }}" \
               "${{ steps.repo-info.outputs.tag_name }}" \
               "${{ steps.repo-info.outputs.environment }}" \
-              "${{ steps.repo-info.outputs.repository }}")
+              "$TRIGGER_TYPE")
 
             # Commit the changes
             git commit -m "$COMMIT_MESSAGE"
