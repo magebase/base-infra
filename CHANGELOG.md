@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/magebase/base-infra/compare/v1.4.1...v1.5.0) (2025-09-09)
+
+
+### Features
+
+* add targetRevision fields to clients.json and use env vars in templates ([d0ec8f7](https://github.com/magebase/base-infra/commit/d0ec8f7646578b2669111755bcf936794fa9af26))
+
 ## [1.4.1](https://github.com/magebase/base-infra/compare/v1.4.0...v1.4.1) (2025-09-09)
 
 
