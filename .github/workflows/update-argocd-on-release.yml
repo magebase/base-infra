@@ -243,49 +243,41 @@ jobs:
             exit 1
           fi
 
-      - name: Create pull request with the update
+      - name: Commit changes directly to main
         if: steps.should-update.outputs.should_update == 'true'
-        id: create-pr
-        uses: peter-evans/create-pull-request@v5
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: |
-            🚀 [${{ steps.repo-info.outputs.environment }}] Update ${{ steps.repo-info.outputs.repository }} targetRevision to ${{ steps.repo-info.outputs.tag_name }}
+        run: |
+          echo "🔄 Committing changes directly to main branch..."
 
-            This change updates clients.json to set the targetRevision for ${{ steps.repo-info.outputs.repository }}
-            to use the new release ${{ steps.repo-info.outputs.tag_name }} for ${{ steps.repo-info.outputs.environment }} environment.
+          # Configure git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
 
-            Triggered by release in ${{ steps.repo-info.outputs.repository }}
-          title: "🚀 [${{ steps.repo-info.outputs.environment }}] Update ${{ steps.repo-info.outputs.repository }} targetRevision to ${{ steps.repo-info.outputs.tag_name }}"
-          body: |
-            ## 🚀 TargetRevision Update
+          # Add the updated clients.json file
+          git add infra/pipeline/base-infrastructure/clients.json
 
-            This PR updates **clients.json** to set the targetRevision for **${{ steps.repo-info.outputs.repository }}** to use the new release **${{ steps.repo-info.outputs.tag_name }}**.
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "ℹ️  No changes to commit - clients.json is already up to date"
+          else
+            # Create commit message
+            COMMIT_MESSAGE=$(printf "🚀 [%s] Update %s targetRevision to %s\n\nThis change updates clients.json to set the targetRevision for %s\nto use the new release %s for %s environment.\n\nTriggered by release in %s" \
+              "${{ steps.repo-info.outputs.environment }}" \
+              "${{ steps.repo-info.outputs.repository }}" \
+              "${{ steps.repo-info.outputs.tag_name }}" \
+              "${{ steps.repo-info.outputs.repository }}" \
+              "${{ steps.repo-info.outputs.tag_name }}" \
+              "${{ steps.repo-info.outputs.environment }}" \
+              "${{ steps.repo-info.outputs.repository }}")
 
-            ### Details
-            - **Environment:** ${{ steps.repo-info.outputs.environment }}
-            - **Repository:** ${{ steps.repo-info.outputs.repository }}
-            - **New Version:** ${{ steps.repo-info.outputs.tag_name }}
-            - **File Updated:** `infra/pipeline/base-infrastructure/clients.json`
+            # Commit the changes
+            git commit -m "$COMMIT_MESSAGE"
 
-            ### Changes
-            - Updated `targetRevision.${{ steps.repo-info.outputs.environment }}` to `${{ steps.repo-info.outputs.tag_name }}` in clients.json
+            # Push to main branch
+            git push origin main
 
-            ### Trigger
-            - Release created in ${{ steps.repo-info.outputs.repository }}
-            - Tag: ${{ steps.repo-info.outputs.tag_name }}
-
-            ### Next Steps
-            1. Review the changes
-            2. Merge this PR to update the targetRevision
-            3. ArgoCD applications will use the updated targetRevision via environment variables
-          branch: update-targetRevision-${{ steps.repo-info.outputs.repository }}-${{ steps.repo-info.outputs.environment }}-${{ steps.repo-info.outputs.tag_name }}
-          delete-branch: true
-          labels: |
-            automated
-            targetRevision-update
-            ${{ steps.repo-info.outputs.repository }}
-            ${{ steps.repo-info.outputs.environment }}
+            echo "✅ Successfully committed and pushed changes to main"
+            echo "📝 Commit message: $COMMIT_MESSAGE"
+          fi
 
       - name: Comment on release
         if: github.event_name == 'release'
@@ -296,7 +288,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `🤖 **TargetRevision Update Triggered**\n\nI've created a PR in [base-infra](${{ steps.create-pr.outputs.pull-request-url }}) to update clients.json with this release.\n\n**Changes:**\n- Updated targetRevision.${{ steps.repo-info.outputs.environment }} to \`${{ steps.repo-info.outputs.tag_name }}\` in clients.json\n\nThe PR will be automatically merged once approved, and ArgoCD applications will use the updated targetRevision via environment variables.`
+              body: `🤖 **TargetRevision Update Completed**\n\nI've successfully updated clients.json with this release.\n\n**Changes:**\n- Updated targetRevision.${{ steps.repo-info.outputs.environment }} to \`${{ steps.repo-info.outputs.tag_name }}\` in clients.json\n\nArgoCD applications will now use the updated targetRevision via environment variables.`
             })
 
       - name: Comment on repository dispatch
@@ -316,8 +308,7 @@ jobs:
           echo "- File Updated: infra/pipeline/base-infrastructure/clients.json"
           echo "- Environment: ${{ steps.repo-info.outputs.environment }}"
           echo "- New Tag: ${{ steps.repo-info.outputs.tag_name }}"
-          echo "- PR Created: ${{ steps.create-pr.outputs.pull-request-url }}"
+          echo "- Status: ✅ Committed directly to main branch"
           echo ""
           echo "Next steps:"
-          echo "1. Review and merge the PR"
-          echo "2. ArgoCD applications will use the updated targetRevision from clients.json via environment variables"
+          echo "1. ArgoCD applications will use the updated targetRevision from clients.json via environment variables"
