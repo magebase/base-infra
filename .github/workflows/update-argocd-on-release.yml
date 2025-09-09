@@ -8,10 +8,7 @@ on:
       repository:
         description: "Repository that created the release"
         required: true
-        type: choice
-        options:
-          - magebase/genfix
-          - magebase/site
+        type: string
       tag:
         description: "Tag to update to"
         required: true
@@ -107,11 +104,10 @@ jobs:
             TAG_NAME="${{ github.event.client_payload.tag }}"
             ENVIRONMENT="${{ github.event.client_payload.to_environment || 'prod' }}"
 
-            # Validate that only allowed repositories can trigger this workflow
-            ALLOWED_REPOS=("magebase/genfix" "magebase/site" "magebase/base-infra")
-            if [[ "$REPO_NAME" != "magebase/genfix" && "$REPO_NAME" != "magebase/site" && "$REPO_NAME" != "magebase/base-infra" ]]; then
-              echo "❌ Unauthorized repository: $REPO_NAME"
-              echo "Allowed repositories: magebase/genfix, magebase/site, magebase/base-infra"
+            # Validate repository exists in clients.json (for repository_dispatch)
+            CLIENT_EXISTS=$(jq -r --arg repo "$REPO_NAME" '.[] | select(.repository == $repo) | .name' "infra/pipeline/base-infrastructure/clients.json")
+            if [ -z "$CLIENT_EXISTS" ] && [ "$REPO_NAME" != "magebase/base-infra" ]; then
+              echo "❌ Repository $REPO_NAME not found in clients.json"
               exit 1
             fi
 
@@ -122,11 +118,10 @@ jobs:
             TAG_NAME="${{ github.event.inputs.tag }}"
             ENVIRONMENT="${{ github.event.inputs.environment }}"
 
-            # Validate repository name for workflow dispatch as well
-            ALLOWED_REPOS=("magebase/genfix" "magebase/site" "magebase/base-infra")
-            if [[ "$REPO_NAME" != "magebase/genfix" && "$REPO_NAME" != "magebase/site" && "$REPO_NAME" != "magebase/base-infra" ]]; then
-              echo "❌ Invalid repository for workflow dispatch: $REPO_NAME"
-              echo "Allowed repositories: magebase/genfix, magebase/site, magebase/base-infra"
+            # Validate repository exists in clients.json (for workflow_dispatch)
+            CLIENT_EXISTS=$(jq -r --arg repo "$REPO_NAME" '.[] | select(.repository == $repo) | .name' "infra/pipeline/base-infrastructure/clients.json")
+            if [ -z "$CLIENT_EXISTS" ] && [ "$REPO_NAME" != "magebase/base-infra" ]; then
+              echo "❌ Repository $REPO_NAME not found in clients.json"
               exit 1
             fi
           fi
@@ -172,20 +167,18 @@ jobs:
           # Convert comma-separated regions to array
           IFS=',' read -ra REGION_ARRAY <<< "$REGIONS"
 
-          # Validate repository and environment combination
-          case "$REPO_NAME" in
-            "magebase/genfix"|"magebase/site")
-              echo "✅ Valid repository for targetRevision update: $REPO_NAME"
-              ;;
-            "magebase/base-infra")
-              # Base-infra releases don't need ArgoCD updates
-              echo "ℹ️  Base-infra release - no targetRevision updates needed"
-              ;;
-            *)
-              echo "❌ Unsupported repository: $REPO_NAME"
-              exit 1
-              ;;
-          esac
+          # Define clients.json path for validation
+          CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
+
+          # Validate repository exists in clients.json
+          CLIENT_EXISTS=$(jq -r --arg repo "$REPO_NAME" '.[] | select(.repository == $repo) | .name' "$CLIENTS_FILE")
+
+          if [ -z "$CLIENT_EXISTS" ]; then
+            echo "❌ Repository $REPO_NAME not found in clients.json"
+            exit 1
+          fi
+
+          echo "✅ Repository $REPO_NAME found in clients.json (client: $CLIENT_EXISTS)"
 
           echo "repository=$REPO_NAME" >> $GITHUB_OUTPUT
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
@@ -202,19 +195,13 @@ jobs:
 
           CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
 
-          # Determine client name from repository
-          case "${{ steps.repo-info.outputs.repository }}" in
-            "magebase/genfix")
-              CLIENT_NAME="genfix"
-              ;;
-            "magebase/site")
-              CLIENT_NAME="site"
-              ;;
-            *)
-              echo "❌ Unsupported repository: ${{ steps.repo-info.outputs.repository }}"
-              exit 1
-              ;;
-          esac
+          # Get client name from repository using jq
+          CLIENT_NAME=$(jq -r --arg repo "${{ steps.repo-info.outputs.repository }}" '.[] | select(.repository == $repo) | .name' "$CLIENTS_FILE")
+
+          if [ -z "$CLIENT_NAME" ]; then
+            echo "❌ Could not find client name for repository ${{ steps.repo-info.outputs.repository }}"
+            exit 1
+          fi
 
           echo "📝 Updating targetRevision for $CLIENT_NAME in ${{ steps.repo-info.outputs.environment }} environment to ${{ steps.repo-info.outputs.tag_name }}"
 
@@ -234,19 +221,13 @@ jobs:
 
           CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
 
-          # Determine client name from repository
-          case "${{ steps.repo-info.outputs.repository }}" in
-            "magebase/genfix")
-              CLIENT_NAME="genfix"
-              ;;
-            "magebase/site")
-              CLIENT_NAME="site"
-              ;;
-            *)
-              echo "❌ Unsupported repository: ${{ steps.repo-info.outputs.repository }}"
-              exit 1
-              ;;
-          esac
+          # Get client name from repository using jq
+          CLIENT_NAME=$(jq -r --arg repo "${{ steps.repo-info.outputs.repository }}" '.[] | select(.repository == $repo) | .name' "$CLIENTS_FILE")
+
+          if [ -z "$CLIENT_NAME" ]; then
+            echo "❌ Could not find client name for repository ${{ steps.repo-info.outputs.repository }}"
+            exit 1
+          fi
 
           # Verify the targetRevision was updated
           UPDATED_TAG=$(jq -r --arg client "$CLIENT_NAME" --arg env "${{ steps.repo-info.outputs.environment }}"
