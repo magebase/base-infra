@@ -452,37 +452,70 @@ jobs:
           export R2_SECRET_ACCESS_KEY="$TF_VAR_cloudflare_r2_secret_access_key"
           export SSH_PRIVATE_KEY="$TF_VAR_ssh_private_key"
           export SSH_PUBLIC_KEY="$TF_VAR_ssh_public_key"
-          export ESO_GENFIX_ACCESS_KEY_ID="$TF_VAR_eso_genfix_access_key_id"
-          export ESO_GENFIX_SECRET_ACCESS_KEY="$TF_VAR_eso_genfix_secret_access_key"
-          export ESO_SITE_ACCESS_KEY_ID="$TF_VAR_eso_site_access_key_id"
-          export ESO_SITE_SECRET_ACCESS_KEY="$TF_VAR_eso_site_secret_access_key"
-          export ESO_GENFIX_POLICY_ARN="$TF_VAR_eso_genfix_policy_arn"
-          export ESO_SITE_POLICY_ARN="$TF_VAR_eso_site_policy_arn"
+
+          # Export ESO variables dynamically from clients.json
+          CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
+          if [ -f "$CLIENTS_FILE" ]; then
+            CLIENT_COUNT=$(jq '. | length' "$CLIENTS_FILE")
+            for i in $(seq 0 $(($CLIENT_COUNT - 1))); do
+              CLIENT_NAME=$(jq -r ".[$i].name" "$CLIENTS_FILE")
+              CLIENT_NAME_UPPER=$(echo "$CLIENT_NAME" | tr '[:lower:]' '[:upper:]')
+              export ESO_${CLIENT_NAME_UPPER}_ACCESS_KEY_ID="$TF_VAR_eso_${CLIENT_NAME}_access_key_id"
+              export ESO_${CLIENT_NAME_UPPER}_SECRET_ACCESS_KEY="$TF_VAR_eso_${CLIENT_NAME}_secret_access_key"
+              export ESO_${CLIENT_NAME_UPPER}_POLICY_ARN="$TF_VAR_eso_${CLIENT_NAME}_policy_arn"
+            done
+          else
+            echo "⚠️  clients.json not found, using legacy ESO variables"
+            export ESO_GENFIX_ACCESS_KEY_ID="$TF_VAR_eso_genfix_access_key_id"
+            export ESO_GENFIX_SECRET_ACCESS_KEY="$TF_VAR_eso_genfix_secret_access_key"
+            export ESO_SITE_ACCESS_KEY_ID="$TF_VAR_eso_site_access_key_id"
+            export ESO_SITE_SECRET_ACCESS_KEY="$TF_VAR_eso_site_secret_access_key"
+            export ESO_GENFIX_POLICY_ARN="$TF_VAR_eso_genfix_policy_arn"
+            export ESO_SITE_POLICY_ARN="$TF_VAR_eso_site_policy_arn"
+          fi
 
           # Use sed for variable substitution (more reliable than envsubst)
-          find ./extra-manifests/ -name "*.yaml" -exec sed -i \
-            -e "s|\${ENVIRONMENT}|${ENVIRONMENT}|g" \
-            -e "s|\${DOMAIN}|${DOMAIN}|g" \
-            -e "s|\${ARGOCD_FQDN}|${ARGOCD_FQDN}|g" \
-            -e "s|\${ARGOCD_ADMIN_PASSWORD}|${ARGOCD_ADMIN_PASSWORD}|g" \
-            -e "s|\${ARGOCD_REPO_TOKEN}|${ARGOCD_REPO_TOKEN}|g" \
-            -e "s|\${ENCRYPTION_KEY}|${ENCRYPTION_KEY}|g" \
-            -e "s|\${CLOUDFLARE_API_TOKEN}|${CLOUDFLARE_API_TOKEN}|g" \
-            -e "s|\${AWS_ACCOUNT_ID}|${AWS_ACCOUNT_ID}|g" \
-            -e "s|\${AWS_REGION}|${AWS_REGION}|g" \
-            -e "s|\${R2_BUCKET}|${R2_BUCKET}|g" \
-            -e "s|\${R2_ENDPOINT}|${R2_ENDPOINT}|g" \
-            -e "s|\${R2_ACCESS_KEY_ID}|${R2_ACCESS_KEY_ID}|g" \
-            -e "s|\${R2_SECRET_ACCESS_KEY}|${R2_SECRET_ACCESS_KEY}|g" \
-            -e "s|\${SSH_PRIVATE_KEY}|${SSH_PRIVATE_KEY}|g" \
-            -e "s|\${SSH_PUBLIC_KEY}|${SSH_PUBLIC_KEY}|g" \
-            -e "s|\${ESO_GENFIX_ACCESS_KEY_ID}|${ESO_GENFIX_ACCESS_KEY_ID}|g" \
-            -e "s|\${ESO_GENFIX_SECRET_ACCESS_KEY}|${ESO_GENFIX_SECRET_ACCESS_KEY}|g" \
-            -e "s|\${ESO_SITE_ACCESS_KEY_ID}|${ESO_SITE_ACCESS_KEY_ID}|g" \
-            -e "s|\${ESO_SITE_SECRET_ACCESS_KEY}|${ESO_SITE_SECRET_ACCESS_KEY}|g" \
-            -e "s|\${ESO_GENFIX_POLICY_ARN}|${ESO_GENFIX_POLICY_ARN}|g" \
-            -e "s|\${ESO_SITE_POLICY_ARN}|${ESO_SITE_POLICY_ARN}|g" \
-            {} \;
+          SED_COMMANDS=""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${ENVIRONMENT}|${ENVIRONMENT}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${DOMAIN}|${DOMAIN}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${ARGOCD_FQDN}|${ARGOCD_FQDN}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${ARGOCD_ADMIN_PASSWORD}|${ARGOCD_ADMIN_PASSWORD}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${ARGOCD_REPO_TOKEN}|${ARGOCD_REPO_TOKEN}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${ENCRYPTION_KEY}|${ENCRYPTION_KEY}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${CLOUDFLARE_API_TOKEN}|${CLOUDFLARE_API_TOKEN}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${AWS_ACCOUNT_ID}|${AWS_ACCOUNT_ID}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${AWS_REGION}|${AWS_REGION}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${R2_BUCKET}|${R2_BUCKET}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${R2_ENDPOINT}|${R2_ENDPOINT}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${R2_ACCESS_KEY_ID}|${R2_ACCESS_KEY_ID}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${R2_SECRET_ACCESS_KEY}|${R2_SECRET_ACCESS_KEY}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${SSH_PRIVATE_KEY}|${SSH_PRIVATE_KEY}|g\""
+          SED_COMMANDS="$SED_COMMANDS -e \"s|\${SSH_PUBLIC_KEY}|${SSH_PUBLIC_KEY}|g\""
+
+          # Add dynamic ESO variables from clients.json
+          if [ -f "$CLIENTS_FILE" ]; then
+            CLIENT_COUNT=$(jq '. | length' "$CLIENTS_FILE")
+            for i in $(seq 0 $(($CLIENT_COUNT - 1))); do
+              CLIENT_NAME=$(jq -r ".[$i].name" "$CLIENTS_FILE")
+              CLIENT_NAME_UPPER=$(echo "$CLIENT_NAME" | tr '[:lower:]' '[:upper:]')
+              ESO_ACCESS_KEY_VAR="ESO_${CLIENT_NAME_UPPER}_ACCESS_KEY_ID"
+              ESO_SECRET_KEY_VAR="ESO_${CLIENT_NAME_UPPER}_SECRET_ACCESS_KEY"
+              ESO_POLICY_ARN_VAR="ESO_${CLIENT_NAME_UPPER}_POLICY_ARN"
+              SED_COMMANDS="$SED_COMMANDS -e \"s|\${${ESO_ACCESS_KEY_VAR}}|${!ESO_ACCESS_KEY_VAR}|g\""
+              SED_COMMANDS="$SED_COMMANDS -e \"s|\${${ESO_SECRET_KEY_VAR}}|${!ESO_SECRET_KEY_VAR}|g\""
+              SED_COMMANDS="$SED_COMMANDS -e \"s|\${${ESO_POLICY_ARN_VAR}}|${!ESO_POLICY_ARN_VAR}|g\""
+            done
+          else
+            # Fallback to legacy ESO variables
+            SED_COMMANDS="$SED_COMMANDS -e \"s|\${ESO_GENFIX_ACCESS_KEY_ID}|${ESO_GENFIX_ACCESS_KEY_ID}|g\""
+            SED_COMMANDS="$SED_COMMANDS -e \"s|\${ESO_GENFIX_SECRET_ACCESS_KEY}|${ESO_GENFIX_SECRET_ACCESS_KEY}|g\""
+            SED_COMMANDS="$SED_COMMANDS -e \"s|\${ESO_SITE_ACCESS_KEY_ID}|${ESO_SITE_ACCESS_KEY_ID}|g\""
+            SED_COMMANDS="$SED_COMMANDS -e \"s|\${ESO_SITE_SECRET_ACCESS_KEY}|${ESO_SITE_SECRET_ACCESS_KEY}|g\""
+            SED_COMMANDS="$SED_COMMANDS -e \"s|\${ESO_GENFIX_POLICY_ARN}|${ESO_GENFIX_POLICY_ARN}|g\""
+            SED_COMMANDS="$SED_COMMANDS -e \"s|\${ESO_SITE_POLICY_ARN}|${ESO_SITE_POLICY_ARN}|g\""
+          fi
+
+          find ./extra-manifests/ -name "*.yaml" -exec sed -i $SED_COMMANDS {} \;
 
           # Run kubectl diff using kustomize
           echo "🔍 Running kubectl diff with detailed output..."
@@ -1374,23 +1407,61 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "📦 Publishing package with Docker image link..."
+          echo "📦 Publishing package with Docker image links..."
 
           # Get the release version from semantic release output
           RELEASE_VERSION="${{ steps.semantic.outputs.new_release_version }}"
 
-          # Create Docker image link (assuming standard naming convention)
-          DOCKER_IMAGE="magebase/base-infra:${RELEASE_VERSION}"
-
           echo "🚀 New release published: ${RELEASE_VERSION}"
-          echo "🐳 Docker image: ${DOCKER_IMAGE}"
 
-          # Add Docker image link to release notes
+          # Read clients configuration
+          CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
+          if [ ! -f "$CLIENTS_FILE" ]; then
+            echo "❌ clients.json file not found at $CLIENTS_FILE"
+            exit 1
+          fi
+
+          # Query latest releases from all client repositories
+          echo "🔍 Querying latest releases from client applications..."
+
+          # Initialize variables
+          RELEASE_NOTES="**Docker Images:**\n\n"
+          DOCKER_IMAGES_LOG="🐳 Docker Images:"
+
+          # Read clients from JSON and process each one using jq
+          CLIENT_COUNT=$(jq '. | length' "$CLIENTS_FILE")
+
+          for i in $(seq 0 $(($CLIENT_COUNT - 1))); do
+            REPO=$(jq -r ".[$i].repository" "$CLIENTS_FILE")
+            CLIENT_NAME=$(jq -r ".[$i].name" "$CLIENTS_FILE")
+
+            echo "📦 Processing client: $CLIENT_NAME (repo: $REPO)"
+
+            # Get latest release from client repository
+            CLIENT_RELEASE=$(gh release list --repo "$REPO" --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null || echo "N/A")
+            CLIENT_IMAGE="ghcr.io/$REPO:${CLIENT_RELEASE:-latest}"
+
+            # Add to log output
+            DOCKER_IMAGES_LOG="$DOCKER_IMAGES_LOG\n  - $CLIENT_NAME: $CLIENT_IMAGE"
+
+            # Add to release notes
+            RELEASE_NOTES+="**$CLIENT_NAME Application:** \`$CLIENT_IMAGE\`\n"
+            RELEASE_NOTES+="[View on GHCR](https://github.com/$REPO/pkgs/container/$CLIENT_NAME)\n\n"
+          done
+
+          # Display the collected information
+          echo -e "$DOCKER_IMAGES_LOG"
+
+          # Add extensible section for future repositories
+          RELEASE_NOTES+="---\n\n"
+          RELEASE_NOTES+="*This release includes infrastructure updates that support the above application versions.*"
+
+          # Update release notes
           gh release edit ${RELEASE_VERSION} \
-            --notes "**Docker Image:** \`${DOCKER_IMAGE}\`\n\n[View on Docker Hub](https://hub.docker.com/r/magebase/base-infra/tags)" \
+            --notes "${RELEASE_NOTES}" \
             --repo ${{ github.repository }}
 
-          echo "✅ Package published with Docker image link"
+          echo "✅ Package published with Docker image links"
 
       - name: Set outputs for dry run
         if: github.event_name == 'pull_request'

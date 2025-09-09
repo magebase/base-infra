@@ -1,10 +1,26 @@
 [
   {
     "name": "genfix",
-    "clusterType": "sgcluster"
+    "clusterType": "sgcluster",
+    "repository": "magebase/genfix",
+    "awsParameterPrefix": "genfix",
+    "appNamePattern": "magebase-genfix-{environment}-{region}",
+    "manifestPathPattern": "infra/pipeline/base-infrastructure/extra-manifests/argocd/applications/environments/genfix/{environment}-{region}.yaml.tpl",
+    "secretStoreName": "genfix-secret-store",
+    "awsCredentialsSecret": "genfix-aws-credentials",
+    "iamUserName": "external-secrets-genfix",
+    "iamPolicyName": "external-secrets-genfix-policy"
   },
   {
     "name": "site",
-    "clusterType": "sgshardedcluster"
+    "clusterType": "sgshardedcluster",
+    "repository": "magebase/site",
+    "awsParameterPrefix": "site",
+    "appNamePattern": "magebase-site-{environment}-{region}",
+    "manifestPathPattern": "infra/pipeline/base-infrastructure/extra-manifests/argocd/applications/environments/site/{environment}-{region}.yaml.tpl",
+    "secretStoreName": "site-secret-store",
+    "awsCredentialsSecret": "site-aws-credentials",
+    "iamUserName": "external-secrets-site",
+    "iamPolicyName": "external-secrets-site-policy"
   }
 ]

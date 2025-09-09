@@ -102,6 +102,7 @@ jobs:
             TO_ENV="${{ github.event.client_payload.to_environment || 'prod' }}"
 
             # Validate that only allowed repositories can trigger this workflow
+            ALLOWED_REPOS=("magebase/genfix" "magebase/site")
             if [[ "$REPO_NAME" != "magebase/genfix" && "$REPO_NAME" != "magebase/site" ]]; then
               echo "❌ Unauthorized repository: $REPO_NAME"
               echo "can_promote=false" >> $GITHUB_OUTPUT

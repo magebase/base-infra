@@ -108,8 +108,10 @@ jobs:
             ENVIRONMENT="${{ github.event.client_payload.to_environment || 'prod' }}"
 
             # Validate that only allowed repositories can trigger this workflow
+            ALLOWED_REPOS=("magebase/genfix" "magebase/site" "magebase/base-infra")
             if [[ "$REPO_NAME" != "magebase/genfix" && "$REPO_NAME" != "magebase/site" && "$REPO_NAME" != "magebase/base-infra" ]]; then
               echo "❌ Unauthorized repository: $REPO_NAME"
+              echo "Allowed repositories: magebase/genfix, magebase/site, magebase/base-infra"
               exit 1
             fi
 
@@ -121,6 +123,7 @@ jobs:
             ENVIRONMENT="${{ github.event.inputs.environment }}"
 
             # Validate repository name for workflow dispatch as well
+            ALLOWED_REPOS=("magebase/genfix" "magebase/site" "magebase/base-infra")
             if [[ "$REPO_NAME" != "magebase/genfix" && "$REPO_NAME" != "magebase/site" && "$REPO_NAME" != "magebase/base-infra" ]]; then
               echo "❌ Invalid repository for workflow dispatch: $REPO_NAME"
               echo "Allowed repositories: magebase/genfix, magebase/site, magebase/base-infra"
