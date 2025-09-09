@@ -297,7 +297,7 @@ data:
     queue-sidecar-ephemeral-storage-limit: "2048Mi"
 
     # Queue sidecar image.
-    queue-sidecar-image: "gcr.io/knative-releases/knative.dev/serving/cmd/queue"
+    queue-sidecar-image: "gcr.io/knative-releases/knative.dev/serving/cmd/queue@sha256:d0be939fdfb469e52e999eb65f39466d18f029984a782affa26322c9fec6db78"
 
     # Registries skipping tag resolution.
     registries-skipping-tag-resolution: "ko.local,dev.local"
@@ -682,7 +682,7 @@ spec:
       serviceAccountName: controller
       containers:
       - name: activator
-        image: gcr.io/knative-releases/knative.dev/serving/cmd/activator@sha256:placeholder
+        image: gcr.io/knative-releases/knative.dev/serving/cmd/activator@sha256:031408ec516f374636a77ce1c689accfcfa13154abfef96716e636405f64464c
         ports:
         - containerPort: 9090
           name: metrics
@@ -759,7 +759,7 @@ spec:
       serviceAccountName: controller
       containers:
       - name: autoscaler
-        image: gcr.io/knative-releases/knative.dev/serving/cmd/autoscaler@sha256:placeholder
+        image: gcr.io/knative-releases/knative.dev/serving/cmd/autoscaler@sha256:3502bb5aa60f485ec702f98f0391fa54d91a30e905a1b7ad0adddcd31205c79c
         ports:
         - containerPort: 9090
           name: metrics
@@ -836,7 +836,7 @@ spec:
       serviceAccountName: controller
       containers:
       - name: controller
-        image: gcr.io/knative-releases/knative.dev/serving/cmd/controller@sha256:placeholder
+        image: gcr.io/knative-releases/knative.dev/serving/cmd/controller@sha256:5b93308a392c00381f0ac48e7f55806bce7b4d30c34cf399fc7dae3ec538b23d
         ports:
         - containerPort: 9090
           name: metrics
@@ -924,7 +924,7 @@ spec:
       serviceAccountName: controller
       containers:
       - name: webhook
-        image: gcr.io/knative-releases/knative.dev/serving/cmd/webhook@sha256:placeholder
+        image: gcr.io/knative-releases/knative.dev/serving/cmd/webhook@sha256:50831d9aaa69c4d2a8277d35650d3e2ad4832b4a04c0a089e715fd190fd8c273
         ports:
         - containerPort: 9090
           name: metrics
