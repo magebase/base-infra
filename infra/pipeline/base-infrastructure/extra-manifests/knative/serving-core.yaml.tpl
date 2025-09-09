@@ -28,6 +28,10 @@ rules:
 - apiGroups: [""]
   resources: ["pods", "services", "endpoints", "configmaps", "secrets"]
   verbs: ["get", "list", "create", "update", "delete", "patch", "watch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+  resourceNames: ["config-logging", "config-observability"]
 - apiGroups: ["apps"]
   resources: ["deployments", "replicasets"]
   verbs: ["get", "list", "create", "update", "delete", "patch", "watch"]
@@ -707,10 +711,10 @@ spec:
           value: knative.dev/serving
         resources:
           requests:
-            cpu: 300m
+            cpu: 50m
             memory: 60Mi
           limits:
-            cpu: 1000m
+            cpu: 200m
             memory: 600Mi
         securityContext:
           allowPrivilegeEscalation: false
@@ -784,10 +788,10 @@ spec:
           value: knative.dev/serving
         resources:
           requests:
-            cpu: 30m
+            cpu: 20m
             memory: 40Mi
           limits:
-            cpu: 300m
+            cpu: 100m
             memory: 400Mi
         securityContext:
           allowPrivilegeEscalation: false
@@ -859,10 +863,10 @@ spec:
           value: knative.dev/serving
         resources:
           requests:
-            cpu: 100m
+            cpu: 50m
             memory: 100Mi
           limits:
-            cpu: 1000m
+            cpu: 200m
             memory: 1000Mi
         securityContext:
           allowPrivilegeEscalation: false
@@ -953,10 +957,10 @@ spec:
           value: "8443"
         resources:
           requests:
-            cpu: 100m
+            cpu: 50m
             memory: 100Mi
           limits:
-            cpu: 500m
+            cpu: 200m
             memory: 500Mi
         securityContext:
           allowPrivilegeEscalation: false
