@@ -1425,8 +1425,8 @@ jobs:
         run: |
           echo "📦 Publishing package with Docker image links..."
 
-          # Get the release version from semantic release output
-          RELEASE_VERSION="${{ steps.semantic.outputs.new_release_version }}"
+          # Get the release version from semantic release output and add 'v' prefix
+          RELEASE_VERSION="v${{ steps.semantic.outputs.new_release_version }}"
 
           echo "🚀 New release published: ${RELEASE_VERSION}"
 
