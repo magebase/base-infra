@@ -57,6 +57,15 @@ locals {
   # Extract client names for for_each iteration
   client_names = [for client in local.clients : client.name]
 
+  # Dynamically generate targetRevision variables for all clients and environments
+  # This creates a map like: { "GENFIX_TARGET_REVISION_DEV" = "v1.2.1", "SITE_TARGET_REVISION_PROD" = "v1.2.1" }
+  target_revision_vars = merge([
+    for client in local.clients : {
+      for env in keys(client.targetRevision) :
+      "${upper(client.name)}_TARGET_REVISION_${upper(env)}" => client.targetRevision[env]
+    }
+  ]...)
+
   # ESO credentials for each client
   eso_genfix_access_key_id     = base64encode(module.external_secrets_roles.genfix_access_key_id)
   eso_genfix_secret_access_key = base64encode(module.external_secrets_roles.genfix_secret_access_key)
@@ -1259,35 +1268,38 @@ module "kube-hetzner" {
   # IMPORTANT: Set the following environment variables before running Terraform:
   # - TF_VAR_argocd_admin_password: ArgoCD admin password (bcrypt hashed)
   # - TF_VAR_argocd_repo_token: GitHub Personal Access Token for ArgoCD repository access
-  extra_kustomize_parameters = {
-    ENVIRONMENT           = var.environment
-    DOMAIN                = var.domain != "" ? var.domain : "magebase.dev"
-    ARGOCD_FQDN           = var.environment == "prod" ? "argocd.${var.domain != "" ? var.domain : "magebase.dev"}" : "argocd-dev.${var.domain != "" ? var.domain : "magebase.dev"}"
-    ARGOCD_ADMIN_PASSWORD = var.argocd_admin_password
-    ARGOCD_REPO_TOKEN     = var.argocd_repo_token
-    ENCRYPTION_KEY        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
-    CLOUDFLARE_API_TOKEN  = base64encode(var.cloudflare_api_token)
-    AWS_ACCOUNT_ID        = var.management_account_id
-    AWS_REGION            = var.aws_region
+  extra_kustomize_parameters = merge(
+    {
+      ENVIRONMENT           = var.environment
+      DOMAIN                = var.domain != "" ? var.domain : "magebase.dev"
+      ARGOCD_FQDN           = var.environment == "prod" ? "argocd.${var.domain != "" ? var.domain : "magebase.dev"}" : "argocd-dev.${var.domain != "" ? var.domain : "magebase.dev"}"
+      ARGOCD_ADMIN_PASSWORD = var.argocd_admin_password
+      ARGOCD_REPO_TOKEN     = var.argocd_repo_token
+      ENCRYPTION_KEY        = var.encryption_key != "" ? var.encryption_key : base64encode(random_password.encryption_key.result)
+      CLOUDFLARE_API_TOKEN  = base64encode(var.cloudflare_api_token)
+      AWS_ACCOUNT_ID        = var.management_account_id
+      AWS_REGION            = var.aws_region
 
-    # Cloudflare R2 parameters for PostgreSQL backups (with fallbacks)
-    R2_BUCKET            = try(module.cloudflare_r2.r2_bucket, "dev-magebase-postgres-backups")
-    R2_ENDPOINT          = try(module.cloudflare_r2.r2_endpoint, "https://12345678901234567890.r2.cloudflarestorage.com")
-    R2_ACCESS_KEY_ID     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : base64encode("placeholder")
-    R2_SECRET_ACCESS_KEY = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : base64encode("placeholder")
+      # Cloudflare R2 parameters for PostgreSQL backups (with fallbacks)
+      R2_BUCKET            = try(module.cloudflare_r2.r2_bucket, "dev-magebase-postgres-backups")
+      R2_ENDPOINT          = try(module.cloudflare_r2.r2_endpoint, "https://12345678901234567890.r2.cloudflarestorage.com")
+      R2_ACCESS_KEY_ID     = var.cloudflare_r2_access_key_id != "" ? base64encode(var.cloudflare_r2_access_key_id) : base64encode("placeholder")
+      R2_SECRET_ACCESS_KEY = var.cloudflare_r2_secret_access_key != "" ? base64encode(var.cloudflare_r2_secret_access_key) : base64encode("placeholder")
 
-    # SSH keys for cluster access
-    SSH_PRIVATE_KEY = base64encode(var.ssh_private_key)
-    SSH_PUBLIC_KEY  = base64encode(var.ssh_public_key)
+      # SSH keys for cluster access
+      SSH_PRIVATE_KEY = base64encode(var.ssh_private_key)
+      SSH_PUBLIC_KEY  = base64encode(var.ssh_public_key)
 
-    # External Secrets Operator IAM user access keys
-    ESO_GENFIX_ACCESS_KEY_ID     = local.eso_genfix_access_key_id
-    ESO_GENFIX_SECRET_ACCESS_KEY = local.eso_genfix_secret_access_key
-    ESO_SITE_ACCESS_KEY_ID       = local.eso_site_access_key_id
-    ESO_SITE_SECRET_ACCESS_KEY   = local.eso_site_secret_access_key
-    ESO_GENFIX_POLICY_ARN        = local.eso_genfix_policy_arn
-    ESO_SITE_POLICY_ARN          = local.eso_site_policy_arn
-  }
+      # External Secrets Operator IAM user access keys
+      ESO_GENFIX_ACCESS_KEY_ID     = local.eso_genfix_access_key_id
+      ESO_GENFIX_SECRET_ACCESS_KEY = local.eso_genfix_secret_access_key
+      ESO_SITE_ACCESS_KEY_ID       = local.eso_site_access_key_id
+      ESO_SITE_SECRET_ACCESS_KEY   = local.eso_site_secret_access_key
+      ESO_GENFIX_POLICY_ARN        = local.eso_genfix_policy_arn
+      ESO_SITE_POLICY_ARN          = local.eso_site_policy_arn
+    },
+    local.target_revision_vars
+  )
 
   # Disable export of values files to prevent any kustomization-related operations
   # export_values = false
