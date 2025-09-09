@@ -44,27 +44,6 @@ spec:
       ports:
         - protocol: TCP
           port: 443
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: argocd-allow
-  namespace: argocd
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: argocd-server
-  policyTypes:
-    - Ingress
-  ingress:
-    - from:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
 ## ArgoCD NetworkPolicies removed here; upstream manifest + patches now define them.
 ---
 apiVersion: networking.k8s.io/v1
