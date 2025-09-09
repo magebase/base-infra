@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/magebase/base-infra/compare/v1.4.0...v1.4.1) (2025-09-09)
+
+
+### Bug Fixes
+
+* enhance error handling in Docker image link step ([4eacb22](https://github.com/magebase/base-infra/commit/4eacb22cad49793bfe51b2d5573092b92bc198f9))
+
 # [1.4.0](https://github.com/magebase/base-infra/compare/v1.3.5...v1.4.0) (2025-09-09)
 
 
