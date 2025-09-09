@@ -1414,6 +1414,16 @@ jobs:
 
           echo "🚀 New release published: ${RELEASE_VERSION}"
 
+          # Verify the release exists before proceeding
+          echo "🔍 Verifying release ${RELEASE_VERSION} exists..."
+          if ! gh release view ${RELEASE_VERSION} --repo ${{ github.repository }} >/dev/null 2>&1; then
+            echo "❌ Release ${RELEASE_VERSION} not found in repository ${{ github.repository }}"
+            echo "📋 Available releases:"
+            gh release list --repo ${{ github.repository }} --limit 5
+            exit 1
+          fi
+          echo "✅ Release ${RELEASE_VERSION} found"
+
           # Read clients configuration
           CLIENTS_FILE="infra/pipeline/base-infrastructure/clients.json"
           if [ ! -f "$CLIENTS_FILE" ]; then
@@ -1456,10 +1466,16 @@ jobs:
           RELEASE_NOTES+="---\n\n"
           RELEASE_NOTES+="*This release includes infrastructure updates that support the above application versions.*"
 
-          # Update release notes
-          gh release edit ${RELEASE_VERSION} \
-            --notes "${RELEASE_NOTES}" \
-            --repo ${{ github.repository }}
+          # Update release notes with error handling
+          echo "📝 Updating release notes for ${RELEASE_VERSION}..."
+          if ! gh release edit ${RELEASE_VERSION} \
+              --notes "${RELEASE_NOTES}" \
+              --repo ${{ github.repository }}; then
+            echo "❌ Failed to update release notes for ${RELEASE_VERSION}"
+            echo "🔍 Checking release status..."
+            gh release view ${RELEASE_VERSION} --repo ${{ github.repository }} || echo "Release ${RELEASE_VERSION} not found"
+            exit 1
+          fi
 
           echo "✅ Package published with Docker image links"
 
