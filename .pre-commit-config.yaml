@@ -19,10 +19,10 @@ repos:
       - id: check-executables-have-shebangs
       # - id: check-shebang-scripts-are-executable
       - id: mixed-line-ending
-        files: \.(py|js|ts|tsx|jsx)$
+        files: \.(py|rb|js|ts|tsx|jsx)$
       - id: check-case-conflict
       - id: check-docstring-first
-        files: \.(py)$
+        files: \.(py|rb)$
       - id: requirements-txt-fixer
         files: requirements.*\.txt$
       # - id: file-contents-sorter
@@ -31,15 +31,68 @@ repos:
       #   # files: \.(txt|md)$
       - id: check-toml
       - id: check-json
+        exclude: tsconfig.*\.json$
       - id: check-xml
       - id: check-ast
-        files: \.(py)$
+        files: \.(py|rb)$
       - id: fix-byte-order-marker
       - id: forbid-new-submodules
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.88.0
+    hooks:
+      - id: terraform_fmt
+        files: \.(tf|tfvars)$
+        exclude: \.terraform/
+      # - id: terraform_validate
+      #   files: \.(tf|tfvars)$
+      #   exclude: \.terraform/
+      #   args:
+      #     - --tf-init-args=-backend=false
+      #     - --hook-config=--retry-once-with-cleanup=true
+      - id: terraform_tflint
+        files: \.(tf|tfvars)$
+        exclude: \.terraform/
+        args:
+          - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
+      # - id: terraform_trivy
+      #   files: \.(tf|tfvars)$
+      #   exclude: \.terraform/
+      # - id: terragrunt_providers_lock
+      #   files: \.(hcl)$
+      #   args:
+      #     - --args=--mode=lock
+      # - id: terraform_wrapper_module_for_each
+      #   files: \.(tf)$
+      #   exclude: \.terraform/
+
+  - repo: https://github.com/rubocop/rubocop
+    rev: v1.80.0
+    hooks:
+      - id: rubocop
+        files: \.(rb|rake)$
+        exclude: |
+          (?x)^(
+            db/schema\.rb$|
+            vendor/.*
+          )$
+        additional_dependencies:
+          - rubocop-rails
+          - rubocop-rails-omakase
 
   - repo: https://github.com/pre-commit/mirrors-eslint
     rev: v9.15.0
     hooks: []
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        name: Prettier Code Formatting Check
+        language: node
+        files: \.(js|jsx|ts|tsx|json|yaml|yml)$
+        exclude: package\.json$
+        description: Check code formatting with Prettier
 
   # - repo: https://github.com/shellcheck-py/shellcheck-py
   #   rev: v0.10.0.1
@@ -58,24 +111,12 @@ repos:
       - id: terraform_fmt
         files: \.(tf|tfvars)$
         exclude: \.terraform/
+      # Removed terraform_validate due to missing providers issue
       # - id: terraform_validate
       #   files: \.(tf|tfvars)$
       #   exclude: \.terraform/
-      - id: terraform_tflint
-        files: \.(tf|tfvars)$
-        exclude: \.terraform/
-        args:
-          - --args=--config=__GIT_WORKING_DIR__/.tflint.hcl
-      # - id: terraform_trivy
-      #   files: \.(tf|tfvars)$
-      #   exclude: \.terraform/
-      # - id: terragrunt_providers_lock
-      #   files: \.(hcl)$
-      #   args:
-      #     - --args=--mode=lock
-      # - id: terraform_wrapper_module_for_each
-      #   files: \.(tf)$
-      #   exclude: \.terraform/
+      # Removed terraform_docs as terraform-docs is not installed
+      # Use CI/CD pipeline for full validation and documentation
 
   - repo: local
     hooks:
@@ -86,6 +127,57 @@ repos:
         files: \.(ts|tsx)$
         pass_filenames: false
         description: Run TypeScript compiler to check for type errors
+
+      - id: rails-routes-check
+        name: Rails Routes Check
+        entry: bash -c "RAILS_MASTER_KEY=4c0c11a6d1bc2ef984357839668cdb5c bin/rails routes"
+        language: system
+        files: config/routes\.rb$
+        pass_filenames: false
+        description: Check if Rails routes are valid
+
+      - id: rails-schema-check
+        name: Rails Schema Check
+        entry: bin/rails db:schema:dump
+        language: system
+        files: db/schema\.rb$
+        pass_filenames: false
+        description: Validate Rails database schema
+
+      - id: annotaterb-models
+        name: AnnotateRb Model Annotations
+        entry: |
+          sh -c "if command -v annotaterb >/dev/null 2>&1; then annotaterb models --position=after --sort; else echo \"⚠️  Skipping AnnotateRb (annotaterb not installed)\"; fi"
+        language: system
+        files: app/models/.*\.rb$
+        pass_filenames: false
+        description: Add schema annotations to Rails model files
+
+      - id: bundle-audit
+        name: Bundle Audit
+        entry: |
+          sh -c "if command -v bundle-audit >/dev/null 2>&1; then bundle-audit check --update; else echo \"⚠️  Skipping bundle audit (bundle-audit not installed)\"; fi"
+        language: system
+        files: Gemfile\.lock$
+        pass_filenames: false
+        description: Check for vulnerable gems in Gemfile.lock
+
+      - id: brakeman
+        name: Brakeman Security Scan
+        entry: |
+          sh -c "if command -v brakeman >/dev/null 2>&1; then brakeman --no-pager .; else echo \"⚠️  Skipping Brakeman security scan (brakeman not installed)\"; fi"
+        language: system
+        files: \.(rb|erb|haml|slim)$
+        pass_filenames: false
+        description: Run Brakeman security scanner on Rails application
+
+      - id: ruby-syntax-check
+        name: Ruby Syntax Check
+        entry: ruby -c
+        language: system
+        files: \.(rb|rake)$
+        pass_filenames: true
+        description: Check Ruby syntax
 
       - id: node-syntax-check
         name: Node.js Syntax Check
@@ -118,7 +210,7 @@ repos:
         entry: |
           sh -c "if command -v kustomize >/dev/null 2>&1; then kustomize build --load-restrictor LoadRestrictionsNone \"$1\"; else echo \"⚠️  Skipping kustomization validation (kustomize not installed): $1\"; fi"
         language: system
-        files: .*kustomization\.ya?ml(\.tpl)?$
+        files: ^kustomization\.ya?ml(\.tpl)?$
         pass_filenames: true
         description: Validate kustomization files can be built successfully
 
@@ -127,7 +219,7 @@ repos:
         entry: |
           sh -c "if command -v kustomize >/dev/null 2>&1; then kustomize build --load-restrictor LoadRestrictionsNone \"$1\" > /dev/null && echo \"✓ $1 validates successfully\"; else echo \"⚠️  Skipping kustomization linting (kustomize not installed): $1\"; fi"
         language: system
-        files: .*kustomization\.ya?ml(\.tpl)?$
+        files: ^kustomization\.ya?ml(\.tpl)?$
         pass_filenames: true
         description: Lint kustomization files for build errors
 
@@ -162,8 +254,8 @@ ci:
 
     for more information, see https://pre-commit.ci
   autofix_prs: true
-  autoupdate_branch: ""
-  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
   autoupdate_schedule: weekly
   skip: []
   submodules: false

@@ -1,0 +1,137 @@
+# See https://docs.docker.com/engine/reference/builder/#dockerignore-file for more about ignoring files.
+
+# Ignore git directory.
+/.git/
+/.gitignore
+/.gitattributes
+
+# Ignore bundler config.
+/.bundle
+
+# Ignore all environment files.
+/.env*
+
+# Ignore all default key files.
+/config/master.key
+/config/credentials/*.key
+
+# Ignore all logfiles and tempfiles.
+/log/*
+/tmp/*
+!/log/.keep
+!/tmp/.keep
+
+# Ignore pidfiles, but keep the directory.
+/tmp/pids/*
+!/tmp/pids/.keep
+
+# Ignore storage (uploaded files in development and any SQLite databases).
+/storage/*
+!/storage/.keep
+/tmp/storage/*
+!/tmp/storage/.keep
+
+# Ignore assets.
+/node_modules/
+/app/assets/builds/*
+!/app/assets/builds/.keep
+/public/assets
+/public/vite-dev/
+/public/vite-ssr/
+/public/vite-test/
+
+# Ignore CI service files.
+/.github
+/.circleci
+/.travis.yml
+
+# Ignore development and testing files
+/.devcontainer
+/.vscode
+/.idea
+*.swp
+*.swo
+*~
+
+# Ignore documentation and README files
+/README.md
+/docs/
+/*.md
+!CHANGELOG.md
+
+# Ignore test files and directories
+/test/
+/tests/
+/spec/
+/e2e/
+*_test.rb
+*_spec.rb
+
+# Ignore scripts and setup files
+/script/
+/bin/setup
+/bin/dev
+/bin/jobs
+/bin/rails
+/bin/rake
+/bin/setup
+/bin/thrust
+/bin/docker-entrypoint
+/setup*.sh
+/test*.sh
+/test*.rb
+/setup.ts
+/tsconfig*.json
+/vite.config.ts
+/vitest.config.ts
+/.pre-commit-config.yaml
+/.rubocop.yml
+/.eslintrc.cjs
+/.ruby-lsp/
+
+# Ignore infrastructure files
+/infra/
+/k8s/
+/AWS_SETUP_README.md
+/CLOUDFLARE_SETUP.md
+/INFRASTRUCTURE_*.md
+/SES_MANAGEMENT_DEPLOYMENT_README.md
+
+# Ignore Docker-related files
+/.dockerignore
+/Dockerfile
+/docker-compose.yml
+
+# Ignore vendor and cache directories
+/vendor/
+/.ruby-version
+/.ruby-lsp/
+Gemfile.lock.bak
+/Dockerfile*
+
+# Additional optimizations
+# Ignore OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ignore coverage reports
+/coverage/
+/.nyc_output/
+
+# Ignore lock files that aren't needed
+yarn.lock
+pnpm-lock.yaml
+
+# Ignore development databases
+*.sqlite3
+*.db
+
+# Ignore backup files
+*.bak
+*.backup
+*.old
