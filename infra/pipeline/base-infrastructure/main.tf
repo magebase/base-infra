@@ -143,10 +143,6 @@ resource "aws_ssm_parameter" "database_password" {
   value     = random_password.database_password[each.key].result
   overwrite = false # Don't overwrite existing passwords
 
-  lifecycle {
-    prevent_destroy = true # Prevent accidental deletion
-  }
-
   tags = {
     Environment = var.environment
     Client      = each.key
