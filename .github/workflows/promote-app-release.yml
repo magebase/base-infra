@@ -37,7 +37,7 @@ on:
 jobs:
   semantic-release:
     name: "Semantic Release"
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-latest-arm
     permissions:
       contents: write
       pull-requests: write
@@ -73,7 +73,7 @@ jobs:
 
   validate-promotion:
     name: "Validate Promotion"
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-latest-arm
     outputs:
       can_promote: ${{ steps.validate.outputs.can_promote }}
       repository: ${{ steps.validate.outputs.repository }}
@@ -152,7 +152,7 @@ jobs:
 
   performance-test:
     name: "Performance Testing"
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-latest-arm
     needs: validate-promotion
     if: needs.validate-promotion.outputs.can_promote == 'true'
 
@@ -209,7 +209,7 @@ jobs:
 
   promote-app:
     name: "Promote Application"
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-latest-arm
     needs: [semantic-release, validate-promotion, performance-test]
     if: needs.validate-promotion.outputs.can_promote == 'true' && needs.performance-test.result == 'success'
     permissions:

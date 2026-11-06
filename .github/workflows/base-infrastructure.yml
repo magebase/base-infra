@@ -53,7 +53,7 @@ jobs:
   # ===== TERRAFORM STATE BACKEND BOOTSTRAP =====
   bootstrap:
     name: "Terraform State Backend Bootstrap"
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-latest-arm
     permissions:
       id-token: write
       contents: write
@@ -110,7 +110,7 @@ jobs:
           echo "dynamodb_table=$DYNAMODB_TABLE" >> $GITHUB_OUTPUT
   base-infrastructure-deploy:
     name: "Base Infrastructure Deployment (k3s Cluster)"
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-latest-arm
     needs: [bootstrap]
     permissions:
       id-token: write
@@ -818,7 +818,7 @@ jobs:
 
   base-infrastructure-destroy:
     name: "Base Infrastructure Destroy (k3s Cluster)"
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-latest-arm
     needs: [bootstrap]
     permissions:
       id-token: write
@@ -1322,7 +1322,7 @@ jobs:
 
   security-scan:
     name: Security and Compliance Scan
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-latest-arm
     needs: base-infrastructure-deploy
     permissions:
       contents: read
@@ -1389,7 +1389,7 @@ jobs:
   # ===== SEMANTIC RELEASE =====
   semantic-release:
     name: "Semantic Release"
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-latest-arm
     needs: security-scan
     permissions:
       contents: write
@@ -1528,7 +1528,7 @@ jobs:
   # ===== NOTIFICATION =====
   notify:
     name: "Pipeline Notification"
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-latest-arm
     needs:
       [bootstrap, base-infrastructure-deploy, security-scan, semantic-release]
     if: always()

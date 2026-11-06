@@ -349,7 +349,7 @@
 * add GitHub secrets support for HCLOUD_TOKEN and CLOUDFLARE_API_TOKEN ([e884561](https://github.com/magebase/base-infra/commit/e8845613c280a5c4323c194c0f4ef1483f235bc5))
 * Add GitHubActionsSSORole to org-sso and complete bootstrap setup ([e5521ec](https://github.com/magebase/base-infra/commit/e5521eca36550be1b5466ac8976163d183ac251b))
 * Add template processing to workflow for Cloudflare R2 integration ([643da5e](https://github.com/magebase/base-infra/commit/643da5eb229f59901bff2ef52c6eefd0a47a49c3))
-* add ubicloud runner ([c19b0ea](https://github.com/magebase/base-infra/commit/c19b0eafc99361aaebfc80f589367018d96eda21))
+* add GitHub-hosted runner ([c19b0ea](https://github.com/magebase/base-infra/commit/c19b0eafc99361aaebfc80f589367018d96eda21))
 * enable HTTPS for ArgoCD with Let's Encrypt SSL certificates ([41e715c](https://github.com/magebase/base-infra/commit/41e715c19ac805e8c73ec0b88e00708e195304c3))
 * Ensure site-infrastructure only runs when unified-infrastructure succeeds for same commit ([939ab77](https://github.com/magebase/base-infra/commit/939ab77372702514e484e169030d38a9d285a0c3))
 * ensure SSO is enabled and all parameters passed in env-accounts ([2b23574](https://github.com/magebase/base-infra/commit/2b23574c44bcd9c49bc44f4496e4637e3b402f2c))
